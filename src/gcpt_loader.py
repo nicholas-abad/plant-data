@@ -43,19 +43,26 @@ class GCPTLoader:
         """
         Find the most recent GCPT data file.
 
+        Prefers global CSV/Excel files over crosswalk files.
+
         Returns:
             Path to the GCPT file or None if not found.
         """
-        # Look for Excel files in the data directory
-        excel_patterns = ["gcpt_global_*.xlsx", "GCPT*.xlsx", "*GCPT*.xlsx"]
+        # Priority 1: Global GCPT files (CSV or Excel)
+        global_patterns = [
+            "gcpt_global_*.csv",
+            "gcpt_global_*.xlsx",
+            "*GCPT_Database*.csv",
+            "GCPT*.xlsx",
+        ]
 
-        for pattern in excel_patterns:
+        for pattern in global_patterns:
             files = list(self._data_path.glob(pattern))
             if files:
                 # Return the most recently modified file
                 return max(files, key=lambda p: p.stat().st_mtime)
 
-        # Also check for EIA crosswalk file (contains coordinate data)
+        # Priority 2: EIA crosswalk file (US-only, contains coordinate data)
         crosswalk_files = list(self._data_path.glob("*EIA*GCPT*crosswalk*.xlsx"))
         if crosswalk_files:
             return max(crosswalk_files, key=lambda p: p.stat().st_mtime)
@@ -83,7 +90,12 @@ class GCPTLoader:
 
         try:
             logger.info(f"Loading GCPT data from {gcpt_file}")
-            df = pd.read_excel(gcpt_file)
+
+            # Load based on file type
+            if gcpt_file.suffix == ".csv":
+                df = pd.read_csv(gcpt_file, low_memory=False)
+            else:
+                df = pd.read_excel(gcpt_file)
 
             # Rename columns to standardized names (only rename if column exists)
             rename_map = {
@@ -91,6 +103,10 @@ class GCPTLoader:
                 if old in df.columns
             }
             df = df.rename(columns=rename_map)
+
+            # Also handle "Capacity" without "(MW)" suffix
+            if "Capacity" in df.columns and "capacity_mw" not in df.columns:
+                df = df.rename(columns={"Capacity": "capacity_mw"})
 
             # Ensure coordinate columns are numeric
             for col in ["latitude", "longitude"]:
