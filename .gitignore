@@ -51,3 +51,6 @@ htmlcov/
 # But ignore large temporary files
 *.tmp
 *.temp
+
+# Environment credentials
+.env
