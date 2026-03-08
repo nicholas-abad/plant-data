@@ -1,115 +1,103 @@
 # Plant Data Repository
 
-Centralized plant coordinate data for power generation analysis. This repository provides unified access to plant location data from the Global Coal Plant Tracker (GCPT) for use across all extractors (EIA, ENTSOE, India NPP) and the dashboard.
+Centralized plant coordinate matching for the energy generation dashboard. Maps plant names from 5 generation data sources (EIA, ENTSOE, NPP, ONS, OE) to geographic coordinates using a multi-stage matching pipeline: exact lookup, rapidfuzz, and LLM fallback.
 
-## Data Sources
+## Reference Databases
 
-| Source | Coverage | Format | License |
-|--------|----------|--------|---------|
-| [Global Coal Plant Tracker](https://globalenergymonitor.org/projects/global-coal-plant-tracker/) | Global coal plants ≥30MW | Excel | CC BY 4.0 |
+| Source | Coverage | Location |
+|--------|----------|----------|
+| [GEM](https://globalenergymonitor.org/) (Global Energy Monitor) | Global coal/gas/etc plants | `data/GEM database_21Feb2026.csv` |
+| GCPT (EIA crosswalk) | US coal plants with EIA IDs | `data/gcpt/*.xlsx` |
+| [GPPD](https://datasets.wri.org/dataset/globalpowerplantdatabase) (Global Power Plant Database) | Global power plants | `data/crosswalks/global_power_plant_database.csv` |
 
 ## Repository Structure
 
 ```
 plant-data/
-├── data/
-│   ├── gcpt/
-│   │   ├── gcpt_global_2025.xlsx         # Full GCPT download
-│   │   └── README.md                      # Data source, license, update date
-│   └── crosswalks/
-│       ├── eia_plant_coordinates.parquet  # Pre-computed EIA matches
-│       ├── entsoe_plant_coordinates.parquet
-│       └── npp_plant_coordinates.parquet
 ├── src/
-│   ├── __init__.py
-│   ├── gcpt_loader.py                     # Load and parse GCPT data
-│   ├── coordinate_matcher.py              # Match plant names to coordinates
-│   └── utils.py
+│   ├── build_crosswalk.py           # Unified crosswalk pipeline (main entry point)
+│   ├── gcpt_loader.py               # Load GCPT Excel/CSV data
+│   ├── utils.py                     # Path helpers, parquet I/O, validation
+│   └── plant_name_matchers/
+│       ├── base.py                  # BaseNameMatcher ABC + MatchResult
+│       ├── gemini.py                # Google Gemini LLM implementation
+│       ├── normalizers.py           # Shared name normalization functions
+│       └── retriever.py             # CandidateRetriever for LLM prompts
 ├── scripts/
-│   ├── download_gcpt.py                   # Download latest GCPT from GEM
-│   └── build_crosswalks.py                # Generate source-specific crosswalks
+│   ├── build_gcpt_crosswalks.py     # GCPT Excel → per-source crosswalk parquets
+│   └── bootstrap_neon_db.py         # Load schema + reference data into Neon DB
+├── notebooks/
+│   ├── npp_coordinate_coverage.ipynb # India NPP coverage analysis
+│   └── eia_gem_coverage.ipynb        # US EIA coverage analysis
 ├── tests/
-│   └── test_coordinate_matcher.py
-├── pyproject.toml
-└── README.md
+├── data/
+│   ├── GEM database_21Feb2026.csv   # GEM reference database (~64MB)
+│   ├── gcpt/                        # GCPT Excel files + README
+│   ├── cache/                       # Runtime parquet caches (gitignored)
+│   └── crosswalks/                  # Output: built crosswalk files
+└── .env.template                    # Required: Neon DB + Gemini API credentials
 ```
 
 ## Installation
 
 ```bash
-# Install with uv
 uv sync
 
 # Or with pip
 pip install -e .
 ```
 
-## Usage
+Copy `.env.template` to `.env` and fill in your Neon DB credentials and Gemini API key.
 
-### Load GCPT Data
+## Unified Crosswalk Pipeline
 
-```python
-from src.gcpt_loader import GCPTLoader
-
-loader = GCPTLoader()
-df = loader.load_global_data()
-print(f"Loaded {len(df)} plant records")
-
-# Filter by country
-us_plants = loader.filter_by_country(["United States"])
-eu_plants = loader.filter_by_country(["Germany", "France", "Poland"])
-```
-
-### Match Plant Names to Coordinates
-
-```python
-from src.coordinate_matcher import CoordinateMatcher
-
-matcher = CoordinateMatcher()
-
-# Fuzzy match plant names
-results = matcher.match_plant_names(
-    plant_names=["Colstrip", "Navajo Generating"],
-    country="United States"
-)
-```
-
-### Load Pre-computed Crosswalks
-
-```python
-import pandas as pd
-
-# EIA crosswalk (exact matches on EIA plant + unit ID)
-eia_coords = pd.read_parquet("data/crosswalks/eia_plant_coordinates.parquet")
-
-# ENTSOE crosswalk (fuzzy matches on plant name + country)
-entsoe_coords = pd.read_parquet("data/crosswalks/entsoe_plant_coordinates.parquet")
-```
-
-## Building Crosswalks
-
-To regenerate the crosswalk files from source data:
+The main entry point is `build_crosswalk.py`, which produces a single `unified_plant_crosswalk.parquet` mapping every plant to coordinates:
 
 ```bash
-# Build all crosswalks
-uv run python scripts/build_crosswalks.py
+# Full pipeline (exact + rapidfuzz + LLM)
+uv run python -m src.build_crosswalk
 
-# Build specific crosswalk
-uv run python scripts/build_crosswalks.py --source eia
+# Skip LLM step (faster, no API key needed)
+uv run python -m src.build_crosswalk --no-llm
+
+# Force rebuild (delete cached output)
+uv run python -m src.build_crosswalk --force
 ```
 
-## Data Update Schedule
+### Pipeline Steps
 
-GCPT data is updated bi-annually (January/July). To update:
+1. **Pull plant names** from 5 Neon DB generation tables (NPP, ENTSOE, EIA, ONS, OE)
+2. **Exact matching** -- EIA via GCPT crosswalk ID, OE via API-embedded coords
+3. **Rapidfuzz matching** -- GEM (`token_sort_ratio >= 80`), GPPD (`token_sort_ratio >= 80`)
+4. **LLM matching** -- Gemini API with top-15 candidates per source (high/medium confidence only)
+5. **Output** -- `data/crosswalks/unified_plant_crosswalk.parquet`
 
-1. Download latest GCPT from [Global Energy Monitor](https://globalenergymonitor.org/projects/global-coal-plant-tracker/download-data/)
-2. Place in `data/gcpt/gcpt_global_YYYY.xlsx`
-3. Update `data/gcpt/README.md` with new version info
-4. Run `scripts/build_crosswalks.py` to regenerate crosswalks
+### Output Schema
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `plant_name` | str | Original plant name from generation data |
+| `source_system` | str | NPP, ENTSOE, EIA, ONS, OE |
+| `latitude` | float | Resolved latitude (null if unmatched) |
+| `longitude` | float | Resolved longitude (null if unmatched) |
+| `ref_source` | str | GEM, GPPD, OE-direct |
+| `matching_method` | str | exact, rapidfuzz, llm, direct |
+| `confidence` | str | high/medium/low (LLM only) |
+| `ref_matched_name` | str | Name in reference DB that was matched |
+
+## Other Scripts
+
+```bash
+# Build per-source crosswalk parquets from GCPT Excel data
+uv run python scripts/build_gcpt_crosswalks.py --source all
+
+# Bootstrap Neon DB with schema + reference data
+uv run python scripts/bootstrap_neon_db.py
+```
 
 ## License
 
 - Code: MIT License
-- GCPT Data: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+- GEM/GCPT Data: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 
-Data attribution: Global Energy Monitor, Global Coal Plant Tracker, [release date], https://globalenergymonitor.org/projects/global-coal-plant-tracker/
+Data attribution: Global Energy Monitor, Global Coal Plant Tracker, https://globalenergymonitor.org/projects/global-coal-plant-tracker/
