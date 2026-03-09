@@ -38,6 +38,7 @@ SCHEMA_FILES = [
     "ons_generation.sql",
     "oe_generation.sql",
     "oe_facility_generation.sql",
+    "occto_generation.sql",
     "materialized_views.sql",
 ]
 

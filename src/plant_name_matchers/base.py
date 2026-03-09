@@ -85,6 +85,20 @@ _SOURCE_CONTEXT = {
             "- State abbreviations: NSW, VIC, QLD, SA, WA, TAS"
         ),
     },
+    "OCCTO": {
+        "expertise": "Japanese power plants",
+        "label": "OCCTO (Organization for Cross-regional Coordination of Transmission Operators, Japan)",
+        "patterns": (
+            "Japanese power plant naming patterns to consider:\n"
+            "- Names are in Japanese (kanji): e.g., \"苫東厚真\" (Tomato-Atsuma), \"碧南\" (Hekinan)\n"
+            "- Reference databases (GEM/GPPD) use romanized English names\n"
+            "- Match kanji plant names to their romanized equivalents\n"
+            "- Common suffixes in Japanese: \"火力発電所\" (thermal power plant), \"発電所\" (power plant)\n"
+            "- Area/location names may appear as prefixes: \"磯子\" (Isogo), \"橘湾\" (Tachibana Bay)\n"
+            "- Company names may be omitted or abbreviated: \"JERA\", \"電源開発\" (J-POWER)\n"
+            "- Some plants use location + fuel: \"敦賀火力\" = Tsuruga Thermal"
+        ),
+    },
 }
 
 _DEFAULT_CONTEXT = {

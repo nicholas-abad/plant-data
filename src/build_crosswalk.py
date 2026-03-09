@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Build unified plant coordinate crosswalk from all 5 generation sources.
+"""Build unified plant coordinate crosswalk from all 6 generation sources.
 
 Produces a single parquet file mapping every unique plant name (from EIA,
-ENTSOE, NPP, ONS, OE) to coordinates, with an audit trail of how each
+ENTSOE, NPP, ONS, OE, OCCTO) to coordinates, with an audit trail of how each
 was matched.
 
 Pipeline:
@@ -18,6 +18,8 @@ Usage:
     python -m src.build_crosswalk                       # run full pipeline
     python -m src.build_crosswalk --no-llm              # skip LLM step
     python -m src.build_crosswalk --force               # rebuild from scratch
+    python -m src.build_crosswalk --sources OCCTO       # run only for OCCTO (appends to existing)
+    python -m src.build_crosswalk --sources OCCTO NPP   # run for specific sources
 """
 
 import os
@@ -74,6 +76,7 @@ SOURCE_COUNTRIES = {
     "EIA": {"gppd": "USA", "gem": "United States of America"},
     "ONS": {"gppd": "BRA", "gem": "Brazil"},
     "OE": {"gppd": "AUS", "gem": "Australia"},
+    "OCCTO": {"gppd": "JPN", "gem": "Japan"},
 }
 
 # Columns in the output
@@ -105,15 +108,24 @@ def _make_engine():
 # ---------------------------------------------------------------------------
 # Step 1: Pull distinct plant names
 # ---------------------------------------------------------------------------
-def pull_plant_names(engine) -> pd.DataFrame:
-    """Pull distinct plant names from all 5 generation tables."""
-    queries = {
+def pull_plant_names(engine, sources: list[str] | None = None) -> pd.DataFrame:
+    """Pull distinct plant names from generation tables.
+
+    Args:
+        engine: SQLAlchemy engine.
+        sources: If provided, only pull from these source systems.
+                 If None, pull from all sources.
+    """
+    all_queries = {
         "NPP": "SELECT DISTINCT plant AS plant_name FROM npp_generation WHERE plant IS NOT NULL",
         "ENTSOE": "SELECT DISTINCT plant_name FROM entsoe_generation_data WHERE plant_name IS NOT NULL",
         "EIA": "SELECT DISTINCT plant_code AS plant_name FROM eia_generation_data WHERE plant_code IS NOT NULL",
         "ONS": "SELECT DISTINCT plant AS plant_name FROM ons_generation_data WHERE plant IS NOT NULL",
         "OE": "SELECT DISTINCT facility_name AS plant_name, latitude, longitude FROM oe_facility_generation_data WHERE facility_name IS NOT NULL",
+        "OCCTO": "SELECT DISTINCT plant AS plant_name FROM occto_generation_data WHERE plant IS NOT NULL",
     }
+
+    queries = {k: v for k, v in all_queries.items() if sources is None or k in sources}
 
     frames = []
     with engine.connect() as conn:
@@ -126,19 +138,21 @@ def pull_plant_names(engine) -> pd.DataFrame:
             logger.info(f"  {source}: {len(df):,} distinct plants")
 
     # EIA: resolve plant_code → plant_name via lookup CSV
-    eia_idx = [i for i, (src, _) in enumerate(queries.items()) if src == "EIA"][0]
-    eia_df = frames[eia_idx]
-    if EIA_LOOKUP_CSV.exists():
-        lookup = pd.read_csv(EIA_LOOKUP_CSV, dtype={"plant_code": str})
-        eia_df = eia_df.rename(columns={"plant_name": "plant_code"})
-        eia_df["plant_code"] = eia_df["plant_code"].astype(str)
-        eia_df = eia_df.merge(lookup, on="plant_code", how="left")
-        eia_df["plant_name"] = eia_df["plant_name"].fillna(eia_df["plant_code"])
-        logger.info(f"  EIA: resolved {eia_df['plant_name'].ne(eia_df['plant_code']).sum():,} plant codes to names via lookup")
-    else:
-        eia_df["plant_code"] = eia_df["plant_name"]
-        logger.warning(f"  EIA lookup CSV not found: {EIA_LOOKUP_CSV}, using plant_code as plant_name")
-    frames[eia_idx] = eia_df
+    eia_indices = [i for i, (src, _) in enumerate(queries.items()) if src == "EIA"]
+    if eia_indices:
+        eia_idx = eia_indices[0]
+        eia_df = frames[eia_idx]
+        if EIA_LOOKUP_CSV.exists():
+            lookup = pd.read_csv(EIA_LOOKUP_CSV, dtype={"plant_code": str})
+            eia_df = eia_df.rename(columns={"plant_name": "plant_code"})
+            eia_df["plant_code"] = eia_df["plant_code"].astype(str)
+            eia_df = eia_df.merge(lookup, on="plant_code", how="left")
+            eia_df["plant_name"] = eia_df["plant_name"].fillna(eia_df["plant_code"])
+            logger.info(f"  EIA: resolved {eia_df['plant_name'].ne(eia_df['plant_code']).sum():,} plant codes to names via lookup")
+        else:
+            eia_df["plant_code"] = eia_df["plant_name"]
+            logger.warning(f"  EIA lookup CSV not found: {EIA_LOOKUP_CSV}, using plant_code as plant_name")
+        frames[eia_idx] = eia_df
 
     # Add plant_code=None for non-EIA sources
     for i, f in enumerate(frames):
@@ -426,23 +440,43 @@ def _log_per_source(matched_df: pd.DataFrame, input_df: pd.DataFrame, stage: str
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
-def build_unified_crosswalk(skip_llm: bool = False) -> pd.DataFrame:
-    """Run the full pipeline and return the unified crosswalk DataFrame."""
+def build_unified_crosswalk(
+    skip_llm: bool = False,
+    sources: list[str] | None = None,
+    yes: bool = False,
+) -> pd.DataFrame:
+    """Run the full pipeline and return the unified crosswalk DataFrame.
 
-    # Check for cached output
-    if OUTPUT_FILE.exists():
-        logger.info(f"Found existing output: {OUTPUT_FILE}")
+    Args:
+        skip_llm: If True, skip the LLM matching step.
+        sources: If provided, only process these source systems.
+                 Results are merged into any existing crosswalk file.
+                 If None, process all sources (full rebuild).
+        yes: If True, skip interactive confirmations.
+    """
+    existing = None
+
+    # When running for specific sources, load existing and merge later
+    if sources and OUTPUT_FILE.exists():
         existing = pd.read_parquet(OUTPUT_FILE)
-        logger.info(f"  {len(existing):,} rows, {existing['latitude'].notna().mean():.1%} with coords")
+        logger.info(f"Loaded existing crosswalk: {len(existing):,} rows")
+        # Remove old rows for the requested sources (we'll rebuild them)
+        existing = existing[~existing["source_system"].isin(sources)]
+        logger.info(f"  Kept {len(existing):,} rows (excluded {', '.join(sources)} for rebuild)")
+    elif not sources and OUTPUT_FILE.exists():
+        logger.info(f"Found existing output: {OUTPUT_FILE}")
+        cached = pd.read_parquet(OUTPUT_FILE)
+        logger.info(f"  {len(cached):,} rows, {cached['latitude'].notna().mean():.1%} with coords")
         logger.info("Delete the file to rebuild, or use --force to overwrite")
-        return existing
+        return cached
 
     engine = _make_engine()
 
     # Step 1: Pull plant names
     logger.info("=" * 60)
-    logger.info("Step 1: Pulling distinct plant names from Neon DB...")
-    plants_df = pull_plant_names(engine)
+    src_label = ", ".join(sources) if sources else "all"
+    logger.info(f"Step 1: Pulling distinct plant names from Neon DB ({src_label})...")
+    plants_df = pull_plant_names(engine, sources=sources)
     logger.info(f"Total distinct plant entries: {len(plants_df):,}")
 
     # Save full EIA plant_code→plant_name mapping before dedup
@@ -507,7 +541,10 @@ def build_unified_crosswalk(skip_llm: bool = False) -> pd.DataFrame:
         est_cost = n_plants * 0.001  # rough estimate: ~$0.001 per plant
         logger.info(f"LLM matching will process {n_plants:,} plants")
         logger.info(f"Estimated cost: ~${est_cost:.2f}")
-        confirm = input(f"Proceed with LLM matching for {n_plants:,} plants (~${est_cost:.2f})? [y/N] ")
+        if yes:
+            confirm = "y"
+        else:
+            confirm = input(f"Proceed with LLM matching for {n_plants:,} plants (~${est_cost:.2f})? [y/N] ")
         if confirm.strip().lower() == "y":
             llm_df = match_llm(unmatched_2)
             logger.info(f"LLM matches: {len(llm_df):,}")
@@ -544,21 +581,28 @@ def build_unified_crosswalk(skip_llm: bool = False) -> pd.DataFrame:
         })
     unmatched_df = pd.DataFrame(unmatched_rows, columns=OUTPUT_COLUMNS)
 
-    unified = pd.concat([exact_df, gem_df, gppd_df, llm_df, unmatched_df], ignore_index=True)
+    new_rows = pd.concat([exact_df, gem_df, gppd_df, llm_df, unmatched_df], ignore_index=True)
 
     # Expand EIA rows: if multiple plant_codes share the same plant_name,
     # create one crosswalk row per plant_code (all sharing the same coords)
-    eia_rows = unified[unified["source_system"] == "EIA"]
-    non_eia_rows = unified[unified["source_system"] != "EIA"]
+    eia_rows = new_rows[new_rows["source_system"] == "EIA"]
+    non_eia_rows = new_rows[new_rows["source_system"] != "EIA"]
     if not eia_rows.empty and not eia_code_map.empty:
         # Drop the single plant_code from matching, re-join with full mapping
         eia_expanded = eia_rows.drop(columns=["plant_code"]).merge(
             eia_code_map, on="plant_name", how="left",
         )
-        unified = pd.concat([non_eia_rows, eia_expanded], ignore_index=True)
-        n_added = len(unified) - len(non_eia_rows) - len(eia_rows)
+        new_rows = pd.concat([non_eia_rows, eia_expanded], ignore_index=True)
+        n_added = len(new_rows) - len(non_eia_rows) - len(eia_rows)
         if n_added > 0:
             logger.info(f"Expanded {n_added} additional EIA rows for duplicate plant names")
+
+    # Merge with existing crosswalk when running for specific sources
+    if existing is not None:
+        unified = pd.concat([existing, new_rows], ignore_index=True)
+        logger.info(f"Merged {len(new_rows):,} new rows with {len(existing):,} existing → {len(unified):,} total")
+    else:
+        unified = new_rows
 
     # Save
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -589,19 +633,26 @@ def build_unified_crosswalk(skip_llm: bool = False) -> pd.DataFrame:
 def main():
     import argparse
 
+    valid_sources = list(SOURCE_COUNTRIES.keys())
+
     parser = argparse.ArgumentParser(description="Build unified plant coordinate crosswalk")
     parser.add_argument("--no-llm", action="store_true", help="Skip LLM matching step")
     parser.add_argument("--force", action="store_true", help="Overwrite existing output file")
+    parser.add_argument(
+        "--sources", nargs="+", choices=valid_sources, metavar="SOURCE",
+        help=f"Only process specific sources (appends to existing). Choices: {', '.join(valid_sources)}",
+    )
+    parser.add_argument("--yes", "-y", action="store_true", help="Skip interactive confirmations")
     args = parser.parse_args()
 
     logger.remove()
     logger.add(sys.stderr, level="INFO")
 
-    if args.force and OUTPUT_FILE.exists():
+    if args.force and not args.sources and OUTPUT_FILE.exists():
         OUTPUT_FILE.unlink()
         logger.info(f"Removed existing output: {OUTPUT_FILE}")
 
-    build_unified_crosswalk(skip_llm=args.no_llm)
+    build_unified_crosswalk(skip_llm=args.no_llm, sources=args.sources, yes=args.yes)
 
 
 if __name__ == "__main__":
