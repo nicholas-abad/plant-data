@@ -5,7 +5,7 @@ import json
 from google import genai
 from google.genai import types
 
-from .base import BaseNameMatcher, MatchResult
+from .base import BaseNameMatcher, MatchResult, get_system_prompt
 
 
 class GeminiNameMatcher(BaseNameMatcher):
@@ -17,7 +17,7 @@ class GeminiNameMatcher(BaseNameMatcher):
     Example:
         ```python
         matcher = GeminiNameMatcher(api_key="your-key")
-        result = matcher.match("Dr. N.TATA RAO TPS", candidates_str)
+        result = matcher.match("Hoover Dam", candidates_str, source_system="EIA")
         ```
     """
 
@@ -34,17 +34,18 @@ class GeminiNameMatcher(BaseNameMatcher):
     def name(self) -> str:
         return "gemini"
 
-    def match(self, plant_name: str, candidates_str: str) -> MatchResult:
-        user_prompt = f"NPP Plant Name: {plant_name}\n\nCandidates:\n{candidates_str}\n\nJSON response:"
+    def match(self, plant_name: str, candidates_str: str,
+              source_system: str | None = None) -> MatchResult:
+        user_prompt = f"Plant Name: {plant_name}\n\nCandidates:\n{candidates_str}\n\nJSON response:"
 
         try:
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=[user_prompt],
                 config=types.GenerateContentConfig(
-                    system_instruction=self.SYSTEM_PROMPT,
+                    system_instruction=get_system_prompt(source_system),
                     temperature=0.1,
-                    max_output_tokens=200,
+                    max_output_tokens=1000,
                 ),
             )
 
