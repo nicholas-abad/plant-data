@@ -56,3 +56,15 @@ class CandidateRetriever:
 
         sorted_cands = sorted(candidates.items(), key=lambda x: -x[1])
         return "\n".join(f"  {name} (score: {score:.0f})" for name, score in sorted_cands)
+
+    def get_all_candidates(self) -> str:
+        """Return ALL candidates from all sources, formatted for LLM prompt.
+
+        Used for cross-language matching (e.g., Japanese kanji vs English)
+        where fuzzy retrieval is ineffective.
+        """
+        lines = []
+        for source_name, norm_map in self._normalized.items():
+            for orig in norm_map.values():
+                lines.append(f"  {source_name}: {orig}")
+        return "\n".join(lines)

@@ -381,6 +381,11 @@ def match_llm(
             retriever_sources["GPPD"] = gppd_raw_names
         retriever = CandidateRetriever(retriever_sources)
 
+        # For cross-language sources (e.g., OCCTO: Japanese kanji vs English),
+        # bypass fuzzy retrieval and give the LLM all candidates at once.
+        if source == "OCCTO":
+            all_candidates_str = retriever.get_all_candidates()
+
         # All reference coords for resolving LLM matches
         all_coords: dict[str, dict[str, dict]] = {
             "GEM": {n: {"lat": info["lat"], "lon": info["lon"]} for n, info in gem_names.items()},
@@ -392,7 +397,10 @@ def match_llm(
             if (i + 1) % 25 == 0:
                 logger.info(f"  {source} LLM: {i + 1}/{len(src_plants)}")
 
-            candidates_str = retriever.get_candidates(plant_name, limit=15)
+            if source == "OCCTO":
+                candidates_str = all_candidates_str
+            else:
+                candidates_str = retriever.get_candidates(plant_name, limit=15)
             result = matcher.match(plant_name, candidates_str, source_system=source)
 
             if result.match and result.confidence in ("high", "medium"):
