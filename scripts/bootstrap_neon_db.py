@@ -34,6 +34,7 @@ SCHEMA_FILES = [
     "extraction_metadata.sql",
     "eia_generation.sql",
     "eia_generator_info.sql",
+    "gcpt_coal_metadata.sql",
     "entsoe_generation.sql",
     "npp_generation.sql",
     "ons_generation.sql",
@@ -208,10 +209,100 @@ def load_eia_generator_info(engine):
     print(f"  OK  eia_generator_info: {len(df):,} rows")
 
 
+def load_gcpt_coal_metadata(engine):
+    """Load GCPT coal metadata (coal type, technology) for CO2 emission estimation."""
+    import re
+
+    # Try GCPT-specific file first, fall back to GEM database
+    gcpt_path = SCRIPT_DIR.parent.parent.parent / "other_repositories" / "krv-analytics" / "data" / "28August2025_GCPT_Database.csv"
+    if not gcpt_path.exists():
+        gcpt_path = DATA_DIR / "crosswalks" / "GEM database_21Feb2026.csv"
+    if not gcpt_path.exists():
+        print(f"  SKIP  No GCPT/GEM database found")
+        return
+
+    df = pd.read_csv(gcpt_path, low_memory=False)
+
+    # Filter to coal plants
+    df = df[df["Fuel"].str.contains("coal", case=False, na=False)].copy()
+
+    def _extract_eia(s):
+        m = re.search(r"EIA:\s*([^,]+)", str(s))
+        return m.group(1).strip() if m else None
+
+    def _extract_coal_type(fuel_str):
+        """Extract primary coal type from Fuel column (e.g., 'coal: bituminous' → 'bituminous')."""
+        m = re.search(r"coal:\s*([\w-]+)", str(fuel_str))
+        return m.group(1) if m else "unknown"
+
+    def _parse_capacity(cap_str):
+        """Parse capacity string like '96.0 MW' → 96.0."""
+        m = re.match(r"([\d.]+)", str(cap_str))
+        return float(m.group(1)) if m else None
+
+    # Build composite EIA unit ID: plant_code|generator_id
+    df["plant_code"] = df["Non WEPP location IDs"].apply(_extract_eia)
+    df["generator_id"] = df["Unit Other IDs"].apply(_extract_eia)
+    df["eia_unit_id"] = df.apply(
+        lambda r: f"{r['plant_code']}|{r['generator_id']}"
+        if pd.notna(r["plant_code"]) and pd.notna(r["generator_id"])
+        and str(r["plant_code"]).strip() and str(r["generator_id"]).strip()
+        else None,
+        axis=1,
+    )
+
+    # Extract fields
+    out = pd.DataFrame({
+        "gcpt_unit_id": df["Unit ID"],
+        "eia_unit_id": df["eia_unit_id"],
+        "plant_name": df["Project Name"],
+        "unit_name": df["Unit Name"],
+        "coal_type": df["Fuel"].apply(_extract_coal_type),
+        "technology": df["Technology"].fillna("unknown").str.lower().str.strip(),
+        "capacity_mw": df["Capacity"].apply(_parse_capacity),
+        "country": df["Country/Area"],
+    })
+    out = out.dropna(subset=["gcpt_unit_id"])
+
+    # Deduplicate eia_unit_id — keep the record with highest capacity
+    # Only dedup rows WITH an eia_unit_id; leave NULLs untouched
+    has_eia = out[out["eia_unit_id"].notna()]
+    no_eia = out[out["eia_unit_id"].isna()]
+    n_dupes = has_eia.duplicated(subset=["eia_unit_id"], keep=False).sum()
+    if n_dupes > 0:
+        print(f"  WARN  {n_dupes} rows with duplicate eia_unit_id — keeping highest capacity")
+    has_eia = has_eia.sort_values("capacity_mw", ascending=False, na_position="last").drop_duplicates(
+        subset=["eia_unit_id"], keep="first"
+    )
+    out = pd.concat([has_eia, no_eia], ignore_index=True)
+    if len(no_eia) > 0:
+        print(f"  INFO  {len(no_eia)} rows without EIA unit ID (non-USA or unmatched)")
+
+    with engine.connect() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS gcpt_coal_metadata CASCADE"))
+        conn.commit()
+
+    out.to_sql("gcpt_coal_metadata", engine, index=False)
+
+    with engine.connect() as conn:
+        conn.execute(text(
+            "ALTER TABLE gcpt_coal_metadata ADD PRIMARY KEY (gcpt_unit_id)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX idx_gcpt_coal_eia_unit "
+            "ON gcpt_coal_metadata (eia_unit_id) WHERE eia_unit_id IS NOT NULL"
+        ))
+        conn.commit()
+
+    usa_with_eia = out[(out["country"] == "United States") & out["eia_unit_id"].notna()]
+    print(f"  OK  gcpt_coal_metadata: {len(out):,} rows ({len(usa_with_eia):,} USA with EIA IDs)")
+
+
 def load_all_reference_data(engine):
-    """Load the unified crosswalk table and EIA generator info."""
+    """Load the unified crosswalk table, EIA generator info, and GCPT coal metadata."""
     load_unified_crosswalk(engine)
     load_eia_generator_info(engine)
+    load_gcpt_coal_metadata(engine)
 
 
 # ---------------------------------------------------------------------------
@@ -243,11 +334,16 @@ def main():
         action="store_true",
         help="Only load EIA Form 860 generator info (eia_generator_info table)",
     )
+    parser.add_argument(
+        "--gcpt-only",
+        action="store_true",
+        help="Only load GCPT coal metadata (gcpt_coal_metadata table)",
+    )
     args = parser.parse_args()
 
-    mutually_exclusive = sum([args.schema_only, args.data_only, args.test_only, args.generator_info_only])
+    mutually_exclusive = sum([args.schema_only, args.data_only, args.test_only, args.generator_info_only, args.gcpt_only])
     if mutually_exclusive > 1:
-        print("ERROR: --schema-only, --data-only, --test-only, and --generator-info-only are mutually exclusive")
+        print("ERROR: --schema-only, --data-only, --test-only, --generator-info-only, and --gcpt-only are mutually exclusive")
         sys.exit(1)
 
     engine = get_engine()
@@ -261,7 +357,11 @@ def main():
         print(f"ERROR: Could not connect to database: {e}")
         sys.exit(1)
 
-    if args.generator_info_only:
+    if args.gcpt_only:
+        print("Loading GCPT coal metadata...")
+        load_gcpt_coal_metadata(engine)
+        print()
+    elif args.generator_info_only:
         print("Loading EIA Form 860 generator info...")
         load_eia_generator_info(engine)
         print()
