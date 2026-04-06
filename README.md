@@ -25,7 +25,8 @@ plant-data/
 │       └── retriever.py             # CandidateRetriever for LLM prompts
 ├── scripts/
 │   ├── build_gcpt_crosswalks.py     # GCPT Excel → per-source crosswalk parquets
-│   └── bootstrap_neon_db.py         # Load schema + reference data into Neon DB
+│   ├── bootstrap_neon_db.py         # Load schema + reference data into Neon DB
+│   │   Loads: plant_crosswalk, eia_generator_info, gcpt_coal_metadata
 ├── notebooks/
 │   ├── npp_coordinate_coverage.ipynb # India NPP coverage analysis
 │   └── eia_gem_coverage.ipynb        # US EIA coverage analysis
@@ -94,6 +95,33 @@ uv run python scripts/build_gcpt_crosswalks.py --source all
 # Bootstrap Neon DB with schema + reference data
 uv run python scripts/bootstrap_neon_db.py
 ```
+
+## Bootstrap Database Reference Tables
+
+The `bootstrap_neon_db.py` script loads reference tables into Neon PostgreSQL:
+
+| Table | Source | Rows | Description |
+|-------|--------|------|-------------|
+| `plant_crosswalk` | Unified pipeline output | ~3,500 | Maps plant names to coordinates across all 6 sources |
+| `eia_generator_info` | EIA Form 860 (3_1_Generator_Y2024.xlsx) | ~26,800 | Generator-level technology, prime mover, capacity |
+| `gcpt_coal_metadata` | GCPT database | ~14,300 (1,170 USA with EIA IDs) | Coal type, combustion technology for CO2 estimation |
+
+### CLI Flags
+
+```bash
+uv run python scripts/bootstrap_neon_db.py                    # Full bootstrap
+uv run python scripts/bootstrap_neon_db.py --schema-only      # Schema only
+uv run python scripts/bootstrap_neon_db.py --data-only        # All reference data
+uv run python scripts/bootstrap_neon_db.py --generator-info-only  # EIA Form 860 only
+uv run python scripts/bootstrap_neon_db.py --gcpt-only        # GCPT coal metadata only
+uv run python scripts/bootstrap_neon_db.py --test-only        # NPP LLM test data only
+```
+
+### Schema Files
+
+Located in `etl/power-generation-etl/schema/`:
+- `eia_generator_info.sql` — EIA Form 860 generator reference data
+- `gcpt_coal_metadata.sql` — GCPT coal type and technology for CO2 estimation
 
 ## License
 
