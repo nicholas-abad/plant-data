@@ -33,6 +33,7 @@ SCHEMA_DIR = SCRIPT_DIR.parent.parent.parent / "etl" / "power-generation-etl" / 
 SCHEMA_FILES = [
     "extraction_metadata.sql",
     "eia_generation.sql",
+    "eia_generator_info.sql",
     "entsoe_generation.sql",
     "npp_generation.sql",
     "ons_generation.sql",
@@ -162,9 +163,55 @@ def load_npp_llm_test(engine):
     print(f"  OK  npp_llm_test: {len(df):,} rows")
 
 
+def load_eia_generator_info(engine):
+    """Load EIA Form 860 generator-level reference data (Technology, etc.)."""
+    path = DATA_DIR / "crosswalks" / "3_1_Generator_Y2024.xlsx"
+    if not path.exists():
+        print(f"  SKIP  {path.name} not found")
+        return
+
+    df = pd.read_excel(path, skiprows=1, usecols=[
+        "Plant Code", "Generator ID", "Technology",
+        "Prime Mover", "Energy Source 1", "Nameplate Capacity (MW)",
+    ])
+    df = df.rename(columns={
+        "Plant Code": "plant_code",
+        "Generator ID": "generator_id",
+        "Technology": "technology",
+        "Prime Mover": "prime_mover",
+        "Energy Source 1": "energy_source_1",
+        "Nameplate Capacity (MW)": "nameplate_capacity_mw",
+    })
+    # Drop rows with null keys (trailing empty rows in the xlsx)
+    df = df.dropna(subset=["plant_code", "generator_id"])
+    # Ensure join-key types match eia_generation_data (VARCHAR)
+    df["plant_code"] = df["plant_code"].astype(int).astype(str)
+    df["generator_id"] = df["generator_id"].astype(str)
+
+    with engine.connect() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS eia_generator_info CASCADE"))
+        conn.commit()
+
+    df.to_sql("eia_generator_info", engine, index=False)
+
+    with engine.connect() as conn:
+        conn.execute(text(
+            "ALTER TABLE eia_generator_info "
+            "ADD PRIMARY KEY (plant_code, generator_id)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX idx_eia_gen_info_technology "
+            "ON eia_generator_info (technology)"
+        ))
+        conn.commit()
+
+    print(f"  OK  eia_generator_info: {len(df):,} rows")
+
+
 def load_all_reference_data(engine):
-    """Load the unified crosswalk table."""
+    """Load the unified crosswalk table and EIA generator info."""
     load_unified_crosswalk(engine)
+    load_eia_generator_info(engine)
 
 
 # ---------------------------------------------------------------------------
@@ -191,11 +238,16 @@ def main():
         action="store_true",
         help="Only load NPP LLM test data (npp_llm_test table)",
     )
+    parser.add_argument(
+        "--generator-info-only",
+        action="store_true",
+        help="Only load EIA Form 860 generator info (eia_generator_info table)",
+    )
     args = parser.parse_args()
 
-    mutually_exclusive = sum([args.schema_only, args.data_only, args.test_only])
+    mutually_exclusive = sum([args.schema_only, args.data_only, args.test_only, args.generator_info_only])
     if mutually_exclusive > 1:
-        print("ERROR: --schema-only, --data-only, and --test-only are mutually exclusive")
+        print("ERROR: --schema-only, --data-only, --test-only, and --generator-info-only are mutually exclusive")
         sys.exit(1)
 
     engine = get_engine()
@@ -209,7 +261,11 @@ def main():
         print(f"ERROR: Could not connect to database: {e}")
         sys.exit(1)
 
-    if args.test_only:
+    if args.generator_info_only:
+        print("Loading EIA Form 860 generator info...")
+        load_eia_generator_info(engine)
+        print()
+    elif args.test_only:
         print("Loading NPP LLM test data...")
         load_npp_llm_test(engine)
         print()
