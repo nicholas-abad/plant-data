@@ -20,6 +20,7 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL
 
 
 # ---------------------------------------------------------------------------
@@ -54,18 +55,17 @@ def get_engine():
     """Create a SQLAlchemy engine from environment variables."""
     load_dotenv(SCRIPT_DIR.parent / ".env")
 
-    host = os.getenv("POSTGRES_HOST", "localhost")
-    port = os.getenv("POSTGRES_PORT", "5432")
-    db = os.getenv("POSTGRES_DB", "power_generation")
-    user = os.getenv("POSTGRES_USER", "postgres")
-    password = os.getenv("POSTGRES_PASSWORD", "")
     sslmode = os.getenv("POSTGRES_SSLMODE", "")
-
-    url = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
-    if sslmode:
-        url += f"?sslmode={sslmode}"
-
-    return create_engine(url)
+    connection_url = URL.create(
+        drivername="postgresql+psycopg2",
+        username=os.environ["POSTGRES_USER"],
+        password=os.environ["POSTGRES_PASSWORD"],
+        host=os.getenv("POSTGRES_HOST", "localhost"),
+        port=int(os.getenv("POSTGRES_PORT", "5432")),
+        database=os.getenv("POSTGRES_DB", "power_generation"),
+        query={"sslmode": sslmode} if sslmode else {},
+    )
+    return create_engine(connection_url)
 
 
 # ---------------------------------------------------------------------------

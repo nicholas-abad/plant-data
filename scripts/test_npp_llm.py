@@ -17,6 +17,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from loguru import logger
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL
 
 # Add package root to path so we can import src modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -37,16 +38,17 @@ def _make_engine():
     url = os.environ.get("DATABASE_URL")
     if url:
         return create_engine(url, connect_args={"connect_timeout": 30})
-    host = os.environ["POSTGRES_HOST"]
-    port = os.environ.get("POSTGRES_PORT", "5432")
-    db = os.environ["POSTGRES_DB"]
-    user = os.environ["POSTGRES_USER"]
-    pw = os.environ["POSTGRES_PASSWORD"]
     ssl = os.environ.get("POSTGRES_SSLMODE", "require")
-    return create_engine(
-        f"postgresql://{user}:{pw}@{host}:{port}/{db}?sslmode={ssl}",
-        connect_args={"connect_timeout": 30},
+    connection_url = URL.create(
+        drivername="postgresql",
+        username=os.environ["POSTGRES_USER"],
+        password=os.environ["POSTGRES_PASSWORD"],
+        host=os.environ["POSTGRES_HOST"],
+        port=int(os.environ.get("POSTGRES_PORT", "5432")),
+        database=os.environ["POSTGRES_DB"],
+        query={"sslmode": ssl} if ssl else {},
     )
+    return create_engine(connection_url, connect_args={"connect_timeout": 30})
 
 
 def pull_npp_plant_names(engine) -> pd.DataFrame:
