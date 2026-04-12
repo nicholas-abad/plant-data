@@ -74,7 +74,7 @@ SOURCE_COUNTRIES = {
             "Slovenia", "Spain", "Sweden", "Switzerland", "United Kingdom",
         ],
     },
-    "EIA": {"gppd": "USA", "gem": "United States of America"},
+    "EIA": {"gppd": "USA", "gem": "United States"},
     "ONS": {"gppd": "BRA", "gem": "Brazil"},
     "OE": {"gppd": "AUS", "gem": "Australia"},
     "OCCTO": {"gppd": "JPN", "gem": "Japan"},
