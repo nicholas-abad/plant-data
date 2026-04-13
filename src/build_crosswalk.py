@@ -85,7 +85,10 @@ OUTPUT_COLUMNS = [
     "plant_name", "plant_code", "source_system", "latitude", "longitude",
     "ref_source", "matching_method", "confidence", "ref_matched_name", "reasoning",
     "coal_type", "combustion_tech", "capacity_mw",
+    "state", "sector",
 ]
+
+NPP_GIPT_CSV = get_crosswalk_dir() / "NPP_GIPT_crosswalk (1).csv"
 
 
 def _parse_gem_capacity(val) -> float | None:
@@ -326,6 +329,111 @@ def load_gppd(country_codes: list[str] | None = None) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # Step 3: Direct matching (OE embedded coordinates)
 # ---------------------------------------------------------------------------
+def match_npp_via_gipt(plants_df: pd.DataFrame) -> pd.DataFrame:
+    """Authoritative NPP plant matching via the manually-curated NPP_GIPT crosswalk.
+
+    Each row in the crosswalk maps an NPP plant-unit to a GEM unit/phase ID.
+    For coal plants we look up each unit in GEM, sum unit-level capacities to
+    get plant-level capacity_mw, and pull lat/lon + coal_type + combustion_tech
+    from GEM. State and Sector come from the crosswalk itself.
+
+    Only `Type == "coal"` rows produce coal-metadata; non-coal NPP plants in
+    the crosswalk are skipped so they fall through to fuzzy/LLM matching for
+    coordinates only.
+    """
+    if not NPP_GIPT_CSV.exists():
+        logger.warning(f"NPP_GIPT crosswalk not found: {NPP_GIPT_CSV}")
+        return pd.DataFrame(columns=OUTPUT_COLUMNS)
+
+    npp_plants = plants_df[plants_df["source_system"] == "NPP"]
+    if npp_plants.empty:
+        return pd.DataFrame(columns=OUTPUT_COLUMNS)
+
+    logger.info(f"NPP-GIPT authoritative matching for {len(npp_plants):,} NPP plants...")
+
+    gipt = pd.read_csv(NPP_GIPT_CSV)
+    gipt_coal = gipt[gipt["Type"].astype(str).str.lower() == "coal"].copy()
+    logger.info(f"  GIPT crosswalk: {len(gipt_coal):,} coal unit rows across "
+                f"{gipt_coal['DGR plant name'].nunique():,} distinct DGR plants")
+
+    if not GEM_CSV.exists():
+        logger.warning(f"GEM CSV not found: {GEM_CSV}")
+        return pd.DataFrame(columns=OUTPUT_COLUMNS)
+    gem_raw = pd.read_csv(GEM_CSV, low_memory=False)
+    gem_by_uid = gem_raw.set_index("Unit ID", drop=False)
+
+    results = []
+    npp_names = set(npp_plants["plant_name"].dropna().astype(str).unique())
+
+    for dgr_name, group in gipt_coal.groupby("DGR plant name"):
+        if dgr_name not in npp_names:
+            continue
+
+        unit_caps = []
+        coal_types = []
+        techs = []
+        lats, lons = [], []
+        gem_project_names = []
+        for _, row in group.iterrows():
+            uid = row.get("GEM unit/phase ID")
+            if not isinstance(uid, str) or uid not in gem_by_uid.index:
+                continue
+            gem_row = gem_by_uid.loc[uid]
+            if isinstance(gem_row, pd.DataFrame):
+                gem_row = gem_row.iloc[0]
+            cap = _parse_gem_capacity(gem_row.get("Capacity"))
+            if cap is not None:
+                unit_caps.append(cap)
+            ct = _parse_gem_coal_type(gem_row.get("Fuel"))
+            if ct:
+                coal_types.append(ct)
+            tech = _normalize_combustion_tech(gem_row.get("Technology"))
+            if tech:
+                techs.append(tech)
+            lat, lon = gem_row.get("Latitude"), gem_row.get("Longitude")
+            if pd.notna(lat) and pd.notna(lon):
+                lats.append(float(lat))
+                lons.append(float(lon))
+            pn = gem_row.get("Project Name")
+            if isinstance(pn, str):
+                gem_project_names.append(pn)
+
+        # Use first valid coords; sum unit capacities; first coal_type / tech as representative.
+        plant_cap = sum(unit_caps) if unit_caps else None
+        plant_lat = lats[0] if lats else None
+        plant_lon = lons[0] if lons else None
+        plant_coal = coal_types[0] if coal_types else None
+        plant_tech = techs[0] if techs else None
+        plant_state = group["State"].dropna().iloc[0] if group["State"].notna().any() else None
+        plant_sector = group["Sector"].dropna().iloc[0] if group["Sector"].notna().any() else None
+        ref_name = gem_project_names[0] if gem_project_names else None
+
+        if plant_lat is None or plant_lon is None:
+            # Authoritative crosswalk match but GEM has no coordinates — skip;
+            # rapidfuzz/LLM may still find a different reference.
+            continue
+
+        results.append({
+            "plant_name": dgr_name,
+            "plant_code": None,
+            "source_system": "NPP",
+            "latitude": plant_lat,
+            "longitude": plant_lon,
+            "ref_source": "GIPT",
+            "matching_method": "direct",
+            "confidence": "high",
+            "ref_matched_name": ref_name,
+            "coal_type": plant_coal,
+            "combustion_tech": plant_tech,
+            "capacity_mw": plant_cap,
+            "state": plant_state,
+            "sector": plant_sector,
+        })
+
+    logger.info(f"  NPP-GIPT direct: {len(results):,} matched (with capacity, state, sector)")
+    return pd.DataFrame(results, columns=OUTPUT_COLUMNS) if results else pd.DataFrame(columns=OUTPUT_COLUMNS)
+
+
 def match_direct(plants_df: pd.DataFrame) -> pd.DataFrame:
     """Direct matching for OE plants that already have embedded coordinates."""
     results = []
@@ -638,11 +746,13 @@ def build_unified_crosswalk(
     plants_df = plants_df.drop_duplicates(subset=["plant_name", "source_system"], keep="first")
     logger.info(f"After dedup: {len(plants_df):,} unique (plant_name, source_system) pairs")
 
-    # Step 3: Direct matching (OE)
+    # Step 3a: Direct matching (OE embedded coords + NPP via GIPT crosswalk)
     logger.info("=" * 60)
-    logger.info("Step 3: Direct matching (OE embedded coords)...")
-    exact_df = match_direct(plants_df)
-    logger.info(f"Direct matches: {len(exact_df):,}")
+    logger.info("Step 3: Direct matching (OE embedded coords + NPP-GIPT)...")
+    exact_oe = match_direct(plants_df)
+    exact_npp = match_npp_via_gipt(plants_df)
+    exact_df = pd.concat([exact_oe, exact_npp], ignore_index=True) if not exact_npp.empty else exact_oe
+    logger.info(f"Direct matches: OE={len(exact_oe):,} + NPP-GIPT={len(exact_npp):,} = {len(exact_df):,}")
 
     # Determine unmatched
     matched_keys = set(zip(exact_df["plant_name"], exact_df["source_system"])) if not exact_df.empty else set()
