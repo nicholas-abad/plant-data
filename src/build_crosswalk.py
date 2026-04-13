@@ -84,7 +84,83 @@ SOURCE_COUNTRIES = {
 OUTPUT_COLUMNS = [
     "plant_name", "plant_code", "source_system", "latitude", "longitude",
     "ref_source", "matching_method", "confidence", "ref_matched_name", "reasoning",
+    "coal_type", "combustion_tech", "capacity_mw",
 ]
+
+
+def _parse_gem_capacity(val) -> float | None:
+    """Parse GEM `Capacity` values like '660.0 MW' → float MW. None if unparseable."""
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        return float(val) if pd.notna(val) else None
+    if not isinstance(val, str):
+        return None
+    s = val.strip().lower().replace("mw", "").strip()
+    try:
+        return float(s) if s else None
+    except ValueError:
+        return None
+
+
+def _parse_gem_coal_type(fuel_value) -> str | None:
+    """Parse GEM `Fuel` field for a coal-only plant → coal_type token.
+
+    GEM's `Fuel` is a comma-separated list like "coal: bituminous" or
+    "natural gas, industrial by-product: blast furnace gas". We only return
+    a coal_type when the *first* token is a coal entry — multi-fuel plants
+    and non-coal plants return None.
+
+    Returns lowercase coal_type ("bituminous", "lignite", ...) or None.
+    """
+    if not isinstance(fuel_value, str):
+        return None
+    s = fuel_value.strip().lower()
+    # Only first fuel counts; multi-fuel plants return None
+    first = s.split(",", 1)[0].strip()
+    if not first.startswith("coal"):
+        return None
+    if ":" in first:
+        subtype = first.split(":", 1)[1].strip()
+    else:
+        subtype = ""
+    if not subtype or subtype == "unknown":
+        return None
+    if subtype == "waste coal":
+        return "waste"
+    return subtype
+
+
+def _is_gem_coal_row(fuel_value) -> bool:
+    if not isinstance(fuel_value, str):
+        return False
+    return fuel_value.strip().lower().startswith("coal")
+
+
+def _normalize_combustion_tech(tech_value) -> str | None:
+    """Normalize GEM `Technology` value to canonical forms used by the dashboard.
+
+    Canonical: subcritical, supercritical, ultra-supercritical, CFB, IGCC.
+    Returns None for unknown/missing/non-coal tech (e.g. gas turbine).
+    """
+    if not isinstance(tech_value, str):
+        return None
+    s = tech_value.strip()
+    if not s or s.lower() == "unknown":
+        return None
+    low = s.lower().replace("-", "").replace(" ", "")
+    if low == "subcritical":
+        return "subcritical"
+    if low == "supercritical":
+        return "supercritical"
+    if low in ("ultrasupercritical", "usc"):
+        return "ultra-supercritical"
+    if low == "cfb":
+        return "CFB"
+    if low == "igcc":
+        return "IGCC"
+    # Non-coal combustion techs (gas turbine, combined cycle, etc.) → None
+    return None
 
 
 def _make_engine():
@@ -187,8 +263,29 @@ def load_gem(source_system: str | None = None) -> dict[str, dict]:
     names: dict[str, dict] = {}
     for _, row in gem_raw.iterrows():
         name = row["Project Name"]
-        if pd.notna(name) and name not in names:
-            names[name] = {"lat": row["Latitude"], "lon": row["Longitude"], "name": name}
+        if pd.isna(name):
+            continue
+        is_coal = _is_gem_coal_row(row.get("Fuel"))
+        cap = _parse_gem_capacity(row.get("Capacity")) if is_coal else None
+        info = {
+            "lat": row["Latitude"],
+            "lon": row["Longitude"],
+            "name": name,
+            "coal_type": _parse_gem_coal_type(row.get("Fuel")) if is_coal else None,
+            "combustion_tech": _normalize_combustion_tech(row.get("Technology")) if is_coal else None,
+            "capacity_mw": cap,
+            "_is_coal": is_coal,
+        }
+        existing = names.get(name)
+        if existing is None:
+            names[name] = info
+        elif is_coal and not existing.get("_is_coal"):
+            # Coal entry replaces non-coal first-wins
+            names[name] = info
+        elif is_coal and existing.get("_is_coal"):
+            # Both coal: sum capacity across units; keep first coords/tech/type
+            if cap is not None:
+                existing["capacity_mw"] = (existing.get("capacity_mw") or 0.0) + cap
     return names
 
 
@@ -304,6 +401,9 @@ def match_rapidfuzz(
                             "matching_method": "rapidfuzz",
                             "confidence": None,
                             "ref_matched_name": orig,
+                            "coal_type": info.get("coal_type"),
+                            "combustion_tech": info.get("combustion_tech"),
+                            "capacity_mw": info.get("capacity_mw"),
                         })
                         matched = True
                         count += 1
@@ -390,7 +490,16 @@ def match_llm(
 
         # All reference coords for resolving LLM matches
         all_coords: dict[str, dict[str, dict]] = {
-            "GEM": {n: {"lat": info["lat"], "lon": info["lon"]} for n, info in gem_names.items()},
+            "GEM": {
+                n: {
+                    "lat": info["lat"],
+                    "lon": info["lon"],
+                    "coal_type": info.get("coal_type"),
+                    "combustion_tech": info.get("combustion_tech"),
+                    "capacity_mw": info.get("capacity_mw"),
+                }
+                for n, info in gem_names.items()
+            },
             "GPPD": gppd_coords,
         }
 
@@ -431,6 +540,9 @@ def match_llm(
                         "confidence": result.confidence,
                         "ref_matched_name": matched_name,
                         "reasoning": result.reasoning,
+                        "coal_type": coords.get("coal_type"),
+                        "combustion_tech": coords.get("combustion_tech"),
+                        "capacity_mw": coords.get("capacity_mw"),
                     })
 
         logger.info(f"  {source} LLM: {len([r for r in results if r['source_system'] == source]):,} matched")
@@ -588,6 +700,9 @@ def build_unified_crosswalk(
             "confidence": None,
             "ref_matched_name": None,
             "reasoning": None,
+            "coal_type": None,
+            "combustion_tech": None,
+            "capacity_mw": None,
         })
     unmatched_df = pd.DataFrame(unmatched_rows, columns=OUTPUT_COLUMNS)
 
