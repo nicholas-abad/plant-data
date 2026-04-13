@@ -103,6 +103,28 @@ def _parse_gem_capacity(val) -> float | None:
         return None
 
 
+# NPP plant names contain technology suffixes that reveal whether they're coal,
+# hydro, gas, nuclear, etc. The crosswalk's GEM matcher pulls coal-fuel rows from
+# GEM and attaches their `capacity_mw` / `coal_type` / `combustion_tech` to any
+# matching plant — including NPP hydro/gas plants that fuzzy-match to a coal
+# plant with a similar name (e.g. "BHADRA HPS" → "Bhandara power station").
+# This regex catches the obvious non-coal NPP suffixes so we can suppress coal
+# metadata attribution.
+import re as _re_npp
+_NPP_NON_COAL_SUFFIX = _re_npp.compile(
+    r"(?:^|[\s\W])(?:HPS|HEP|HEPP|CCPP|OCGT|CCGT|GT-?\d|NUCLEAR|NPP|"
+    r"WIND|SOLAR|PV|HYDRO|HYDEL|RES)(?:$|[\s\W])",
+    _re_npp.IGNORECASE,
+)
+
+
+def _is_npp_likely_non_coal(plant_name) -> bool:
+    """True when an NPP plant's name has a non-coal technology suffix."""
+    if not isinstance(plant_name, str):
+        return False
+    return bool(_NPP_NON_COAL_SUFFIX.search(plant_name))
+
+
 def _parse_gem_coal_type(fuel_value) -> str | None:
     """Parse GEM `Fuel` field for a coal-only plant → coal_type token.
 
@@ -401,9 +423,13 @@ def match_rapidfuzz(
                             "matching_method": "rapidfuzz",
                             "confidence": None,
                             "ref_matched_name": orig,
-                            "coal_type": info.get("coal_type"),
-                            "combustion_tech": info.get("combustion_tech"),
-                            "capacity_mw": info.get("capacity_mw"),
+                            # Suppress coal-metadata attribution when an NPP plant's
+                            # name has a non-coal technology suffix (HPS/CCPP/etc.).
+                            # This avoids spurious "coal" capacity on hydro/gas
+                            # plants that fuzzy-matched to a similarly-named coal plant.
+                            "coal_type": None if (source == "NPP" and _is_npp_likely_non_coal(plant_name)) else info.get("coal_type"),
+                            "combustion_tech": None if (source == "NPP" and _is_npp_likely_non_coal(plant_name)) else info.get("combustion_tech"),
+                            "capacity_mw": None if (source == "NPP" and _is_npp_likely_non_coal(plant_name)) else info.get("capacity_mw"),
                         })
                         matched = True
                         count += 1
@@ -540,9 +566,10 @@ def match_llm(
                         "confidence": result.confidence,
                         "ref_matched_name": matched_name,
                         "reasoning": result.reasoning,
-                        "coal_type": coords.get("coal_type"),
-                        "combustion_tech": coords.get("combustion_tech"),
-                        "capacity_mw": coords.get("capacity_mw"),
+                        # Same NPP non-coal suppression as the rapidfuzz path.
+                        "coal_type": None if (source == "NPP" and _is_npp_likely_non_coal(plant_name)) else coords.get("coal_type"),
+                        "combustion_tech": None if (source == "NPP" and _is_npp_likely_non_coal(plant_name)) else coords.get("combustion_tech"),
+                        "capacity_mw": None if (source == "NPP" and _is_npp_likely_non_coal(plant_name)) else coords.get("capacity_mw"),
                     })
 
         logger.info(f"  {source} LLM: {len([r for r in results if r['source_system'] == source]):,} matched")
