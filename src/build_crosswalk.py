@@ -419,7 +419,7 @@ def match_npp_via_gipt(plants_df: pd.DataFrame) -> pd.DataFrame:
             "source_system": "NPP",
             "latitude": plant_lat,
             "longitude": plant_lon,
-            "ref_source": "GIPT",
+            "ref_source": "GEM",
             "matching_method": "direct",
             "confidence": "high",
             "ref_matched_name": ref_name,
