@@ -245,16 +245,24 @@ def pull_plant_names(engine, sources: list[str] | None = None) -> pd.DataFrame:
     if eia_indices:
         eia_idx = eia_indices[0]
         eia_df = frames[eia_idx]
-        if EIA_LOOKUP_CSV.exists():
-            lookup = pd.read_csv(EIA_LOOKUP_CSV, dtype={"plant_code": str})
-            eia_df = eia_df.rename(columns={"plant_name": "plant_code"})
-            eia_df["plant_code"] = eia_df["plant_code"].astype(str)
-            eia_df = eia_df.merge(lookup, on="plant_code", how="left")
-            eia_df["plant_name"] = eia_df["plant_name"].fillna(eia_df["plant_code"])
-            logger.info(f"  EIA: resolved {eia_df['plant_name'].ne(eia_df['plant_code']).sum():,} plant codes to names via lookup")
-        else:
-            eia_df["plant_code"] = eia_df["plant_name"]
-            logger.warning(f"  EIA lookup CSV not found: {EIA_LOOKUP_CSV}, using plant_code as plant_name")
+        if not EIA_LOOKUP_CSV.exists():
+            raise FileNotFoundError(
+                f"EIA plant lookup not found: {EIA_LOOKUP_CSV}\n"
+                "  This file is required to map plant_code → plant_name for EIA "
+                "records. Without it, the crosswalk would contain plant codes "
+                "(e.g. '12345') in place of human-readable names "
+                "(e.g. 'Smith Power Plant'), corrupting downstream matching.\n"
+                "  Generate the lookup, or re-run with `--sources NPP ENTSOE ONS "
+                "OE OCCTO` to skip EIA."
+            )
+        lookup = pd.read_csv(EIA_LOOKUP_CSV, dtype={"plant_code": str})
+        eia_df = eia_df.rename(columns={"plant_name": "plant_code"})
+        eia_df["plant_code"] = eia_df["plant_code"].astype(str)
+        eia_df = eia_df.merge(lookup, on="plant_code", how="left")
+        eia_df["plant_name"] = eia_df["plant_name"].fillna(eia_df["plant_code"])
+        logger.info(
+            f"  EIA: resolved {eia_df['plant_name'].ne(eia_df['plant_code']).sum():,} plant codes to names via lookup"
+        )
         frames[eia_idx] = eia_df
 
     # Add plant_code=None for non-EIA sources
