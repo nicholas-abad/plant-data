@@ -42,6 +42,7 @@ SCHEMA_FILES = [
     "oe_generation.sql",
     "oe_facility_generation.sql",
     "occto_generation.sql",
+    "chile_generation.sql",
     "materialized_views.sql",
 ]
 
@@ -218,7 +219,7 @@ def load_gcpt_coal_metadata(engine):
     if not gcpt_path.exists():
         gcpt_path = DATA_DIR / "crosswalks" / "GEM database_21Feb2026.csv"
     if not gcpt_path.exists():
-        print(f"  SKIP  No GCPT/GEM database found")
+        print("  SKIP  No GCPT/GEM database found")
         return
 
     df = pd.read_csv(gcpt_path, low_memory=False)

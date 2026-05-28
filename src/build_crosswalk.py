@@ -38,7 +38,7 @@ from .plant_name_matchers import (
     normalize_for_comparison,
     normalize_gppd_name,
 )
-from .utils import get_data_dir, get_crosswalk_dir, validate_coordinates
+from .utils import get_crosswalk_dir, validate_coordinates
 
 # ---------------------------------------------------------------------------
 # Config
@@ -78,6 +78,7 @@ SOURCE_COUNTRIES = {
     "ONS": {"gppd": "BRA", "gem": "Brazil"},
     "OE": {"gppd": "AUS", "gem": "Australia"},
     "OCCTO": {"gppd": "JPN", "gem": "Japan"},
+    "CHILE": {"gppd": "CHL", "gem": "Chile"},
 }
 
 # Columns in the output
@@ -226,6 +227,7 @@ def pull_plant_names(engine, sources: list[str] | None = None) -> pd.DataFrame:
         "ONS": "SELECT DISTINCT plant AS plant_name FROM ons_generation_data WHERE plant IS NOT NULL",
         "OE": "SELECT DISTINCT facility_name AS plant_name, latitude, longitude FROM oe_facility_generation_data WHERE facility_name IS NOT NULL",
         "OCCTO": "SELECT DISTINCT plant AS plant_name FROM occto_generation_data WHERE plant IS NOT NULL",
+        "CHILE": "SELECT DISTINCT plant AS plant_name FROM chile_generation_data WHERE plant IS NOT NULL",
     }
 
     queries = {k: v for k, v in all_queries.items() if sources is None or k in sources}
@@ -886,13 +888,13 @@ def build_unified_crosswalk(
     coverage = unified["latitude"].notna().mean()
     logger.info(f"  With coords:     {unified['latitude'].notna().sum():,} ({coverage:.1%})")
     logger.info(f"  Without coords:  {unified['latitude'].isna().sum():,} ({1 - coverage:.1%})")
-    logger.info(f"\n  By source_system:")
+    logger.info("\n  By source_system:")
     for src in unified["source_system"].unique():
         subset = unified[unified["source_system"] == src]
         n = len(subset)
         cov = subset["latitude"].notna().mean()
         logger.info(f"    {src:8s}: {n:6,} plants, {cov:.1%} coverage")
-    logger.info(f"\n  By matching_method:")
+    logger.info("\n  By matching_method:")
     for method, count in unified["matching_method"].value_counts(dropna=False).items():
         label = method if pd.notna(method) else "unmatched"
         logger.info(f"    {label:12s}: {count:,}")
