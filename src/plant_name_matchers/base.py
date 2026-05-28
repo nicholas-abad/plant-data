@@ -99,6 +99,21 @@ _SOURCE_CONTEXT = {
             "- Some plants use location + fuel: \"敦賀火力\" = Tsuruga Thermal"
         ),
     },
+    "CHILE": {
+        "expertise": "Chilean power plants",
+        "label": "Coordinador Eléctrico Nacional (Chile)",
+        "patterns": (
+            "Chilean power plant naming patterns to consider:\n"
+            "- Names are typically in Spanish\n"
+            "- \"TER\" = Termoeléctrica (Thermal Plant), \"PMGD\" = Pequeño Medio de Generación Distribuida\n"
+            "- Reference databases (GEM/GPPD) may use English names: \"Cochrane power station\"\n"
+            "- Coal plants are concentrated in Mejillones (Antofagasta), Puchuncaví (Valparaíso),\n"
+            "  Coronel (Biobío), Huasco (Atacama), and Tocopilla (Antofagasta)\n"
+            "- IEM = Infraestructura Energética Mejillones (stand-alone complex)\n"
+            "- Andina and Hornitos share GEM's single \"Andina-Hornitos power station\" entry\n"
+            "- Some plants tagged [No_Mostrar] in source data are retired but still hold historical generation"
+        ),
+    },
 }
 
 _DEFAULT_CONTEXT = {
