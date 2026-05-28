@@ -190,7 +190,7 @@ def _save_and_summarize(
     logger.info(f"  LLM improvement:             +{(llm_matched/total_plants):.1%} coverage")
 
     if not llm_df.empty:
-        logger.info(f"\n  LLM match confidence breakdown:")
+        logger.info("\n  LLM match confidence breakdown:")
         for conf, count in llm_df["confidence"].value_counts().items():
             logger.info(f"    {conf}: {count:,}")
 

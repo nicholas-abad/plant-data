@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Build unified plant coordinate crosswalk from all 6 generation sources.
+"""Build unified plant coordinate crosswalk from all generation sources.
 
 Produces a single parquet file mapping every unique plant name (from EIA,
-ENTSOE, NPP, ONS, OE, OCCTO) to coordinates, with an audit trail of how each
-was matched.
+ENTSOE, NPP, ONS, OE, OCCTO, CHILE) to coordinates, with an audit trail of
+how each was matched.
 
 Pipeline:
   1. Pull distinct plant names from each generation table in Neon
@@ -18,7 +18,7 @@ Usage:
     python -m src.build_crosswalk                       # run full pipeline
     python -m src.build_crosswalk --no-llm              # skip LLM step
     python -m src.build_crosswalk --force               # rebuild from scratch
-    python -m src.build_crosswalk --sources OCCTO       # run only for OCCTO (appends to existing)
+    python -m src.build_crosswalk --sources CHILE       # run only for CHILE (appends to existing)
     python -m src.build_crosswalk --sources OCCTO NPP   # run for specific sources
 """
 
@@ -114,7 +114,7 @@ def _parse_gem_capacity(val) -> float | None:
 # plant with a similar name (e.g. "BHADRA HPS" → "Bhandara power station").
 # This regex catches the obvious non-coal NPP suffixes so we can suppress coal
 # metadata attribution.
-import re as _re_npp
+import re as _re_npp  # noqa: E402  # placed here to keep the regex co-located with the docstring above
 _NPP_NON_COAL_SUFFIX = _re_npp.compile(
     r"(?:^|[\s\W])(?:HPS|HEP|HEPP|CCPP|OCGT|CCGT|GT-?\d|NUCLEAR|NPP|"
     r"WIND|SOLAR|PV|HYDRO|HYDEL|RES)(?:$|[\s\W])",
@@ -598,7 +598,6 @@ def match_llm(
     logger.info(f"Initialized {matcher.name} matcher (model: {matcher.model})")
 
     results = []
-    total = len(unmatched)
 
     for source in unmatched["source_system"].unique():
         src_plants = unmatched[unmatched["source_system"] == source]
