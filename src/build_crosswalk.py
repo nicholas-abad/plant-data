@@ -129,6 +129,18 @@ def _is_npp_likely_non_coal(plant_name) -> bool:
     return bool(_NPP_NON_COAL_SUFFIX.search(plant_name))
 
 
+def _norm_npp_name(name) -> str:
+    """Whitespace/case-insensitive key for matching DGR plant names.
+
+    The manually-curated NPP_GIPT crosswalk carries irregular spacing in
+    `DGR plant name` (e.g. 'BARH  STPS', leading/trailing spaces) while the
+    extractor stores names with collapsed/stripped whitespace. Matching on a
+    normalized key recovers those plants (worth ~1.5-2% of recent India coal,
+    growing over time as plants like BARH STPS / NTPL TUTICORIN ramp up).
+    """
+    return _re_npp.sub(r"\s+", " ", str(name)).strip().lower()
+
+
 def _parse_gem_coal_type(fuel_value) -> str | None:
     """Parse GEM `Fuel` field for a coal-only plant → coal_type token.
 
@@ -374,9 +386,16 @@ def match_npp_via_gipt(plants_df: pd.DataFrame) -> pd.DataFrame:
 
     results = []
     npp_names = set(npp_plants["plant_name"].dropna().astype(str).unique())
+    # Map normalized key -> actual name as stored in npp_generation, so coal
+    # classification survives whitespace/case differences in the crosswalk and
+    # the stored `plant_name` still equals the value the dashboard joins on.
+    # Build from a sorted list so a (rare) normalization collision resolves
+    # deterministically rather than by set-iteration order.
+    npp_by_norm = {_norm_npp_name(n): n for n in sorted(npp_names)}
 
     for dgr_name, group in gipt_coal.groupby("DGR plant name"):
-        if dgr_name not in npp_names:
+        matched_npp_name = npp_by_norm.get(_norm_npp_name(dgr_name))
+        if matched_npp_name is None:
             continue
 
         unit_caps = []
@@ -412,7 +431,13 @@ def match_npp_via_gipt(plants_df: pd.DataFrame) -> pd.DataFrame:
         plant_cap = sum(unit_caps) if unit_caps else None
         plant_lat = lats[0] if lats else None
         plant_lon = lons[0] if lons else None
-        plant_coal = coal_types[0] if coal_types else None
+        # These plants are authoritatively coal (GIPT Type == "coal"); GEM often
+        # lacks a sub-type ("coal" with no qualifier, multi-fuel, or "unknown"),
+        # which would leave coal_type NULL and make the dashboard — which keys
+        # coal classification off coal_type IS NOT NULL — drop them. Default to
+        # "unknown" (a value the dashboard already handles) so every coal plant
+        # is classified as coal.
+        plant_coal = coal_types[0] if coal_types else "unknown"
         plant_tech = techs[0] if techs else None
         plant_state = group["State"].dropna().iloc[0] if group["State"].notna().any() else None
         plant_sector = group["Sector"].dropna().iloc[0] if group["Sector"].notna().any() else None
@@ -424,7 +449,7 @@ def match_npp_via_gipt(plants_df: pd.DataFrame) -> pd.DataFrame:
             continue
 
         results.append({
-            "plant_name": dgr_name,
+            "plant_name": matched_npp_name,
             "plant_code": None,
             "source_system": "NPP",
             "latitude": plant_lat,
@@ -440,8 +465,14 @@ def match_npp_via_gipt(plants_df: pd.DataFrame) -> pd.DataFrame:
             "sector": plant_sector,
         })
 
-    logger.info(f"  NPP-GIPT direct: {len(results):,} matched (with capacity, state, sector)")
-    return pd.DataFrame(results, columns=OUTPUT_COLUMNS) if results else pd.DataFrame(columns=OUTPUT_COLUMNS)
+    out = pd.DataFrame(results, columns=OUTPUT_COLUMNS) if results else pd.DataFrame(columns=OUTPUT_COLUMNS)
+    # Distinct crosswalk `DGR plant name` entries can collapse to the same NPP
+    # plant under normalization (e.g. ' OPG...' vs 'OPG...'). Keep one row per
+    # plant_name so the dashboard's plant-level LEFT JOIN doesn't double-count.
+    if not out.empty:
+        out = out.drop_duplicates(subset=["plant_name"], keep="first").reset_index(drop=True)
+    logger.info(f"  NPP-GIPT direct: {len(out):,} matched (with capacity, state, sector)")
+    return out
 
 
 def match_direct(plants_df: pd.DataFrame) -> pd.DataFrame:
