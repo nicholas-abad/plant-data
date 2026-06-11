@@ -37,6 +37,7 @@ from .plant_name_matchers import (
     GeminiNameMatcher,
     normalize_for_comparison,
     normalize_gppd_name,
+    validate_match,
 )
 from .utils import get_crosswalk_dir, validate_coordinates
 
@@ -59,19 +60,76 @@ SOURCE_COUNTRIES = {
     "NPP": {"gppd": "IND", "gem": "India"},
     "ENTSOE": {
         "gppd_countries": [
-            "AUT", "BEL", "BGR", "HRV", "CZE", "DNK", "EST", "FIN", "FRA",
-            "DEU", "GRC", "HUN", "IRL", "ITA", "LVA", "LTU", "LUX", "NLD",
-            "POL", "PRT", "ROU", "SVK", "SVN", "ESP", "SWE", "GBR", "NOR",
-            "CHE", "SRB", "BIH", "MNE", "MKD", "ALB", "XKX",
+            "AUT",
+            "BEL",
+            "BGR",
+            "HRV",
+            "CZE",
+            "DNK",
+            "EST",
+            "FIN",
+            "FRA",
+            "DEU",
+            "GRC",
+            "HUN",
+            "IRL",
+            "ITA",
+            "LVA",
+            "LTU",
+            "LUX",
+            "NLD",
+            "POL",
+            "PRT",
+            "ROU",
+            "SVK",
+            "SVN",
+            "ESP",
+            "SWE",
+            "GBR",
+            "NOR",
+            "CHE",
+            "SRB",
+            "BIH",
+            "MNE",
+            "MKD",
+            "ALB",
+            "XKX",
         ],
         "gem_countries": [
-            "Albania", "Austria", "Belgium", "Bosnia and Herzegovina",
-            "Bulgaria", "Croatia", "Czech Republic", "Denmark", "Estonia",
-            "Finland", "France", "Germany", "Greece", "Hungary", "Ireland",
-            "Italy", "Kosovo", "Latvia", "Lithuania", "Luxembourg",
-            "Montenegro", "Netherlands", "North Macedonia", "Norway",
-            "Poland", "Portugal", "Romania", "Serbia", "Slovakia",
-            "Slovenia", "Spain", "Sweden", "Switzerland", "United Kingdom",
+            "Albania",
+            "Austria",
+            "Belgium",
+            "Bosnia and Herzegovina",
+            "Bulgaria",
+            "Croatia",
+            "Czech Republic",
+            "Denmark",
+            "Estonia",
+            "Finland",
+            "France",
+            "Germany",
+            "Greece",
+            "Hungary",
+            "Ireland",
+            "Italy",
+            "Kosovo",
+            "Latvia",
+            "Lithuania",
+            "Luxembourg",
+            "Montenegro",
+            "Netherlands",
+            "North Macedonia",
+            "Norway",
+            "Poland",
+            "Portugal",
+            "Romania",
+            "Serbia",
+            "Slovakia",
+            "Slovenia",
+            "Spain",
+            "Sweden",
+            "Switzerland",
+            "United Kingdom",
         ],
     },
     "EIA": {"gppd": "USA", "gem": "United States"},
@@ -83,10 +141,21 @@ SOURCE_COUNTRIES = {
 
 # Columns in the output
 OUTPUT_COLUMNS = [
-    "plant_name", "plant_code", "source_system", "latitude", "longitude",
-    "ref_source", "matching_method", "confidence", "ref_matched_name", "reasoning",
-    "coal_type", "combustion_tech", "capacity_mw",
-    "state", "sector",
+    "plant_name",
+    "plant_code",
+    "source_system",
+    "latitude",
+    "longitude",
+    "ref_source",
+    "matching_method",
+    "confidence",
+    "ref_matched_name",
+    "reasoning",
+    "coal_type",
+    "combustion_tech",
+    "capacity_mw",
+    "state",
+    "sector",
 ]
 
 NPP_GIPT_CSV = get_crosswalk_dir() / "NPP_GIPT_crosswalk (1).csv"
@@ -115,6 +184,7 @@ def _parse_gem_capacity(val) -> float | None:
 # This regex catches the obvious non-coal NPP suffixes so we can suppress coal
 # metadata attribution.
 import re as _re_npp  # noqa: E402  # placed here to keep the regex co-located with the docstring above
+
 _NPP_NON_COAL_SUFFIX = _re_npp.compile(
     r"(?:^|[\s\W])(?:HPS|HEP|HEPP|CCPP|OCGT|CCGT|GT-?\d|NUCLEAR|NPP|"
     r"WIND|SOLAR|PV|HYDRO|HYDEL|RES)(?:$|[\s\W])",
@@ -127,6 +197,64 @@ def _is_npp_likely_non_coal(plant_name) -> bool:
     if not isinstance(plant_name, str):
         return False
     return bool(_NPP_NON_COAL_SUFFIX.search(plant_name))
+
+
+def _build_norm_index(names, normalizer, label: str) -> dict[str, str]:
+    """Build {normalized: original} with collision and empty-key detection.
+
+    Distinct reference plants can normalize to the same key (e.g.
+    "Foo power station" and "Foo power plant" both → "FOO"); a plain dict
+    comprehension keeps whichever iterated last, so a source plant matching
+    "FOO" resolved to an ARBITRARY one of them — wrong coordinates and coal
+    metadata, nondeterministically. Keep the FIRST (deterministic) and log
+    every collision loudly so they can be reviewed. Empty normalizations
+    are dropped: rapidfuzz scores two empty strings 100, so an empty key
+    would "match" any query that also normalizes to empty.
+    """
+    index: dict[str, str] = {}
+    for name in names:
+        key = normalizer(name)
+        if not key:
+            logger.warning(
+                f"{label}: {name!r} normalizes to empty — excluded from fuzzy index"
+            )
+            continue
+        if key in index and index[key] != name:
+            logger.warning(
+                f"{label}: normalization collision {key!r}: keeping {index[key]!r}, "
+                f"dropping {name!r} — review manually if both are real plants"
+            )
+            continue
+        index[key] = name
+    return index
+
+
+_LLM_SCORE_SUFFIX = _re_npp.compile(r"\s*\(score:\s*\d+(?:\.\d+)?\)\s*$")
+
+
+def _clean_llm_match(match: str) -> tuple[str | None, str]:
+    """Split an LLM match like 'GEM: Foo power station (score: 95)'.
+
+    Returns (source_from_prefix, cleaned_name). The prefix is authoritative
+    for the reference source (the model's separate `source` field sometimes
+    says 'Crosswalk' or differs in case); the '(score: N)' suffix is echoed
+    candidate formatting, not part of the plant name — both used to cause
+    silent coordinate-lookup misses.
+    """
+    source = None
+    name = match.strip()
+    for prefix in ("GEM: ", "GPPD: "):
+        if name.startswith(prefix):
+            source = prefix[:-2]
+            name = name[len(prefix) :]
+            break
+    name = _LLM_SCORE_SUFFIX.sub("", name).strip()
+    return source, name
+
+
+def _normalize_confidence(confidence) -> str | None:
+    """Lowercase free-form LLM confidence ('High' → 'high')."""
+    return confidence.strip().lower() if isinstance(confidence, str) else None
 
 
 def _norm_npp_name(name) -> str:
@@ -319,7 +447,9 @@ def load_gem(source_system: str | None = None) -> dict[str, dict]:
             "lon": row["Longitude"],
             "name": name,
             "coal_type": _parse_gem_coal_type(row.get("Fuel")) if is_coal else None,
-            "combustion_tech": _normalize_combustion_tech(row.get("Technology")) if is_coal else None,
+            "combustion_tech": _normalize_combustion_tech(row.get("Technology"))
+            if is_coal
+            else None,
             "capacity_mw": cap,
             "_is_coal": is_coal,
         }
@@ -342,7 +472,9 @@ def load_gppd(country_codes: list[str] | None = None) -> pd.DataFrame:
         logger.warning(f"GPPD CSV not found: {GPPD_CSV}")
         return pd.DataFrame(columns=["name", "latitude", "longitude", "country"])
 
-    gppd = pd.read_csv(GPPD_CSV, usecols=["name", "latitude", "longitude", "country"], low_memory=False)
+    gppd = pd.read_csv(
+        GPPD_CSV, usecols=["name", "latitude", "longitude", "country"], low_memory=False
+    )
     if country_codes:
         gppd = gppd[gppd["country"].isin(country_codes)]
     return gppd
@@ -371,12 +503,16 @@ def match_npp_via_gipt(plants_df: pd.DataFrame) -> pd.DataFrame:
     if npp_plants.empty:
         return pd.DataFrame(columns=OUTPUT_COLUMNS)
 
-    logger.info(f"NPP-GIPT authoritative matching for {len(npp_plants):,} NPP plants...")
+    logger.info(
+        f"NPP-GIPT authoritative matching for {len(npp_plants):,} NPP plants..."
+    )
 
     gipt = pd.read_csv(NPP_GIPT_CSV)
     gipt_coal = gipt[gipt["Type"].astype(str).str.lower() == "coal"].copy()
-    logger.info(f"  GIPT crosswalk: {len(gipt_coal):,} coal unit rows across "
-                f"{gipt_coal['DGR plant name'].nunique():,} distinct DGR plants")
+    logger.info(
+        f"  GIPT crosswalk: {len(gipt_coal):,} coal unit rows across "
+        f"{gipt_coal['DGR plant name'].nunique():,} distinct DGR plants"
+    )
 
     if not GEM_CSV.exists():
         logger.warning(f"GEM CSV not found: {GEM_CSV}")
@@ -439,8 +575,12 @@ def match_npp_via_gipt(plants_df: pd.DataFrame) -> pd.DataFrame:
         # is classified as coal.
         plant_coal = coal_types[0] if coal_types else "unknown"
         plant_tech = techs[0] if techs else None
-        plant_state = group["State"].dropna().iloc[0] if group["State"].notna().any() else None
-        plant_sector = group["Sector"].dropna().iloc[0] if group["Sector"].notna().any() else None
+        plant_state = (
+            group["State"].dropna().iloc[0] if group["State"].notna().any() else None
+        )
+        plant_sector = (
+            group["Sector"].dropna().iloc[0] if group["Sector"].notna().any() else None
+        )
         ref_name = gem_project_names[0] if gem_project_names else None
 
         if plant_lat is None or plant_lon is None:
@@ -448,30 +588,40 @@ def match_npp_via_gipt(plants_df: pd.DataFrame) -> pd.DataFrame:
             # rapidfuzz/LLM may still find a different reference.
             continue
 
-        results.append({
-            "plant_name": matched_npp_name,
-            "plant_code": None,
-            "source_system": "NPP",
-            "latitude": plant_lat,
-            "longitude": plant_lon,
-            "ref_source": "GEM",
-            "matching_method": "direct",
-            "confidence": "high",
-            "ref_matched_name": ref_name,
-            "coal_type": plant_coal,
-            "combustion_tech": plant_tech,
-            "capacity_mw": plant_cap,
-            "state": plant_state,
-            "sector": plant_sector,
-        })
+        results.append(
+            {
+                "plant_name": matched_npp_name,
+                "plant_code": None,
+                "source_system": "NPP",
+                "latitude": plant_lat,
+                "longitude": plant_lon,
+                "ref_source": "GEM",
+                "matching_method": "direct",
+                "confidence": "high",
+                "ref_matched_name": ref_name,
+                "coal_type": plant_coal,
+                "combustion_tech": plant_tech,
+                "capacity_mw": plant_cap,
+                "state": plant_state,
+                "sector": plant_sector,
+            }
+        )
 
-    out = pd.DataFrame(results, columns=OUTPUT_COLUMNS) if results else pd.DataFrame(columns=OUTPUT_COLUMNS)
+    out = (
+        pd.DataFrame(results, columns=OUTPUT_COLUMNS)
+        if results
+        else pd.DataFrame(columns=OUTPUT_COLUMNS)
+    )
     # Distinct crosswalk `DGR plant name` entries can collapse to the same NPP
     # plant under normalization (e.g. ' OPG...' vs 'OPG...'). Keep one row per
     # plant_name so the dashboard's plant-level LEFT JOIN doesn't double-count.
     if not out.empty:
-        out = out.drop_duplicates(subset=["plant_name"], keep="first").reset_index(drop=True)
-    logger.info(f"  NPP-GIPT direct: {len(out):,} matched (with capacity, state, sector)")
+        out = out.drop_duplicates(subset=["plant_name"], keep="first").reset_index(
+            drop=True
+        )
+    logger.info(
+        f"  NPP-GIPT direct: {len(out):,} matched (with capacity, state, sector)"
+    )
     return out
 
 
@@ -485,20 +635,26 @@ def match_direct(plants_df: pd.DataFrame) -> pd.DataFrame:
         for _, row in oe_plants.iterrows():
             lat, lon = row.get("latitude"), row.get("longitude")
             if pd.notna(lat) and pd.notna(lon) and validate_coordinates(lat, lon):
-                results.append({
-                    "plant_name": row["plant_name"],
-                    "plant_code": row.get("plant_code"),
-                    "source_system": "OE",
-                    "latitude": lat,
-                    "longitude": lon,
-                    "ref_source": "OE-direct",
-                    "matching_method": "direct",
-                    "confidence": None,
-                    "ref_matched_name": row["plant_name"],
-                })
+                results.append(
+                    {
+                        "plant_name": row["plant_name"],
+                        "plant_code": row.get("plant_code"),
+                        "source_system": "OE",
+                        "latitude": lat,
+                        "longitude": lon,
+                        "ref_source": "OE-direct",
+                        "matching_method": "direct",
+                        "confidence": None,
+                        "ref_matched_name": row["plant_name"],
+                    }
+                )
         logger.info(f"  OE direct: {len(results):,} matched")
 
-    return pd.DataFrame(results, columns=OUTPUT_COLUMNS) if results else pd.DataFrame(columns=OUTPUT_COLUMNS)
+    return (
+        pd.DataFrame(results, columns=OUTPUT_COLUMNS)
+        if results
+        else pd.DataFrame(columns=OUTPUT_COLUMNS)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -526,15 +682,21 @@ def match_rapidfuzz(
 
         # Load per-source references
         gem_names = load_gem(source)
-        gem_norm = {normalize_for_comparison(n): n for n in gem_names}
+        gem_norm = _build_norm_index(
+            gem_names, normalize_for_comparison, f"GEM[{source}]"
+        )
         gem_norm_list = list(gem_norm.keys())
 
         # Load GPPD for this source's countries
         cfg = SOURCE_COUNTRIES.get(source, {})
-        gppd_countries = cfg.get("gppd_countries") or ([cfg["gppd"]] if cfg.get("gppd") else None)
+        gppd_countries = cfg.get("gppd_countries") or (
+            [cfg["gppd"]] if cfg.get("gppd") else None
+        )
         gppd_df = load_gppd(gppd_countries)
         gppd_raw_names = gppd_df["name"].dropna().unique().tolist()
-        gppd_norm = {normalize_gppd_name(n): n for n in gppd_raw_names}
+        gppd_norm = _build_norm_index(
+            gppd_raw_names, normalize_gppd_name, f"GPPD[{source}]"
+        )
         gppd_norm_list = list(gppd_norm.keys())
         # Build gppd name -> coords
         gppd_coords: dict[str, dict] = {}
@@ -550,67 +712,123 @@ def match_rapidfuzz(
                 continue
 
             norm_name = normalize_for_comparison(plant_name)
+            if not norm_name:
+                # Names that normalize to empty (e.g. "POWER PLANT (Liq.)")
+                # must not be fuzzy-matched — empty-vs-anything is garbage.
+                continue
             matched = False
 
             # --- GEM: token_sort_ratio ---
             if gem_norm_list and (ref_sources is None or "GEM" in ref_sources):
                 gem_hit = process.extractOne(
-                    norm_name, gem_norm_list,
-                    scorer=fuzz.token_sort_ratio, score_cutoff=GEM_THRESHOLD,
+                    norm_name,
+                    gem_norm_list,
+                    scorer=fuzz.token_sort_ratio,
+                    score_cutoff=GEM_THRESHOLD,
                 )
+                # validate_match: the threshold-80 false-positive guard the
+                # code's own comments document ("BHADRA HPS" → "Bhandara
+                # power station") — requires a shared significant location
+                # word. Rejected hits fall through to the LLM stage, which
+                # is much better at telling such pairs apart.
+                if gem_hit and not validate_match(plant_name, gem_norm[gem_hit[0]]):
+                    logger.debug(
+                        f"{source}: fuzzy GEM hit rejected by validate_match: "
+                        f"{plant_name!r} → {gem_norm[gem_hit[0]]!r}"
+                    )
+                    gem_hit = None
                 if gem_hit:
                     orig = gem_norm[gem_hit[0]]
                     info = gem_names[orig]
-                    if pd.notna(info["lat"]) and pd.notna(info["lon"]):
-                        results.append({
-                            "plant_name": plant_name,
-                            "plant_code": row.get("plant_code"),
-                            "source_system": source,
-                            "latitude": info["lat"],
-                            "longitude": info["lon"],
-                            "ref_source": "GEM",
-                            "matching_method": "rapidfuzz",
-                            "confidence": None,
-                            "ref_matched_name": orig,
-                            # Suppress coal-metadata attribution when an NPP plant's
-                            # name has a non-coal technology suffix (HPS/CCPP/etc.).
-                            # This avoids spurious "coal" capacity on hydro/gas
-                            # plants that fuzzy-matched to a similarly-named coal plant.
-                            "coal_type": None if (source == "NPP" and _is_npp_likely_non_coal(plant_name)) else info.get("coal_type"),
-                            "combustion_tech": None if (source == "NPP" and _is_npp_likely_non_coal(plant_name)) else info.get("combustion_tech"),
-                            "capacity_mw": None if (source == "NPP" and _is_npp_likely_non_coal(plant_name)) else info.get("capacity_mw"),
-                        })
+                    if validate_coordinates(info["lat"], info["lon"]):
+                        results.append(
+                            {
+                                "plant_name": plant_name,
+                                "plant_code": row.get("plant_code"),
+                                "source_system": source,
+                                "latitude": info["lat"],
+                                "longitude": info["lon"],
+                                "ref_source": "GEM",
+                                "matching_method": "rapidfuzz",
+                                "confidence": None,
+                                "ref_matched_name": orig,
+                                # Suppress coal-metadata attribution when an NPP plant's
+                                # name has a non-coal technology suffix (HPS/CCPP/etc.).
+                                # This avoids spurious "coal" capacity on hydro/gas
+                                # plants that fuzzy-matched to a similarly-named coal plant.
+                                "coal_type": None
+                                if (
+                                    source == "NPP"
+                                    and _is_npp_likely_non_coal(plant_name)
+                                )
+                                else info.get("coal_type"),
+                                "combustion_tech": None
+                                if (
+                                    source == "NPP"
+                                    and _is_npp_likely_non_coal(plant_name)
+                                )
+                                else info.get("combustion_tech"),
+                                "capacity_mw": None
+                                if (
+                                    source == "NPP"
+                                    and _is_npp_likely_non_coal(plant_name)
+                                )
+                                else info.get("capacity_mw"),
+                            }
+                        )
                         matched = True
                         count += 1
 
             # --- GPPD: token_sort_ratio ---
-            if not matched and gppd_norm_list and (ref_sources is None or "GPPD" in ref_sources):
+            if (
+                not matched
+                and gppd_norm_list
+                and (ref_sources is None or "GPPD" in ref_sources)
+            ):
                 gppd_query = normalize_gppd_name(plant_name)
-                gppd_hit = process.extractOne(
-                    gppd_query, gppd_norm_list,
-                    scorer=fuzz.token_sort_ratio, score_cutoff=GPPD_THRESHOLD,
+                gppd_hit = (
+                    process.extractOne(
+                        gppd_query,
+                        gppd_norm_list,
+                        scorer=fuzz.token_sort_ratio,
+                        score_cutoff=GPPD_THRESHOLD,
+                    )
+                    if gppd_query
+                    else None
                 )
+                if gppd_hit and not validate_match(plant_name, gppd_norm[gppd_hit[0]]):
+                    logger.debug(
+                        f"{source}: fuzzy GPPD hit rejected by validate_match: "
+                        f"{plant_name!r} → {gppd_norm[gppd_hit[0]]!r}"
+                    )
+                    gppd_hit = None
                 if gppd_hit:
                     orig = gppd_norm[gppd_hit[0]]
                     coords = gppd_coords.get(orig, {})
-                    if pd.notna(coords.get("lat")) and pd.notna(coords.get("lon")):
-                        results.append({
-                            "plant_name": plant_name,
-                            "plant_code": row.get("plant_code"),
-                            "source_system": source,
-                            "latitude": coords["lat"],
-                            "longitude": coords["lon"],
-                            "ref_source": "GPPD",
-                            "matching_method": "rapidfuzz",
-                            "confidence": None,
-                            "ref_matched_name": orig,
-                        })
+                    if validate_coordinates(coords.get("lat"), coords.get("lon")):
+                        results.append(
+                            {
+                                "plant_name": plant_name,
+                                "plant_code": row.get("plant_code"),
+                                "source_system": source,
+                                "latitude": coords["lat"],
+                                "longitude": coords["lon"],
+                                "ref_source": "GPPD",
+                                "matching_method": "rapidfuzz",
+                                "confidence": None,
+                                "ref_matched_name": orig,
+                            }
+                        )
                         matched = True
                         count += 1
 
         logger.info(f"  {source} rapidfuzz: {count:,} matched")
 
-    return pd.DataFrame(results, columns=OUTPUT_COLUMNS) if results else pd.DataFrame(columns=OUTPUT_COLUMNS)
+    return (
+        pd.DataFrame(results, columns=OUTPUT_COLUMNS)
+        if results
+        else pd.DataFrame(columns=OUTPUT_COLUMNS)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -642,7 +860,9 @@ def match_llm(
         gem_name_list = list(gem_names.keys())
 
         cfg = SOURCE_COUNTRIES.get(source, {})
-        gppd_countries = cfg.get("gppd_countries") or ([cfg["gppd"]] if cfg.get("gppd") else None)
+        gppd_countries = cfg.get("gppd_countries") or (
+            [cfg["gppd"]] if cfg.get("gppd") else None
+        )
         gppd_df = load_gppd(gppd_countries)
         gppd_raw_names = gppd_df["name"].dropna().unique().tolist()
         gppd_coords: dict[str, dict] = {}
@@ -688,48 +908,79 @@ def match_llm(
                 candidates_str = retriever.get_candidates(plant_name, limit=15)
             result = matcher.match(plant_name, candidates_str, source_system=source)
 
-            if result.match and result.confidence in ("high", "medium"):
-                # Parse "SOURCE: matched_name" from result.match
-                ref_source = result.source
-                matched_name = result.match
-                # Strip source prefix if present
-                for prefix in ("GEM: ", "GPPD: "):
-                    if matched_name.startswith(prefix):
-                        matched_name = matched_name[len(prefix):]
-                        break
+            confidence = _normalize_confidence(result.confidence)
+            if result.match and confidence in ("high", "medium"):
+                # The "SOURCE: " prefix in the match text is authoritative —
+                # the model's separate `source` field sometimes answers
+                # "Crosswalk" (an option the prompt offers but all_coords
+                # doesn't carry) or varies in case, which used to drop
+                # structurally valid matches with no log.
+                prefix_source, matched_name = _clean_llm_match(result.match)
+                ref_source = prefix_source or result.source
 
                 # Look up coordinates
                 coords = all_coords.get(ref_source, {}).get(matched_name, {})
+                if not coords and ref_source not in all_coords:
+                    # Last resort: search both reference sets by name.
+                    for cand_source, cand_coords in all_coords.items():
+                        if matched_name in cand_coords:
+                            ref_source = cand_source
+                            coords = cand_coords[matched_name]
+                            break
                 lat, lon = coords.get("lat"), coords.get("lon")
 
-                if pd.notna(lat) and pd.notna(lon):
-                    results.append({
-                        "plant_name": plant_name,
-                        "plant_code": row.get("plant_code"),
-                        "source_system": source,
-                        "latitude": lat,
-                        "longitude": lon,
-                        "ref_source": ref_source or "LLM",
-                        "matching_method": "llm",
-                        "confidence": result.confidence,
-                        "ref_matched_name": matched_name,
-                        "reasoning": result.reasoning,
-                        # Same NPP non-coal suppression as the rapidfuzz path.
-                        "coal_type": None if (source == "NPP" and _is_npp_likely_non_coal(plant_name)) else coords.get("coal_type"),
-                        "combustion_tech": None if (source == "NPP" and _is_npp_likely_non_coal(plant_name)) else coords.get("combustion_tech"),
-                        "capacity_mw": None if (source == "NPP" and _is_npp_likely_non_coal(plant_name)) else coords.get("capacity_mw"),
-                    })
+                if not validate_coordinates(lat, lon):
+                    logger.warning(
+                        f"{source}: LLM match for {plant_name!r} DISCARDED — "
+                        f"could not resolve {ref_source!r}/{matched_name!r} to "
+                        f"valid coordinates (llm source field: {result.source!r})"
+                    )
+                if validate_coordinates(lat, lon):
+                    results.append(
+                        {
+                            "plant_name": plant_name,
+                            "plant_code": row.get("plant_code"),
+                            "source_system": source,
+                            "latitude": lat,
+                            "longitude": lon,
+                            "ref_source": ref_source or "LLM",
+                            "matching_method": "llm",
+                            "confidence": confidence,
+                            "ref_matched_name": matched_name,
+                            "reasoning": result.reasoning,
+                            # Same NPP non-coal suppression as the rapidfuzz path.
+                            "coal_type": None
+                            if (source == "NPP" and _is_npp_likely_non_coal(plant_name))
+                            else coords.get("coal_type"),
+                            "combustion_tech": None
+                            if (source == "NPP" and _is_npp_likely_non_coal(plant_name))
+                            else coords.get("combustion_tech"),
+                            "capacity_mw": None
+                            if (source == "NPP" and _is_npp_likely_non_coal(plant_name))
+                            else coords.get("capacity_mw"),
+                        }
+                    )
 
-        logger.info(f"  {source} LLM: {len([r for r in results if r['source_system'] == source]):,} matched")
+        logger.info(
+            f"  {source} LLM: {len([r for r in results if r['source_system'] == source]):,} matched"
+        )
 
-    return pd.DataFrame(results, columns=OUTPUT_COLUMNS) if results else pd.DataFrame(columns=OUTPUT_COLUMNS)
+    return (
+        pd.DataFrame(results, columns=OUTPUT_COLUMNS)
+        if results
+        else pd.DataFrame(columns=OUTPUT_COLUMNS)
+    )
 
 
 def _log_per_source(matched_df: pd.DataFrame, input_df: pd.DataFrame, stage: str):
     """Log per-source breakdown for a matching stage."""
     for src in input_df["source_system"].unique():
         src_total = len(input_df[input_df["source_system"] == src])
-        src_matched = len(matched_df[matched_df["source_system"] == src]) if not matched_df.empty else 0
+        src_matched = (
+            len(matched_df[matched_df["source_system"] == src])
+            if not matched_df.empty
+            else 0
+        )
         pct = src_matched / src_total if src_total > 0 else 0
         logger.info(f"    {src:8s}: {src_matched:,}/{src_total:,} ({pct:.1%})")
 
@@ -759,11 +1010,15 @@ def build_unified_crosswalk(
         logger.info(f"Loaded existing crosswalk: {len(existing):,} rows")
         # Remove old rows for the requested sources (we'll rebuild them)
         existing = existing[~existing["source_system"].isin(sources)]
-        logger.info(f"  Kept {len(existing):,} rows (excluded {', '.join(sources)} for rebuild)")
+        logger.info(
+            f"  Kept {len(existing):,} rows (excluded {', '.join(sources)} for rebuild)"
+        )
     elif not sources and OUTPUT_FILE.exists():
         logger.info(f"Found existing output: {OUTPUT_FILE}")
         cached = pd.read_parquet(OUTPUT_FILE)
-        logger.info(f"  {len(cached):,} rows, {cached['latitude'].notna().mean():.1%} with coords")
+        logger.info(
+            f"  {len(cached):,} rows, {cached['latitude'].notna().mean():.1%} with coords"
+        )
         logger.info("Delete the file to rebuild, or use --force to overwrite")
         return cached
 
@@ -783,20 +1038,36 @@ def build_unified_crosswalk(
     ].copy()
 
     # Deduplicate (plant_name, source_system) — keep first (preserves OE lat/lon)
-    plants_df = plants_df.drop_duplicates(subset=["plant_name", "source_system"], keep="first")
-    logger.info(f"After dedup: {len(plants_df):,} unique (plant_name, source_system) pairs")
+    plants_df = plants_df.drop_duplicates(
+        subset=["plant_name", "source_system"], keep="first"
+    )
+    logger.info(
+        f"After dedup: {len(plants_df):,} unique (plant_name, source_system) pairs"
+    )
 
     # Step 3a: Direct matching (OE embedded coords + NPP via GIPT crosswalk)
     logger.info("=" * 60)
     logger.info("Step 3: Direct matching (OE embedded coords + NPP-GIPT)...")
     exact_oe = match_direct(plants_df)
     exact_npp = match_npp_via_gipt(plants_df)
-    exact_df = pd.concat([exact_oe, exact_npp], ignore_index=True) if not exact_npp.empty else exact_oe
-    logger.info(f"Direct matches: OE={len(exact_oe):,} + NPP-GIPT={len(exact_npp):,} = {len(exact_df):,}")
+    exact_df = (
+        pd.concat([exact_oe, exact_npp], ignore_index=True)
+        if not exact_npp.empty
+        else exact_oe
+    )
+    logger.info(
+        f"Direct matches: OE={len(exact_oe):,} + NPP-GIPT={len(exact_npp):,} = {len(exact_df):,}"
+    )
 
     # Determine unmatched
-    matched_keys = set(zip(exact_df["plant_name"], exact_df["source_system"])) if not exact_df.empty else set()
-    unmatched_mask = ~plants_df.apply(lambda r: (r["plant_name"], r["source_system"]) in matched_keys, axis=1)
+    matched_keys = (
+        set(zip(exact_df["plant_name"], exact_df["source_system"]))
+        if not exact_df.empty
+        else set()
+    )
+    unmatched_mask = ~plants_df.apply(
+        lambda r: (r["plant_name"], r["source_system"]) in matched_keys, axis=1
+    )
     unmatched_1 = plants_df[unmatched_mask]
     logger.info(f"Unmatched after exact: {len(unmatched_1):,}")
 
@@ -808,10 +1079,16 @@ def build_unified_crosswalk(
     _log_per_source(gem_df, unmatched_1, "GEM rapidfuzz")
 
     # Update unmatched after GEM
-    gem_keys = set(zip(gem_df["plant_name"], gem_df["source_system"])) if not gem_df.empty else set()
+    gem_keys = (
+        set(zip(gem_df["plant_name"], gem_df["source_system"]))
+        if not gem_df.empty
+        else set()
+    )
     all_matched_gem = matched_keys | gem_keys
     unmatched_after_gem = plants_df[
-        ~plants_df.apply(lambda r: (r["plant_name"], r["source_system"]) in all_matched_gem, axis=1)
+        ~plants_df.apply(
+            lambda r: (r["plant_name"], r["source_system"]) in all_matched_gem, axis=1
+        )
     ]
     logger.info(f"Unmatched after GEM: {len(unmatched_after_gem):,}")
 
@@ -823,10 +1100,16 @@ def build_unified_crosswalk(
     _log_per_source(gppd_df, unmatched_after_gem, "GPPD rapidfuzz")
 
     # Update unmatched after GPPD
-    gppd_keys = set(zip(gppd_df["plant_name"], gppd_df["source_system"])) if not gppd_df.empty else set()
+    gppd_keys = (
+        set(zip(gppd_df["plant_name"], gppd_df["source_system"]))
+        if not gppd_df.empty
+        else set()
+    )
     all_matched = all_matched_gem | gppd_keys
     unmatched_2 = plants_df[
-        ~plants_df.apply(lambda r: (r["plant_name"], r["source_system"]) in all_matched, axis=1)
+        ~plants_df.apply(
+            lambda r: (r["plant_name"], r["source_system"]) in all_matched, axis=1
+        )
     ]
     logger.info(f"Unmatched after GEM+GPPD: {len(unmatched_2):,}")
 
@@ -843,7 +1126,9 @@ def build_unified_crosswalk(
         if yes:
             confirm = "y"
         else:
-            confirm = input(f"Proceed with LLM matching for {n_plants:,} plants (~${est_cost:.2f})? [y/N] ")
+            confirm = input(
+                f"Proceed with LLM matching for {n_plants:,} plants (~${est_cost:.2f})? [y/N] "
+            )
         if confirm.strip().lower() == "y":
             llm_df = match_llm(unmatched_2)
             logger.info(f"LLM matches: {len(llm_df):,}")
@@ -858,32 +1143,42 @@ def build_unified_crosswalk(
     logger.info("Step 7: Combining results...")
 
     # Build rows for still-unmatched plants (null coords)
-    llm_keys = set(zip(llm_df["plant_name"], llm_df["source_system"])) if not llm_df.empty else set()
+    llm_keys = (
+        set(zip(llm_df["plant_name"], llm_df["source_system"]))
+        if not llm_df.empty
+        else set()
+    )
     final_matched = all_matched | llm_keys
     still_unmatched = plants_df[
-        ~plants_df.apply(lambda r: (r["plant_name"], r["source_system"]) in final_matched, axis=1)
+        ~plants_df.apply(
+            lambda r: (r["plant_name"], r["source_system"]) in final_matched, axis=1
+        )
     ]
 
     unmatched_rows = []
     for _, row in still_unmatched.iterrows():
-        unmatched_rows.append({
-            "plant_name": row["plant_name"],
-            "plant_code": row.get("plant_code"),
-            "source_system": row["source_system"],
-            "latitude": None,
-            "longitude": None,
-            "ref_source": None,
-            "matching_method": None,
-            "confidence": None,
-            "ref_matched_name": None,
-            "reasoning": None,
-            "coal_type": None,
-            "combustion_tech": None,
-            "capacity_mw": None,
-        })
+        unmatched_rows.append(
+            {
+                "plant_name": row["plant_name"],
+                "plant_code": row.get("plant_code"),
+                "source_system": row["source_system"],
+                "latitude": None,
+                "longitude": None,
+                "ref_source": None,
+                "matching_method": None,
+                "confidence": None,
+                "ref_matched_name": None,
+                "reasoning": None,
+                "coal_type": None,
+                "combustion_tech": None,
+                "capacity_mw": None,
+            }
+        )
     unmatched_df = pd.DataFrame(unmatched_rows, columns=OUTPUT_COLUMNS)
 
-    new_rows = pd.concat([exact_df, gem_df, gppd_df, llm_df, unmatched_df], ignore_index=True)
+    new_rows = pd.concat(
+        [exact_df, gem_df, gppd_df, llm_df, unmatched_df], ignore_index=True
+    )
 
     # Expand EIA rows: if multiple plant_codes share the same plant_name,
     # create one crosswalk row per plant_code (all sharing the same coords)
@@ -892,17 +1187,23 @@ def build_unified_crosswalk(
     if not eia_rows.empty and not eia_code_map.empty:
         # Drop the single plant_code from matching, re-join with full mapping
         eia_expanded = eia_rows.drop(columns=["plant_code"]).merge(
-            eia_code_map, on="plant_name", how="left",
+            eia_code_map,
+            on="plant_name",
+            how="left",
         )
         new_rows = pd.concat([non_eia_rows, eia_expanded], ignore_index=True)
         n_added = len(new_rows) - len(non_eia_rows) - len(eia_rows)
         if n_added > 0:
-            logger.info(f"Expanded {n_added} additional EIA rows for duplicate plant names")
+            logger.info(
+                f"Expanded {n_added} additional EIA rows for duplicate plant names"
+            )
 
     # Merge with existing crosswalk when running for specific sources
     if existing is not None:
         unified = pd.concat([existing, new_rows], ignore_index=True)
-        logger.info(f"Merged {len(new_rows):,} new rows with {len(existing):,} existing → {len(unified):,} total")
+        logger.info(
+            f"Merged {len(new_rows):,} new rows with {len(existing):,} existing → {len(unified):,} total"
+        )
     else:
         unified = new_rows
 
@@ -916,8 +1217,12 @@ def build_unified_crosswalk(
     logger.info("Summary:")
     logger.info(f"  Total plants:    {len(unified):,}")
     coverage = unified["latitude"].notna().mean()
-    logger.info(f"  With coords:     {unified['latitude'].notna().sum():,} ({coverage:.1%})")
-    logger.info(f"  Without coords:  {unified['latitude'].isna().sum():,} ({1 - coverage:.1%})")
+    logger.info(
+        f"  With coords:     {unified['latitude'].notna().sum():,} ({coverage:.1%})"
+    )
+    logger.info(
+        f"  Without coords:  {unified['latitude'].isna().sum():,} ({1 - coverage:.1%})"
+    )
     logger.info("\n  By source_system:")
     for src in unified["source_system"].unique():
         subset = unified[unified["source_system"] == src]
@@ -937,14 +1242,23 @@ def main():
 
     valid_sources = list(SOURCE_COUNTRIES.keys())
 
-    parser = argparse.ArgumentParser(description="Build unified plant coordinate crosswalk")
+    parser = argparse.ArgumentParser(
+        description="Build unified plant coordinate crosswalk"
+    )
     parser.add_argument("--no-llm", action="store_true", help="Skip LLM matching step")
-    parser.add_argument("--force", action="store_true", help="Overwrite existing output file")
     parser.add_argument(
-        "--sources", nargs="+", choices=valid_sources, metavar="SOURCE",
+        "--force", action="store_true", help="Overwrite existing output file"
+    )
+    parser.add_argument(
+        "--sources",
+        nargs="+",
+        choices=valid_sources,
+        metavar="SOURCE",
         help=f"Only process specific sources (appends to existing). Choices: {', '.join(valid_sources)}",
     )
-    parser.add_argument("--yes", "-y", action="store_true", help="Skip interactive confirmations")
+    parser.add_argument(
+        "--yes", "-y", action="store_true", help="Skip interactive confirmations"
+    )
     args = parser.parse_args()
 
     logger.remove()

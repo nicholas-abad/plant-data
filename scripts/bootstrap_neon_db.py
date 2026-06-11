@@ -78,7 +78,9 @@ def create_schema(engine) -> bool:
     """Execute generation-table and materialized-view SQL from the ETL repo."""
     if not SCHEMA_DIR.exists():
         print(f"  WARNING: Schema directory not found at {SCHEMA_DIR}")
-        print("  Skipping schema creation. Ensure the ETL repo is checked out alongside plant-data.")
+        print(
+            "  Skipping schema creation. Ensure the ETL repo is checked out alongside plant-data."
+        )
         return False
 
     for filename in SCHEMA_FILES:
@@ -101,6 +103,36 @@ def create_schema(engine) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _atomic_replace_table(engine, df, table: str, post_load_sql: list[str]):
+    """Replace `table` with `df` without a window where it is missing or broken.
+
+    The old drop-then-load committed the DROP first, so any failure during
+    the load or the index DDL (e.g. a uniqueness violation from a bad
+    parquet) left production with NO table at all. Instead: load into a
+    staging table (failure here leaves prod untouched), then swap and apply
+    constraints inside ONE transaction — any failure rolls the swap back
+    and the previous table survives intact.
+
+    Note: dropping the old table still uses CASCADE, so dependent views
+    (none today) would be destroyed by a SUCCESSFUL swap exactly as before.
+    """
+    staging = f"{table}_staging"
+    with engine.connect() as conn:
+        conn.execute(text(f"DROP TABLE IF EXISTS {staging} CASCADE"))
+        conn.commit()
+
+    df.to_sql(staging, engine, index=False)
+
+    with engine.begin() as conn:
+        n = conn.execute(text(f"SELECT COUNT(*) FROM {staging}")).scalar()
+        if n != len(df):
+            raise RuntimeError(f"{staging}: expected {len(df):,} rows, found {n:,}")
+        conn.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
+        conn.execute(text(f"ALTER TABLE {staging} RENAME TO {table}"))
+        for sql in post_load_sql:
+            conn.execute(text(sql))
+
+
 def load_unified_crosswalk(engine):
     """Load the unified plant crosswalk parquet into Neon as plant_crosswalk."""
     path = DATA_DIR / "crosswalks" / "unified_plant_crosswalk.parquet"
@@ -110,32 +142,23 @@ def load_unified_crosswalk(engine):
 
     df = pd.read_parquet(path)
 
-    with engine.connect() as conn:
-        conn.execute(text("DROP TABLE IF EXISTS plant_crosswalk CASCADE"))
-        conn.commit()
-
-    df.to_sql("plant_crosswalk", engine, index=False)
-
-    with engine.connect() as conn:
-        # EIA has duplicate plant_names (different plant_codes), so use
-        # COALESCE(plant_code, plant_name) to ensure uniqueness per source
-        conn.execute(text(
+    _atomic_replace_table(
+        engine,
+        df,
+        "plant_crosswalk",
+        [
+            # EIA has duplicate plant_names (different plant_codes), so use
+            # COALESCE(plant_code, plant_name) to ensure uniqueness per source
             "CREATE UNIQUE INDEX idx_plant_crosswalk_pk "
-            "ON plant_crosswalk (COALESCE(plant_code, plant_name), source_system)"
-        ))
-        conn.execute(text(
+            "ON plant_crosswalk (COALESCE(plant_code, plant_name), source_system)",
             "CREATE INDEX idx_plant_crosswalk_source "
-            "ON plant_crosswalk (source_system)"
-        ))
-        conn.execute(text(
+            "ON plant_crosswalk (source_system)",
             "CREATE INDEX idx_plant_crosswalk_plant_code "
-            "ON plant_crosswalk (plant_code) WHERE plant_code IS NOT NULL"
-        ))
-        conn.execute(text(
+            "ON plant_crosswalk (plant_code) WHERE plant_code IS NOT NULL",
             "CREATE INDEX idx_plant_crosswalk_plant_name "
-            "ON plant_crosswalk (plant_name, source_system)"
-        ))
-        conn.commit()
+            "ON plant_crosswalk (plant_name, source_system)",
+        ],
+    )
 
     print(f"  OK  plant_crosswalk: {len(df):,} rows")
 
@@ -149,18 +172,14 @@ def load_npp_llm_test(engine):
 
     df = pd.read_parquet(path)
 
-    with engine.connect() as conn:
-        conn.execute(text("DROP TABLE IF EXISTS npp_llm_test CASCADE"))
-        conn.commit()
-
-    df.to_sql("npp_llm_test", engine, index=False)
-
-    with engine.connect() as conn:
-        conn.execute(text(
-            "ALTER TABLE npp_llm_test "
-            "ADD PRIMARY KEY (plant_name, source_system)"
-        ))
-        conn.commit()
+    _atomic_replace_table(
+        engine,
+        df,
+        "npp_llm_test",
+        [
+            "ALTER TABLE npp_llm_test ADD PRIMARY KEY (plant_name, source_system)",
+        ],
+    )
 
     print(f"  OK  npp_llm_test: {len(df):,} rows")
 
@@ -172,40 +191,43 @@ def load_eia_generator_info(engine):
         print(f"  SKIP  {path.name} not found")
         return
 
-    df = pd.read_excel(path, skiprows=1, usecols=[
-        "Plant Code", "Generator ID", "Technology",
-        "Prime Mover", "Energy Source 1", "Nameplate Capacity (MW)",
-    ])
-    df = df.rename(columns={
-        "Plant Code": "plant_code",
-        "Generator ID": "generator_id",
-        "Technology": "technology",
-        "Prime Mover": "prime_mover",
-        "Energy Source 1": "energy_source_1",
-        "Nameplate Capacity (MW)": "nameplate_capacity_mw",
-    })
+    df = pd.read_excel(
+        path,
+        skiprows=1,
+        usecols=[
+            "Plant Code",
+            "Generator ID",
+            "Technology",
+            "Prime Mover",
+            "Energy Source 1",
+            "Nameplate Capacity (MW)",
+        ],
+    )
+    df = df.rename(
+        columns={
+            "Plant Code": "plant_code",
+            "Generator ID": "generator_id",
+            "Technology": "technology",
+            "Prime Mover": "prime_mover",
+            "Energy Source 1": "energy_source_1",
+            "Nameplate Capacity (MW)": "nameplate_capacity_mw",
+        }
+    )
     # Drop rows with null keys (trailing empty rows in the xlsx)
     df = df.dropna(subset=["plant_code", "generator_id"])
     # Ensure join-key types match eia_generation_data (VARCHAR)
     df["plant_code"] = df["plant_code"].astype(int).astype(str)
     df["generator_id"] = df["generator_id"].astype(str)
 
-    with engine.connect() as conn:
-        conn.execute(text("DROP TABLE IF EXISTS eia_generator_info CASCADE"))
-        conn.commit()
-
-    df.to_sql("eia_generator_info", engine, index=False)
-
-    with engine.connect() as conn:
-        conn.execute(text(
-            "ALTER TABLE eia_generator_info "
-            "ADD PRIMARY KEY (plant_code, generator_id)"
-        ))
-        conn.execute(text(
-            "CREATE INDEX idx_eia_gen_info_technology "
-            "ON eia_generator_info (technology)"
-        ))
-        conn.commit()
+    _atomic_replace_table(
+        engine,
+        df,
+        "eia_generator_info",
+        [
+            "ALTER TABLE eia_generator_info ADD PRIMARY KEY (plant_code, generator_id)",
+            "CREATE INDEX idx_eia_gen_info_technology ON eia_generator_info (technology)",
+        ],
+    )
 
     print(f"  OK  eia_generator_info: {len(df):,} rows")
 
@@ -215,7 +237,13 @@ def load_gcpt_coal_metadata(engine):
     import re
 
     # Try GCPT-specific file first, fall back to GEM database
-    gcpt_path = SCRIPT_DIR.parent.parent.parent / "other_repositories" / "krv-analytics" / "data" / "28August2025_GCPT_Database.csv"
+    gcpt_path = (
+        SCRIPT_DIR.parent.parent.parent
+        / "other_repositories"
+        / "krv-analytics"
+        / "data"
+        / "28August2025_GCPT_Database.csv"
+    )
     if not gcpt_path.exists():
         gcpt_path = DATA_DIR / "crosswalks" / "GEM database_21Feb2026.csv"
     if not gcpt_path.exists():
@@ -245,24 +273,30 @@ def load_gcpt_coal_metadata(engine):
     df["plant_code"] = df["Non WEPP location IDs"].apply(_extract_eia)
     df["generator_id"] = df["Unit Other IDs"].apply(_extract_eia)
     df["eia_unit_id"] = df.apply(
-        lambda r: f"{r['plant_code']}|{r['generator_id']}"
-        if pd.notna(r["plant_code"]) and pd.notna(r["generator_id"])
-        and str(r["plant_code"]).strip() and str(r["generator_id"]).strip()
-        else None,
+        lambda r: (
+            f"{r['plant_code']}|{r['generator_id']}"
+            if pd.notna(r["plant_code"])
+            and pd.notna(r["generator_id"])
+            and str(r["plant_code"]).strip()
+            and str(r["generator_id"]).strip()
+            else None
+        ),
         axis=1,
     )
 
     # Extract fields
-    out = pd.DataFrame({
-        "gcpt_unit_id": df["Unit ID"],
-        "eia_unit_id": df["eia_unit_id"],
-        "plant_name": df["Project Name"],
-        "unit_name": df["Unit Name"],
-        "coal_type": df["Fuel"].apply(_extract_coal_type),
-        "technology": df["Technology"].fillna("unknown").str.lower().str.strip(),
-        "capacity_mw": df["Capacity"].apply(_parse_capacity),
-        "country": df["Country/Area"],
-    })
+    out = pd.DataFrame(
+        {
+            "gcpt_unit_id": df["Unit ID"],
+            "eia_unit_id": df["eia_unit_id"],
+            "plant_name": df["Project Name"],
+            "unit_name": df["Unit Name"],
+            "coal_type": df["Fuel"].apply(_extract_coal_type),
+            "technology": df["Technology"].fillna("unknown").str.lower().str.strip(),
+            "capacity_mw": df["Capacity"].apply(_parse_capacity),
+            "country": df["Country/Area"],
+        }
+    )
     out = out.dropna(subset=["gcpt_unit_id"])
 
     # Deduplicate eia_unit_id — keep the record with highest capacity
@@ -271,32 +305,31 @@ def load_gcpt_coal_metadata(engine):
     no_eia = out[out["eia_unit_id"].isna()]
     n_dupes = has_eia.duplicated(subset=["eia_unit_id"], keep=False).sum()
     if n_dupes > 0:
-        print(f"  WARN  {n_dupes} rows with duplicate eia_unit_id — keeping highest capacity")
-    has_eia = has_eia.sort_values("capacity_mw", ascending=False, na_position="last").drop_duplicates(
-        subset=["eia_unit_id"], keep="first"
-    )
+        print(
+            f"  WARN  {n_dupes} rows with duplicate eia_unit_id — keeping highest capacity"
+        )
+    has_eia = has_eia.sort_values(
+        "capacity_mw", ascending=False, na_position="last"
+    ).drop_duplicates(subset=["eia_unit_id"], keep="first")
     out = pd.concat([has_eia, no_eia], ignore_index=True)
     if len(no_eia) > 0:
         print(f"  INFO  {len(no_eia)} rows without EIA unit ID (non-USA or unmatched)")
 
-    with engine.connect() as conn:
-        conn.execute(text("DROP TABLE IF EXISTS gcpt_coal_metadata CASCADE"))
-        conn.commit()
-
-    out.to_sql("gcpt_coal_metadata", engine, index=False)
-
-    with engine.connect() as conn:
-        conn.execute(text(
-            "ALTER TABLE gcpt_coal_metadata ADD PRIMARY KEY (gcpt_unit_id)"
-        ))
-        conn.execute(text(
+    _atomic_replace_table(
+        engine,
+        out,
+        "gcpt_coal_metadata",
+        [
+            "ALTER TABLE gcpt_coal_metadata ADD PRIMARY KEY (gcpt_unit_id)",
             "CREATE INDEX idx_gcpt_coal_eia_unit "
-            "ON gcpt_coal_metadata (eia_unit_id) WHERE eia_unit_id IS NOT NULL"
-        ))
-        conn.commit()
+            "ON gcpt_coal_metadata (eia_unit_id) WHERE eia_unit_id IS NOT NULL",
+        ],
+    )
 
     usa_with_eia = out[(out["country"] == "United States") & out["eia_unit_id"].notna()]
-    print(f"  OK  gcpt_coal_metadata: {len(out):,} rows ({len(usa_with_eia):,} USA with EIA IDs)")
+    print(
+        f"  OK  gcpt_coal_metadata: {len(out):,} rows ({len(usa_with_eia):,} USA with EIA IDs)"
+    )
 
 
 def load_all_reference_data(engine):
@@ -342,9 +375,19 @@ def main():
     )
     args = parser.parse_args()
 
-    mutually_exclusive = sum([args.schema_only, args.data_only, args.test_only, args.generator_info_only, args.gcpt_only])
+    mutually_exclusive = sum(
+        [
+            args.schema_only,
+            args.data_only,
+            args.test_only,
+            args.generator_info_only,
+            args.gcpt_only,
+        ]
+    )
     if mutually_exclusive > 1:
-        print("ERROR: --schema-only, --data-only, --test-only, --generator-info-only, and --gcpt-only are mutually exclusive")
+        print(
+            "ERROR: --schema-only, --data-only, --test-only, --generator-info-only, and --gcpt-only are mutually exclusive"
+        )
         sys.exit(1)
 
     engine = get_engine()
