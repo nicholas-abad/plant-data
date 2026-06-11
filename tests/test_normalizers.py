@@ -90,3 +90,36 @@ class TestValidateCoordinates:
         from src.utils import validate_coordinates
 
         assert validate_coordinates(np.nan, 13.4) is False
+
+
+class TestMojibakeAndAccents:
+    def test_mojibake_repair(self):
+        from src.plant_name_matchers.normalizers import fix_mojibake
+
+        assert fix_mojibake("BeÅ\x82chatÃ³w B01") == "Bełchatów B01"
+        assert fix_mojibake("plain ascii") == "plain ascii"
+        assert fix_mojibake("café") == "café", "genuine latin-1 text untouched"
+
+    def test_mojibake_names_key_identically(self):
+        # The 13 Bełchatów units arrive double-encoded from ENTSO-E; they
+        # must produce the SAME comparison key as the clean reference name
+        # (ł doesn't NFKD-decompose, so both sides scrub it identically).
+        key_mojibake = normalize_for_comparison("BeÅ\x82chatÃ³w")
+        key_clean = normalize_for_comparison("Bełchatów")
+        assert key_mojibake == key_clean
+        assert validate_match("BeÅ\x82chatÃ³w B01", "Bełchatów") is True
+
+    def test_accent_variant_validates(self):
+        assert validate_match("Tucunare", "Tucunaré power station") is True
+
+    def test_short_exact_name_validates(self):
+        # All base words are short or stopwords → whole-name phrase rule
+        assert validate_match("CSP", "CSP power station") is True
+        assert validate_match("GNA I", "GNA I power station") is True
+        assert validate_match("Sol", "Sol") is True
+        # ...but a DIFFERENT short name still fails
+        assert validate_match("Altos", "Atos power station") is False
+
+    def test_underscore_coded_names_validate(self):
+        assert validate_match("TE_STANARI", "Stanari Thermal Power Plant") is True
+        assert validate_match("TPP_BOBOV_DOL", "Bobov Dol power station") is True

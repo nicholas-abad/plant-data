@@ -83,9 +83,17 @@ class GeminiNameMatcher(BaseNameMatcher):
             try:
                 raw = self._generate(user_prompt, source_system)
                 break
+            except genai_errors.ClientError as e:
+                # 4xx (bad request / auth / quota config) is deterministic —
+                # retrying wastes 15s of backoff per plant for the same answer.
+                last_err = e
+                logger.error(
+                    f"Gemini non-retryable client error for {plant_name!r}: {e}"
+                )
+                break
             except (
-                genai_errors.APIError,
-                ValueError,
+                genai_errors.APIError,  # 5xx / transient server side
+                ValueError,  # response.text None (thinking-budget symptom)
                 ConnectionError,
                 TimeoutError,
             ) as e:

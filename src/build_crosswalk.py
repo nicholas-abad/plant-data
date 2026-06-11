@@ -54,6 +54,13 @@ EIA_LOOKUP_CSV = get_crosswalk_dir() / "eia_plant_lookup.csv"
 # Rapidfuzz thresholds (same as notebook / dashboard)
 GEM_THRESHOLD = 80
 GPPD_THRESHOLD = 80
+# Fuzzy hits at/above this score are trusted outright; only the marginal
+# band (THRESHOLD..TRUST) is additionally gated by validate_match. Exact
+# containment as a hard gate on ALL hits rejected true one-letter
+# transliteration variants ("Vindhyachal"/"Vindhyanchal" scores ~96) —
+# while the documented false positives score in the 80s ("BHADRA HPS" →
+# "Bhandara power station" ≈ 86) and stay guarded.
+VALIDATE_TRUST_SCORE = 90
 
 # Country filters for each source when querying GPPD / GEM
 SOURCE_COUNTRIES = {
@@ -726,14 +733,20 @@ def match_rapidfuzz(
                     scorer=fuzz.token_sort_ratio,
                     score_cutoff=GEM_THRESHOLD,
                 )
-                # validate_match: the threshold-80 false-positive guard the
-                # code's own comments document ("BHADRA HPS" → "Bhandara
-                # power station") — requires a shared significant location
-                # word. Rejected hits fall through to the LLM stage, which
-                # is much better at telling such pairs apart.
-                if gem_hit and not validate_match(plant_name, gem_norm[gem_hit[0]]):
+                # validate_match guards only the marginal score band: the
+                # threshold-80 false positives the code documents ("BHADRA
+                # HPS" → "Bhandara power station") score in the 80s, while
+                # true transliteration variants score ≥ VALIDATE_TRUST_SCORE
+                # and pass unguarded. Rejected hits fall through to the LLM
+                # stage, which is much better at telling such pairs apart.
+                if (
+                    gem_hit
+                    and gem_hit[1] < VALIDATE_TRUST_SCORE
+                    and not validate_match(plant_name, gem_norm[gem_hit[0]])
+                ):
                     logger.debug(
-                        f"{source}: fuzzy GEM hit rejected by validate_match: "
+                        f"{source}: marginal fuzzy GEM hit (score {gem_hit[1]:.0f}) "
+                        f"rejected by validate_match: "
                         f"{plant_name!r} → {gem_norm[gem_hit[0]]!r}"
                     )
                     gem_hit = None
@@ -796,9 +809,14 @@ def match_rapidfuzz(
                     if gppd_query
                     else None
                 )
-                if gppd_hit and not validate_match(plant_name, gppd_norm[gppd_hit[0]]):
+                if (
+                    gppd_hit
+                    and gppd_hit[1] < VALIDATE_TRUST_SCORE
+                    and not validate_match(plant_name, gppd_norm[gppd_hit[0]])
+                ):
                     logger.debug(
-                        f"{source}: fuzzy GPPD hit rejected by validate_match: "
+                        f"{source}: marginal fuzzy GPPD hit (score {gppd_hit[1]:.0f}) "
+                        f"rejected by validate_match: "
                         f"{plant_name!r} → {gppd_norm[gppd_hit[0]]!r}"
                     )
                     gppd_hit = None
@@ -920,22 +938,35 @@ def match_llm(
 
                 # Look up coordinates
                 coords = all_coords.get(ref_source, {}).get(matched_name, {})
-                if not coords and ref_source not in all_coords:
-                    # Last resort: search both reference sets by name.
-                    for cand_source, cand_coords in all_coords.items():
-                        if matched_name in cand_coords:
-                            ref_source = cand_source
-                            coords = cand_coords[matched_name]
-                            break
+                if not coords:
+                    # Last resort: search the other reference sets by name —
+                    # but only accept an UNAMBIGUOUS hit. The same plant name
+                    # can exist in both GEM and GPPD with different
+                    # coordinates; guessing (first source wins) would be a
+                    # silent wrong-coordinate path.
+                    holders = [
+                        (cand_source, cand_coords[matched_name])
+                        for cand_source, cand_coords in all_coords.items()
+                        if matched_name in cand_coords
+                    ]
+                    if len(holders) == 1:
+                        ref_source, coords = holders[0]
+                    elif len(holders) > 1:
+                        logger.warning(
+                            f"{source}: LLM match {matched_name!r} for "
+                            f"{plant_name!r} is ambiguous across "
+                            f"{[s for s, _ in holders]} — discarded"
+                        )
                 lat, lon = coords.get("lat"), coords.get("lon")
 
-                if not validate_coordinates(lat, lon):
+                coords_ok = validate_coordinates(lat, lon)
+                if not coords_ok:
                     logger.warning(
                         f"{source}: LLM match for {plant_name!r} DISCARDED — "
                         f"could not resolve {ref_source!r}/{matched_name!r} to "
                         f"valid coordinates (llm source field: {result.source!r})"
                     )
-                if validate_coordinates(lat, lon):
+                if coords_ok:
                     results.append(
                         {
                             "plant_name": plant_name,

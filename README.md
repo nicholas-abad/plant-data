@@ -1,6 +1,6 @@
 # Plant Data Repository
 
-Centralized plant coordinate matching for the energy generation dashboard. Maps plant names from 5 generation data sources (EIA, ENTSOE, NPP, ONS, OE) to geographic coordinates using a multi-stage matching pipeline: exact lookup, rapidfuzz, and LLM fallback.
+Centralized plant coordinate matching for the energy generation dashboard. Maps plant names from the generation data sources (EIA, ENTSOE, NPP, ONS, OE, OCCTO, Chile) to geographic coordinates using a multi-stage matching pipeline: exact lookup, rapidfuzz, and LLM fallback.
 
 ## Reference Databases
 
@@ -83,7 +83,7 @@ uv run python -m src.build_crosswalk --force
 | `longitude` | float | Resolved longitude (null if unmatched) |
 | `ref_source` | str | GEM, GPPD, OE-direct |
 | `matching_method` | str | exact, rapidfuzz, llm, direct |
-| `confidence` | str | high/medium/low (LLM only) |
+| `confidence` | str | high/medium, lowercased (LLM only; lower-confidence matches are discarded) |
 | `ref_matched_name` | str | Name in reference DB that was matched |
 
 ## Other Scripts

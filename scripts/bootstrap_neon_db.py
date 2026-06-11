@@ -116,6 +116,12 @@ def _atomic_replace_table(engine, df, table: str, post_load_sql: list[str]):
     Note: dropping the old table still uses CASCADE, so dependent views
     (none today) would be destroyed by a SUCCESSFUL swap exactly as before.
     """
+    if df.empty:
+        # 0 == 0 would pass the count check below and swap an EMPTY table
+        # into production — an empty-but-readable source file is a failure,
+        # not a valid replacement.
+        raise RuntimeError(f"{table}: refusing to replace production table with 0 rows")
+
     staging = f"{table}_staging"
     with engine.connect() as conn:
         conn.execute(text(f"DROP TABLE IF EXISTS {staging} CASCADE"))

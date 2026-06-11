@@ -81,3 +81,19 @@ class TestNppNonCoalSuffix:
 
     def test_non_string_safe(self):
         assert _is_npp_likely_non_coal(None) is False
+
+
+class TestAtomicReplaceGuard:
+    def test_empty_dataframe_refused_before_touching_engine(self):
+        import pandas as pd
+        import pytest
+
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+        from bootstrap_neon_db import _atomic_replace_table
+
+        with pytest.raises(RuntimeError, match="0 rows"):
+            # engine=None proves the guard fires before ANY engine use
+            _atomic_replace_table(None, pd.DataFrame(), "plant_crosswalk", [])

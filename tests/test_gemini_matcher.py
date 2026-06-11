@@ -110,3 +110,15 @@ def test_no_json_at_all_is_parse_failure(matcher):
     r = matcher.match("FOO TPS", "candidates")
     assert r.match is None
     assert r.reasoning.startswith("PARSE_FAILURE")
+
+
+def test_client_error_fails_fast_without_retry(matcher):
+    """4xx is deterministic — must not burn 15s of backoff re-asking."""
+    from google.genai import errors as genai_errors
+
+    err = genai_errors.ClientError(400, {"error": {"message": "bad request"}})
+    matcher.client, calls = _stub_client([err, err, err])
+    r = matcher.match("KORBA STPS", "candidates")
+    assert r.match is None
+    assert r.reasoning.startswith("API_FAILURE")
+    assert calls["n"] == 1, "client errors must not be retried"
