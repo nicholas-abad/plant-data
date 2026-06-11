@@ -99,6 +99,10 @@ def validate_coordinates(lat: float, lon: float) -> bool:
     """
     Validate that coordinates are within valid ranges.
 
+    Rejects exact (0, 0) — "null island" — which is a placeholder for
+    missing coordinates in several reference datasets, not a power plant
+    in the Gulf of Guinea.
+
     Args:
         lat: Latitude value.
         lon: Longitude value.
@@ -107,6 +111,8 @@ def validate_coordinates(lat: float, lon: float) -> bool:
         True if valid, False otherwise.
     """
     if pd.isna(lat) or pd.isna(lon):
+        return False
+    if lat == 0 and lon == 0:
         return False
 
     return -90 <= lat <= 90 and -180 <= lon <= 180
