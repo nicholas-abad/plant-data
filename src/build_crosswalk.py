@@ -369,7 +369,11 @@ def pull_plant_names(engine, sources: list[str] | None = None) -> pd.DataFrame:
     """
     all_queries = {
         "NPP": "SELECT DISTINCT plant AS plant_name FROM npp_generation WHERE plant IS NOT NULL",
-        "ENTSOE": "SELECT DISTINCT plant_name FROM entsoe_generation_data WHERE plant_name IS NOT NULL",
+        # mv instead of the raw table: the DISTINCT scan over 60M+ raw rows
+        # takes minutes on a cold Neon cache (observed: 6m14s, TCP-timing out
+        # the rebuild); the 55k-row mat view has the identical plant set
+        # (verified count-equal) and is refreshed by the ETL after every load.
+        "ENTSOE": "SELECT DISTINCT plant_name FROM mv_entsoe_plant_monthly WHERE plant_name IS NOT NULL",
         "EIA": "SELECT DISTINCT plant_code AS plant_name FROM eia_generation_data WHERE plant_code IS NOT NULL",
         "ONS": "SELECT DISTINCT plant AS plant_name FROM ons_generation_data WHERE plant IS NOT NULL",
         "OE": "SELECT DISTINCT facility_name AS plant_name, latitude, longitude FROM oe_facility_generation_data WHERE facility_name IS NOT NULL",
