@@ -3,6 +3,7 @@
 import json
 import time
 
+import httpx
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
@@ -27,12 +28,20 @@ class GeminiNameMatcher(BaseNameMatcher):
     DEFAULT_MODEL = "gemini-2.5-flash"
     MAX_RETRIES = 2  # transient API errors only
     RETRY_BACKOFF_S = 5.0
+    # Hard HTTP timeout. Without it, a half-open TCP connection (e.g. the
+    # laptop sleeping mid-call) blocks in SSL_read FOREVER — observed: a
+    # crosswalk rebuild hung 6+ hours on one Gemini call. With a timeout the
+    # call raises and the existing retry/failure path takes over.
+    HTTP_TIMEOUT_MS = 120_000
 
     def __init__(self, api_key: str, model: str | None = None) -> None:
         if not api_key:
             raise ValueError("API key cannot be empty")
 
-        self.client = genai.Client(api_key=api_key)
+        self.client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(timeout=self.HTTP_TIMEOUT_MS),
+        )
         self.model = model or self.DEFAULT_MODEL
 
     @property
@@ -96,6 +105,9 @@ class GeminiNameMatcher(BaseNameMatcher):
                 ValueError,  # response.text None (thinking-budget symptom)
                 ConnectionError,
                 TimeoutError,
+                httpx.HTTPError,  # transport errors incl. ReadTimeout from
+                # HTTP_TIMEOUT_MS — these do NOT subclass builtin
+                # TimeoutError, and uncaught they'd kill the whole LLM stage
             ) as e:
                 last_err = e
                 logger.warning(
