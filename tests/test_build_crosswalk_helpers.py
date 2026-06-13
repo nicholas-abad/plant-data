@@ -112,8 +112,13 @@ class TestNonStringMatchGuard:
         with pytest.raises(AttributeError):
             _clean_llm_match({"unexpected": "dict"})
 
-    def test_guard_predicate_excludes_non_strings(self):
-        # the exact predicate used at the match_llm call site
+    def test_usable_llm_match_filters_non_strings_and_low_confidence(self):
+        # exercises the REAL guard helper used at the match_llm call site
+        from src.build_crosswalk import _usable_llm_match
+
+        assert _usable_llm_match("GEM: Foo", "high")
+        assert _usable_llm_match("GEM: Foo", "medium")
+        assert not _usable_llm_match("GEM: Foo", "low"), "low confidence rejected"
+        assert not _usable_llm_match("", "high"), "empty string rejected"
         for bad in ({"a": 1}, ["x"], 42, None):
-            assert not (isinstance(bad, str) and bad), f"{bad!r} must be filtered"
-        assert isinstance("GEM: Foo", str) and "GEM: Foo"
+            assert not _usable_llm_match(bad, "high"), f"{bad!r} must be rejected"

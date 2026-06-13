@@ -235,6 +235,19 @@ def _normalize_confidence(confidence) -> str | None:
     return confidence.strip().lower() if isinstance(confidence, str) else None
 
 
+def _usable_llm_match(match, confidence) -> bool:
+    """True only for a non-empty STRING match at high/medium confidence.
+
+    The isinstance check is load-bearing: `match` is parsed.get("match") —
+    any JSON type. A truthy non-string (dict/list/number from a malformed
+    response) would reach _clean_llm_match's .strip() and raise
+    AttributeError, propagating out of match_llm and discarding every match
+    accumulated in a paid run. A non-string match is unusable → the plant
+    falls through to unmatched.
+    """
+    return isinstance(match, str) and bool(match) and confidence in ("high", "medium")
+
+
 def _norm_npp_name(name) -> str:
     """Whitespace/case-insensitive key for matching DGR plant names.
 
@@ -902,17 +915,15 @@ def match_llm(
             result = matcher.match(plant_name, candidates_str, source_system=source)
 
             confidence = _normalize_confidence(result.confidence)
-            # isinstance guard: result.match is parsed.get("match") — whatever
-            # JSON type the LLM returned. A truthy non-string (dict/list/number
-            # from a malformed response) would reach _clean_llm_match's
-            # .strip() and raise AttributeError, propagating out of match_llm
-            # and discarding every match accumulated in a paid run. Treat a
-            # non-string match as no-match: the plant falls through to unmatched.
-            if (
-                isinstance(result.match, str)
-                and result.match
-                and confidence in ("high", "medium")
-            ):
+            # Surface a malformed-LLM-response (non-string match) from a paid
+            # batch rather than dropping it silently like the neighbouring
+            # failure paths log their discards.
+            if result.match is not None and not isinstance(result.match, str):
+                logger.warning(
+                    f"{source}: LLM returned non-string match for "
+                    f"{plant_name!r}: {result.match!r} — treating as no-match"
+                )
+            if _usable_llm_match(result.match, confidence):
                 # The "SOURCE: " prefix in the match text is authoritative —
                 # the model's separate `source` field sometimes answers
                 # "Crosswalk" (an option the prompt offers but all_coords

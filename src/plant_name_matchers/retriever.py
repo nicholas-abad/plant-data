@@ -22,8 +22,15 @@ class CandidateRetriever:
     def __init__(self, sources: dict[str, list[str]]) -> None:
         self._sources: dict[str, list[str]] = {}
         self._normalized: dict[str, dict[str, str]] = {}  # norm -> original
+        self._raw: dict[str, list[str]] = {}  # full original list, no dedup
 
         for name, names_list in sources.items():
+            # Keep the full original list for get_all_candidates: the
+            # normalized index deliberately drops collisions (two distinct
+            # names with the same key), which is right for fuzzy retrieval but
+            # would shrink the exhaustive candidate set the cross-language
+            # (OCCTO) path hands the LLM. Dedup only exact duplicates.
+            self._raw[name] = list(dict.fromkeys(names_list))
             # Same first-wins, empty-key-excluding index the fuzzy stage uses
             # (build_crosswalk). The old plain dict comprehension was last-wins
             # and kept empty keys, so colliding reference plants could never
@@ -73,7 +80,7 @@ class CandidateRetriever:
         where fuzzy retrieval is ineffective.
         """
         lines = []
-        for source_name, norm_map in self._normalized.items():
-            for orig in norm_map.values():
+        for source_name, names in self._raw.items():
+            for orig in names:
                 lines.append(f"  {source_name}: {orig}")
         return "\n".join(lines)

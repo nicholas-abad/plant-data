@@ -156,3 +156,22 @@ class TestSuffixOrderingAndRetriever:
         norm = r._normalized["GEM"]
         assert "" not in norm
         assert norm["FOO"] == "Foo power station"
+
+
+class TestRetrieverAllCandidatesRecall:
+    def test_get_all_candidates_keeps_collisions(self):
+        # The OCCTO cross-language path hands ALL candidates to the LLM.
+        # Two distinct names that normalize to the same key must BOTH appear
+        # (the normalized index drops one; the raw list must not).
+        from src.plant_name_matchers.retriever import CandidateRetriever
+
+        r = CandidateRetriever({"GEM": ["Foo power station", "Foo power plant"]})
+        allc = r.get_all_candidates()
+        assert "Foo power station" in allc
+        assert "Foo power plant" in allc, "collided sibling must still be offered"
+
+    def test_get_all_candidates_dedups_exact_duplicates(self):
+        from src.plant_name_matchers.retriever import CandidateRetriever
+
+        r = CandidateRetriever({"GEM": ["Korba power station", "Korba power station"]})
+        assert r.get_all_candidates().count("Korba power station") == 1
