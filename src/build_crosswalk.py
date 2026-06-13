@@ -902,7 +902,17 @@ def match_llm(
             result = matcher.match(plant_name, candidates_str, source_system=source)
 
             confidence = _normalize_confidence(result.confidence)
-            if result.match and confidence in ("high", "medium"):
+            # isinstance guard: result.match is parsed.get("match") — whatever
+            # JSON type the LLM returned. A truthy non-string (dict/list/number
+            # from a malformed response) would reach _clean_llm_match's
+            # .strip() and raise AttributeError, propagating out of match_llm
+            # and discarding every match accumulated in a paid run. Treat a
+            # non-string match as no-match: the plant falls through to unmatched.
+            if (
+                isinstance(result.match, str)
+                and result.match
+                and confidence in ("high", "medium")
+            ):
                 # The "SOURCE: " prefix in the match text is authoritative —
                 # the model's separate `source` field sometimes answers
                 # "Crosswalk" (an option the prompt offers but all_coords

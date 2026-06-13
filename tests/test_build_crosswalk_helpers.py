@@ -99,3 +99,21 @@ class TestAtomicReplaceGuard:
         with pytest.raises(RuntimeError, match="0 rows"):
             # engine=None proves the guard fires before ANY engine use
             _atomic_replace_table(None, pd.DataFrame(), "plant_crosswalk", [])
+
+
+class TestNonStringMatchGuard:
+    """An LLM that returns a non-string `match` (dict/list/number from a
+    malformed response) must not crash the whole paid LLM stage."""
+
+    def test_clean_llm_match_raises_on_non_string(self):
+        # documents the hazard: this is why match_llm guards with isinstance
+        import pytest
+
+        with pytest.raises(AttributeError):
+            _clean_llm_match({"unexpected": "dict"})
+
+    def test_guard_predicate_excludes_non_strings(self):
+        # the exact predicate used at the match_llm call site
+        for bad in ({"a": 1}, ["x"], 42, None):
+            assert not (isinstance(bad, str) and bad), f"{bad!r} must be filtered"
+        assert isinstance("GEM: Foo", str) and "GEM: Foo"
