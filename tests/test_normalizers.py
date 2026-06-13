@@ -123,3 +123,55 @@ class TestMojibakeAndAccents:
     def test_underscore_coded_names_validate(self):
         assert validate_match("TE_STANARI", "Stanari Thermal Power Plant") is True
         assert validate_match("TPP_BOBOV_DOL", "Bobov Dol power station") is True
+
+
+class TestSuffixOrderingAndRetriever:
+    def test_thermal_power_station_fully_strips(self):
+        # Regression: " POWER STATION" must not strip before " THERMAL POWER
+        # STATION" and leave a "FOO THERMAL" residue that can't match "FOO".
+        assert normalize_for_comparison("Foo Thermal Power Station") == "FOO"
+        assert (
+            normalize_for_comparison("Vindhyachal Thermal Power Station")
+            == "VINDHYACHAL"
+        )
+
+    def test_build_norm_index_first_wins_and_drops_empty(self):
+        from src.plant_name_matchers.normalizers import build_norm_index
+
+        idx = build_norm_index(
+            ["Foo power station", "Foo power plant", "(Liq.)", "Korba power station"],
+            normalize_for_comparison,
+            "test",
+        )
+        assert "" not in idx, "empty-normalizing names excluded"
+        assert idx["FOO"] == "Foo power station", "first-wins, deterministic"
+        assert idx["KORBA"] == "Korba power station"
+
+    def test_retriever_uses_shared_index(self):
+        from src.plant_name_matchers.retriever import CandidateRetriever
+
+        r = CandidateRetriever(
+            {"GEM": ["Foo power station", "Foo power plant", "(Liq.)"]}
+        )
+        norm = r._normalized["GEM"]
+        assert "" not in norm
+        assert norm["FOO"] == "Foo power station"
+
+
+class TestRetrieverAllCandidatesRecall:
+    def test_get_all_candidates_keeps_collisions(self):
+        # The OCCTO cross-language path hands ALL candidates to the LLM.
+        # Two distinct names that normalize to the same key must BOTH appear
+        # (the normalized index drops one; the raw list must not).
+        from src.plant_name_matchers.retriever import CandidateRetriever
+
+        r = CandidateRetriever({"GEM": ["Foo power station", "Foo power plant"]})
+        allc = r.get_all_candidates()
+        assert "Foo power station" in allc
+        assert "Foo power plant" in allc, "collided sibling must still be offered"
+
+    def test_get_all_candidates_dedups_exact_duplicates(self):
+        from src.plant_name_matchers.retriever import CandidateRetriever
+
+        r = CandidateRetriever({"GEM": ["Korba power station", "Korba power station"]})
+        assert r.get_all_candidates().count("Korba power station") == 1

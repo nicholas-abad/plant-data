@@ -1,12 +1,14 @@
 """Tests for the crosswalk builder's pure matching helpers."""
 
 from src.build_crosswalk import (
-    _build_norm_index,
     _clean_llm_match,
     _is_npp_likely_non_coal,
     _normalize_confidence,
 )
-from src.plant_name_matchers.normalizers import normalize_for_comparison
+from src.plant_name_matchers.normalizers import (
+    build_norm_index as _build_norm_index,
+    normalize_for_comparison,
+)
 
 
 class TestBuildNormIndex:
@@ -97,3 +99,26 @@ class TestAtomicReplaceGuard:
         with pytest.raises(RuntimeError, match="0 rows"):
             # engine=None proves the guard fires before ANY engine use
             _atomic_replace_table(None, pd.DataFrame(), "plant_crosswalk", [])
+
+
+class TestNonStringMatchGuard:
+    """An LLM that returns a non-string `match` (dict/list/number from a
+    malformed response) must not crash the whole paid LLM stage."""
+
+    def test_clean_llm_match_raises_on_non_string(self):
+        # documents the hazard: this is why match_llm guards with isinstance
+        import pytest
+
+        with pytest.raises(AttributeError):
+            _clean_llm_match({"unexpected": "dict"})
+
+    def test_usable_llm_match_filters_non_strings_and_low_confidence(self):
+        # exercises the REAL guard helper used at the match_llm call site
+        from src.build_crosswalk import _usable_llm_match
+
+        assert _usable_llm_match("GEM: Foo", "high")
+        assert _usable_llm_match("GEM: Foo", "medium")
+        assert not _usable_llm_match("GEM: Foo", "low"), "low confidence rejected"
+        assert not _usable_llm_match("", "high"), "empty string rejected"
+        for bad in ({"a": 1}, ["x"], 42, None):
+            assert not _usable_llm_match(bad, "high"), f"{bad!r} must be rejected"

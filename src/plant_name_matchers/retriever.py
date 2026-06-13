@@ -6,7 +6,7 @@ formatted as a string ready for the LLM prompt.
 
 from rapidfuzz import fuzz, process
 
-from .normalizers import normalize_for_comparison, normalize_gppd_name
+from .normalizers import build_norm_index, normalize_for_comparison, normalize_gppd_name
 
 
 class CandidateRetriever:
@@ -22,12 +22,24 @@ class CandidateRetriever:
     def __init__(self, sources: dict[str, list[str]]) -> None:
         self._sources: dict[str, list[str]] = {}
         self._normalized: dict[str, dict[str, str]] = {}  # norm -> original
+        self._raw: dict[str, list[str]] = {}  # full original list, no dedup
 
         for name, names_list in sources.items():
-            if name == "GPPD":
-                norm_map = {normalize_gppd_name(n): n for n in names_list}
-            else:
-                norm_map = {normalize_for_comparison(n): n for n in names_list}
+            # Keep the full original list for get_all_candidates: the
+            # normalized index deliberately drops collisions (two distinct
+            # names with the same key), which is right for fuzzy retrieval but
+            # would shrink the exhaustive candidate set the cross-language
+            # (OCCTO) path hands the LLM. Dedup only exact duplicates.
+            self._raw[name] = list(dict.fromkeys(names_list))
+            # Same first-wins, empty-key-excluding index the fuzzy stage uses
+            # (build_crosswalk). The old plain dict comprehension was last-wins
+            # and kept empty keys, so colliding reference plants could never
+            # appear as LLM candidates and an empty key scored 100 against any
+            # empty-normalizing query.
+            normalizer = (
+                normalize_gppd_name if name == "GPPD" else normalize_for_comparison
+            )
+            norm_map = build_norm_index(names_list, normalizer, f"retriever[{name}]")
             self._sources[name] = list(norm_map.keys())
             self._normalized[name] = norm_map
 
@@ -48,14 +60,18 @@ class CandidateRetriever:
 
         for source_name, norm_list in self._sources.items():
             query = norm_gppd if source_name == "GPPD" else norm_default
-            hits = process.extract(query, norm_list, scorer=fuzz.token_sort_ratio, limit=limit)
+            hits = process.extract(
+                query, norm_list, scorer=fuzz.token_sort_ratio, limit=limit
+            )
             norm_map = self._normalized[source_name]
             for match_str, score, _ in hits:
                 orig = norm_map[match_str]
                 candidates[f"{source_name}: {orig}"] = score
 
         sorted_cands = sorted(candidates.items(), key=lambda x: -x[1])
-        return "\n".join(f"  {name} (score: {score:.0f})" for name, score in sorted_cands)
+        return "\n".join(
+            f"  {name} (score: {score:.0f})" for name, score in sorted_cands
+        )
 
     def get_all_candidates(self) -> str:
         """Return ALL candidates from all sources, formatted for LLM prompt.
@@ -64,7 +80,7 @@ class CandidateRetriever:
         where fuzzy retrieval is ineffective.
         """
         lines = []
-        for source_name, norm_map in self._normalized.items():
-            for orig in norm_map.values():
+        for source_name, names in self._raw.items():
+            for orig in names:
                 lines.append(f"  {source_name}: {orig}")
         return "\n".join(lines)

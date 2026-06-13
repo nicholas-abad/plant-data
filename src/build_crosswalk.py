@@ -35,6 +35,7 @@ from sqlalchemy.engine import URL
 from .plant_name_matchers import (
     CandidateRetriever,
     GeminiNameMatcher,
+    build_norm_index,
     normalize_for_comparison,
     normalize_gppd_name,
     validate_match,
@@ -206,36 +207,6 @@ def _is_npp_likely_non_coal(plant_name) -> bool:
     return bool(_NPP_NON_COAL_SUFFIX.search(plant_name))
 
 
-def _build_norm_index(names, normalizer, label: str) -> dict[str, str]:
-    """Build {normalized: original} with collision and empty-key detection.
-
-    Distinct reference plants can normalize to the same key (e.g.
-    "Foo power station" and "Foo power plant" both → "FOO"); a plain dict
-    comprehension keeps whichever iterated last, so a source plant matching
-    "FOO" resolved to an ARBITRARY one of them — wrong coordinates and coal
-    metadata, nondeterministically. Keep the FIRST (deterministic) and log
-    every collision loudly so they can be reviewed. Empty normalizations
-    are dropped: rapidfuzz scores two empty strings 100, so an empty key
-    would "match" any query that also normalizes to empty.
-    """
-    index: dict[str, str] = {}
-    for name in names:
-        key = normalizer(name)
-        if not key:
-            logger.warning(
-                f"{label}: {name!r} normalizes to empty — excluded from fuzzy index"
-            )
-            continue
-        if key in index and index[key] != name:
-            logger.warning(
-                f"{label}: normalization collision {key!r}: keeping {index[key]!r}, "
-                f"dropping {name!r} — review manually if both are real plants"
-            )
-            continue
-        index[key] = name
-    return index
-
-
 _LLM_SCORE_SUFFIX = _re_npp.compile(r"\s*\(score:\s*\d+(?:\.\d+)?\)\s*$")
 
 
@@ -262,6 +233,19 @@ def _clean_llm_match(match: str) -> tuple[str | None, str]:
 def _normalize_confidence(confidence) -> str | None:
     """Lowercase free-form LLM confidence ('High' → 'high')."""
     return confidence.strip().lower() if isinstance(confidence, str) else None
+
+
+def _usable_llm_match(match, confidence) -> bool:
+    """True only for a non-empty STRING match at high/medium confidence.
+
+    The isinstance check is load-bearing: `match` is parsed.get("match") —
+    any JSON type. A truthy non-string (dict/list/number from a malformed
+    response) would reach _clean_llm_match's .strip() and raise
+    AttributeError, propagating out of match_llm and discarding every match
+    accumulated in a paid run. A non-string match is unusable → the plant
+    falls through to unmatched.
+    """
+    return isinstance(match, str) and bool(match) and confidence in ("high", "medium")
 
 
 def _norm_npp_name(name) -> str:
@@ -693,7 +677,7 @@ def match_rapidfuzz(
 
         # Load per-source references
         gem_names = load_gem(source)
-        gem_norm = _build_norm_index(
+        gem_norm = build_norm_index(
             gem_names, normalize_for_comparison, f"GEM[{source}]"
         )
         gem_norm_list = list(gem_norm.keys())
@@ -705,7 +689,7 @@ def match_rapidfuzz(
         )
         gppd_df = load_gppd(gppd_countries)
         gppd_raw_names = gppd_df["name"].dropna().unique().tolist()
-        gppd_norm = _build_norm_index(
+        gppd_norm = build_norm_index(
             gppd_raw_names, normalize_gppd_name, f"GPPD[{source}]"
         )
         gppd_norm_list = list(gppd_norm.keys())
@@ -931,7 +915,15 @@ def match_llm(
             result = matcher.match(plant_name, candidates_str, source_system=source)
 
             confidence = _normalize_confidence(result.confidence)
-            if result.match and confidence in ("high", "medium"):
+            # Surface a malformed-LLM-response (non-string match) from a paid
+            # batch rather than dropping it silently like the neighbouring
+            # failure paths log their discards.
+            if result.match is not None and not isinstance(result.match, str):
+                logger.warning(
+                    f"{source}: LLM returned non-string match for "
+                    f"{plant_name!r}: {result.match!r} — treating as no-match"
+                )
+            if _usable_llm_match(result.match, confidence):
                 # The "SOURCE: " prefix in the match text is authoritative —
                 # the model's separate `source` field sometimes answers
                 # "Crosswalk" (an option the prompt offers but all_coords
