@@ -123,3 +123,36 @@ class TestMojibakeAndAccents:
     def test_underscore_coded_names_validate(self):
         assert validate_match("TE_STANARI", "Stanari Thermal Power Plant") is True
         assert validate_match("TPP_BOBOV_DOL", "Bobov Dol power station") is True
+
+
+class TestSuffixOrderingAndRetriever:
+    def test_thermal_power_station_fully_strips(self):
+        # Regression: " POWER STATION" must not strip before " THERMAL POWER
+        # STATION" and leave a "FOO THERMAL" residue that can't match "FOO".
+        assert normalize_for_comparison("Foo Thermal Power Station") == "FOO"
+        assert (
+            normalize_for_comparison("Vindhyachal Thermal Power Station")
+            == "VINDHYACHAL"
+        )
+
+    def test_build_norm_index_first_wins_and_drops_empty(self):
+        from src.plant_name_matchers.normalizers import build_norm_index
+
+        idx = build_norm_index(
+            ["Foo power station", "Foo power plant", "(Liq.)", "Korba power station"],
+            normalize_for_comparison,
+            "test",
+        )
+        assert "" not in idx, "empty-normalizing names excluded"
+        assert idx["FOO"] == "Foo power station", "first-wins, deterministic"
+        assert idx["KORBA"] == "Korba power station"
+
+    def test_retriever_uses_shared_index(self):
+        from src.plant_name_matchers.retriever import CandidateRetriever
+
+        r = CandidateRetriever(
+            {"GEM": ["Foo power station", "Foo power plant", "(Liq.)"]}
+        )
+        norm = r._normalized["GEM"]
+        assert "" not in norm
+        assert norm["FOO"] == "Foo power station"

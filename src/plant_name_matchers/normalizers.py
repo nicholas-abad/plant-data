@@ -9,6 +9,7 @@ import re
 import unicodedata
 
 import pandas as pd
+from loguru import logger
 
 _STOP_WORDS = {
     "power",
@@ -98,14 +99,22 @@ def _strip_suffixes_anchored(name: str, suffixes) -> str:
     keys on BOTH sides, creating false-positive matches between distinct
     plants. Iterates so stacked suffixes ("FOO TPS EXT") fully strip.
     """
+    # Longest-first within each pass: otherwise a shorter suffix that is a
+    # tail of a longer one strips first and leaves a residue the longer entry
+    # can never reach — e.g. " POWER STATION" firing before " THERMAL POWER
+    # STATION" leaves "FOO THERMAL", which no remaining suffix removes, so the
+    # key never matches the query side's "FOO". Sorting here fixes every
+    # caller's list regardless of how it's ordered.
+    ordered = sorted(suffixes, key=len, reverse=True)
     result = name.rstrip()
     changed = True
     while changed:
         changed = False
-        for s in suffixes:
+        for s in ordered:
             if result.endswith(s):
                 result = result[: -len(s)].rstrip()
                 changed = True
+                break
     return result
 
 
@@ -204,3 +213,36 @@ def normalize_gppd_name(name: str) -> str:
     name = re.sub(r"[^A-Z0-9\s]", " ", name)
     name = " ".join(name.split())
     return name
+
+
+def build_norm_index(names, normalizer, label: str) -> dict[str, str]:
+    """Build {normalized: original} with collision and empty-key detection.
+
+    Distinct reference plants can normalize to the same key (e.g.
+    "Foo power station" and "Foo power plant" both -> "FOO"); a plain dict
+    comprehension keeps whichever iterated last, so a source plant matching
+    "FOO" resolved to an ARBITRARY one of them — wrong coordinates and coal
+    metadata, nondeterministically. Keep the FIRST (deterministic) and log
+    every collision loudly so they can be reviewed. Empty normalizations are
+    dropped: rapidfuzz scores two empty strings 100, so an empty key would
+    "match" any query that also normalizes to empty.
+
+    Shared by the fuzzy stage (build_crosswalk) and the LLM-candidate
+    retriever so both index reference names identically.
+    """
+    index: dict[str, str] = {}
+    for name in names:
+        key = normalizer(name)
+        if not key:
+            logger.warning(
+                f"{label}: {name!r} normalizes to empty — excluded from index"
+            )
+            continue
+        if key in index and index[key] != name:
+            logger.warning(
+                f"{label}: normalization collision {key!r}: keeping {index[key]!r}, "
+                f"dropping {name!r} — review manually if both are real plants"
+            )
+            continue
+        index[key] = name
+    return index

@@ -7,6 +7,7 @@ reference databases (GEM, Crosswalk, GPPD) using different LLM backends.
 from .base import BaseNameMatcher, MatchResult
 from .gemini import GeminiNameMatcher
 from .normalizers import (
+    build_norm_index,
     extract_base_name,
     normalize_for_comparison,
     normalize_gppd_name,
@@ -19,6 +20,7 @@ __all__ = [
     "CandidateRetriever",
     "GeminiNameMatcher",
     "MatchResult",
+    "build_norm_index",
     "extract_base_name",
     "normalize_for_comparison",
     "normalize_gppd_name",

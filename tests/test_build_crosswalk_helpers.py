@@ -1,12 +1,14 @@
 """Tests for the crosswalk builder's pure matching helpers."""
 
 from src.build_crosswalk import (
-    _build_norm_index,
     _clean_llm_match,
     _is_npp_likely_non_coal,
     _normalize_confidence,
 )
-from src.plant_name_matchers.normalizers import normalize_for_comparison
+from src.plant_name_matchers.normalizers import (
+    build_norm_index as _build_norm_index,
+    normalize_for_comparison,
+)
 
 
 class TestBuildNormIndex:
