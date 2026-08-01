@@ -460,7 +460,13 @@ def pull_plant_names(engine, sources: list[str] | None = None) -> pd.DataFrame:
         # MAX(country_code): every plant_name lives in exactly one area
         # (verified: zero multi-area names), and the area pins which country's
         # reference candidates it may match.
-        "ENTSOE": "SELECT plant_name, MAX(country_code) AS entsoe_area FROM mv_entsoe_plant_monthly WHERE plant_name IS NOT NULL GROUP BY 1",
+        # RECENT COAL generation weights the per-unit capacity apportionment
+        # in _divide_entsoe_site_capacity. Coal-only because the nameplate
+        # being divided is COAL capacity (load_gem sums operating coal rows);
+        # trailing-24-months because the nameplate is CURRENT (operating
+        # units) — lifetime weights hand retired units a share of capacity
+        # they no longer have and push the active units past 100% CF.
+        "ENTSOE": "SELECT plant_name, MAX(country_code) AS entsoe_area, COALESCE(SUM(generation_mwh) FILTER (WHERE fuel_type IN ('Fossil Hard coal','Fossil Brown coal/Lignite') AND month >= CURRENT_DATE - INTERVAL '24 months'), 0) AS entsoe_gen_mwh FROM mv_entsoe_plant_monthly WHERE plant_name IS NOT NULL GROUP BY 1",
         "EIA": "SELECT DISTINCT plant_code AS plant_name FROM eia_generation_data WHERE plant_code IS NOT NULL",
         "ONS": "SELECT DISTINCT plant AS plant_name FROM ons_generation_data WHERE plant IS NOT NULL",
         "OE": "SELECT DISTINCT facility_name AS plant_name, latitude, longitude FROM oe_facility_generation_data WHERE facility_name IS NOT NULL",
@@ -568,7 +574,20 @@ def load_gem(
         if pd.isna(name):
             continue
         is_coal = _is_gem_coal_row(row.get("Fuel"))
-        cap = _parse_gem_capacity(row.get("Capacity")) if is_coal else None
+        # Capacity counts OPERATING units only. GEM lists every unit ever
+        # tracked — summing all statuses stamped cancelled (never built!)
+        # and retired units into nameplate: Germany+Poland coal read
+        # ~145 GW where ~56 GW operates, which is why European capacity
+        # factors came out a third of reality. A fully retired site gets
+        # None (its CF is honestly incomputable at today's nameplate).
+        is_operating = (
+            str(row.get("Status", "")).strip().casefold() == "operating"
+        )
+        cap = (
+            _parse_gem_capacity(row.get("Capacity"))
+            if (is_coal and is_operating)
+            else None
+        )
         info = {
             "lat": row["Latitude"],
             "lon": row["Longitude"],
@@ -1183,32 +1202,58 @@ def _log_per_source(matched_df: pd.DataFrame, input_df: pd.DataFrame, stage: str
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
-def _divide_entsoe_site_capacity(rows: pd.DataFrame) -> pd.DataFrame:
-    """Divide reference plant capacity across ENTSO-E units matched to it.
+def _divide_entsoe_site_capacity(
+    rows: pd.DataFrame, gen_by_plant: dict[str, float] | None = None
+) -> pd.DataFrame:
+    """Apportion reference plant capacity across ENTSO-E units matched to it.
 
     ENTSO-E publishes per UNIT while both references are plant-level, so a
     site's nameplate used to be stamped whole onto EVERY unit (Neurath A–G
     each 4,424 MW — the entire complex), inflating fleet capacity ~3x and
-    gutting capacity factors. Even division is approximate per unit (real
-    units differ in size) but every per-site and fleet aggregation sums to
-    the reference nameplate exactly.
+    gutting capacity factors.
+
+    PRECONDITION: every row still carries the reference's SITE-LEVEL
+    capacity, as freshly stamped by the matching stages — the division is
+    row_capacity × weight, so applying it to already-divided rows divides
+    them twice. (This bit an offline re-apply once; a fresh build always
+    satisfies it.)
+
+    Apportionment is by each unit's share of the site's observed generation
+    (``gen_by_plant``: plant_name → recent coal MWh). Equal division looked
+    simpler but gives RETIRED units the same share as active ones, pushing
+    the active units past 100% CF (Neurath A–E retired; F/G at 4,424/7 MW
+    each read ~117%) — and the dashboard excludes >100%-CF plants from fleet
+    CF, silently dropping exactly the hottest units (14.7% of EU generation).
+    Generation-share weighting makes every unit's CF equal its site's CF,
+    which is the honest statement of what we actually know. Sites with no
+    generation info fall back to equal division. Per-site and fleet sums
+    equal the reference nameplate either way.
     """
     entsoe_cap = (
         (rows["source_system"] == "ENTSOE")
         & rows["capacity_mw"].notna()
         & rows["ref_matched_name"].notna()
     )
-    if entsoe_cap.any():
-        sub = rows.loc[entsoe_cap]
-        unit_counts = sub.groupby(["ref_source", "ref_matched_name"])[
-            "plant_name"
-        ].transform("count")
-        rows.loc[entsoe_cap, "capacity_mw"] = sub["capacity_mw"] / unit_counts
-        n_shared = int((unit_counts > 1).sum())
-        logger.info(
-            f"ENTSO-E unit capacity: divided site nameplate across matched units "
-            f"for {n_shared:,} of {int(entsoe_cap.sum()):,} capacity-bearing unit rows"
-        )
+    if not entsoe_cap.any():
+        return rows
+
+    sub = rows.loc[entsoe_cap].copy()
+    gen = sub["plant_name"].map(gen_by_plant or {}).fillna(0.0)
+    site = sub.groupby(["ref_source", "ref_matched_name"])
+    site_gen = gen.groupby(
+        [sub["ref_source"], sub["ref_matched_name"]]
+    ).transform("sum")
+    unit_counts = site["plant_name"].transform("count")
+    # Generation share where the site has any observed generation, else equal.
+    weights = (gen / site_gen).where(site_gen > 0, 1.0 / unit_counts)
+    rows.loc[entsoe_cap, "capacity_mw"] = sub["capacity_mw"] * weights
+    n_shared = int((unit_counts > 1).sum())
+    n_equal_fallback = int(((site_gen <= 0) & (unit_counts > 1)).sum())
+    logger.info(
+        f"ENTSO-E unit capacity: apportioned site nameplate by generation share "
+        f"for {n_shared:,} of {int(entsoe_cap.sum()):,} capacity-bearing unit rows "
+        f"({n_equal_fallback:,} fell back to equal division)"
+    )
     return rows
 
 
@@ -1404,7 +1449,14 @@ def build_unified_crosswalk(
         [exact_df, gem_df, gppd_df, llm_df, unmatched_df], ignore_index=True
     )
 
-    new_rows = _divide_entsoe_site_capacity(new_rows)
+    entsoe_gen_by_plant = (
+        plants_df[plants_df["source_system"] == "ENTSOE"]
+        .set_index("plant_name")["entsoe_gen_mwh"]
+        .to_dict()
+        if "entsoe_gen_mwh" in plants_df.columns
+        else {}
+    )
+    new_rows = _divide_entsoe_site_capacity(new_rows, entsoe_gen_by_plant)
 
     # Expand EIA rows: if multiple plant_codes share the same plant_name,
     # create one crosswalk row per plant_code (all sharing the same coords)

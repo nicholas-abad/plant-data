@@ -167,15 +167,14 @@ def main() -> int:
         fail(f"gate3: a single site sums to {max_site:,.0f} MW — division regressed?")
     else:
         ok(f"gate3: largest per-site capacity sum {max_site:,.0f} MW (≤ 6,000)")
-    # All-history band: the crosswalk covers every unit that generated since
-    # 2019, including since-retired plants (GEM sums whole-site nameplate).
-    # Europe's operating coal fleet is ~90-110 GW; with retirements included
-    # ~180 GW is expected. The failure mode guarded here is the site-per-unit
-    # stamping that produced 416 GW before the division fix.
+    # Capacity is OPERATING-units-only (load_gem status filter) — Europe's
+    # operating coal fleet is ~90-100 GW and ENTSO-E's reporting subset lands
+    # below that. The failure modes guarded: site-per-unit stamping (416 GW
+    # pre-fix) above, and a broken status filter / empty capacities below.
     total = cap["capacity_mw"].sum()
-    if not (100_000 <= total <= 250_000):
-        fail(f"gate3b: ENTSO-E fleet capacity {total:,.0f} MW outside 100-250 GW "
-             "all-history band (416 GW = pre-fix inflation)")
+    if not (40_000 <= total <= 120_000):
+        fail(f"gate3b: ENTSO-E fleet capacity {total:,.0f} MW outside 40-120 GW "
+             "operating-only band (416 GW = pre-fix inflation)")
     else:
         ok(f"gate3b: ENTSO-E fleet capacity {total:,.0f} MW plausible (was 416 GW pre-fix)")
 

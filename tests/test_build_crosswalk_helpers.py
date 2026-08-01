@@ -218,16 +218,42 @@ class TestDivideEntsoeSiteCapacity:
                 "capacity_mw": [4424.0, 4424.0, 4424.0, 600.0, 4424.0],
             }
         )
-        out = _divide_entsoe_site_capacity(rows)
+        # No generation info -> equal division fallback
+        out = _divide_entsoe_site_capacity(rows.copy())
 
         neurath = out[out["ref_matched_name"] == "Neurath power station"]
         entsoe_units = neurath[neurath["source_system"] == "ENTSOE"]
         # Per-site sum equals the reference nameplate exactly
-        assert entsoe_units["capacity_mw"].sum() == 4424.0
-        assert (entsoe_units["capacity_mw"] == 4424.0 / 3).all()
+        import numpy as np
+
+        assert np.isclose(entsoe_units["capacity_mw"].sum(), 4424.0)
+        assert np.allclose(entsoe_units["capacity_mw"], 4424.0 / 3)
         # Single-unit sites and non-ENTSO-E rows untouched
         assert out.loc[out["plant_name"] == "LONE_UNIT", "capacity_mw"].item() == 600.0
         assert out.loc[out["plant_name"] == "occto1", "capacity_mw"].item() == 4424.0
+
+    def test_generation_share_weighting(self):
+        import pandas as pd
+
+        from src.build_crosswalk import _divide_entsoe_site_capacity
+
+        rows = pd.DataFrame(
+            {
+                "plant_name": ["NEURATH_A", "NEURATH_F", "NEURATH_G"],
+                "source_system": ["ENTSOE"] * 3,
+                "ref_source": ["GEM"] * 3,
+                "ref_matched_name": ["Neurath power station"] * 3,
+                "capacity_mw": [4424.0] * 3,
+            }
+        )
+        # A retired (tiny lifetime share), F and G carry the generation.
+        gen = {"NEURATH_A": 1_000_000.0, "NEURATH_F": 5_000_000.0, "NEURATH_G": 4_000_000.0}
+        out = _divide_entsoe_site_capacity(rows, gen)
+
+        assert out["capacity_mw"].sum() == 4424.0
+        assert out.loc[out["plant_name"] == "NEURATH_A", "capacity_mw"].item() == 4424.0 * 0.1
+        assert out.loc[out["plant_name"] == "NEURATH_F", "capacity_mw"].item() == 4424.0 * 0.5
+        # Units with generation get capacity proportional to it -> unit CF == site CF
 
     def test_null_capacity_and_unmatched_rows_untouched(self):
         import pandas as pd
