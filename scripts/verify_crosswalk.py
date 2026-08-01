@@ -19,6 +19,7 @@ Gates:
      must land in a plausible band (site-per-unit stamping inflated it ~3x).
   4. NPP plants whose DGR-2 fuel section is non-THERMAL carry no coal
      metadata (coal_type / combustion_tech / capacity_mw all null).
+  4b. OCCTO capacity exemplars carry their HJKS coal rated outputs.
   5. Per-source coordinate coverage must not drop vs the baseline by more
      than 2 percentage points.
 """
@@ -213,7 +214,7 @@ def main() -> int:
             fail(f"gate4b: {name} missing from crosswalk")
             continue
         got = row.iloc[0]["capacity_mw"]
-        if got is None or abs(float(got) - expected_mw) > 1.0:
+        if pd.isna(got) or abs(float(got) - expected_mw) > 1.0:
             fail(f"gate4b: {name} capacity {got} MW, expected ~{expected_mw}")
         else:
             ok(f"gate4b: {name} capacity {float(got):,.0f} MW (HJKS)")

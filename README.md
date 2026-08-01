@@ -9,6 +9,7 @@ Centralized plant coordinate matching for the energy generation dashboard. Maps 
 | [GEM](https://globalenergymonitor.org/) (Global Energy Monitor) | Global coal/gas/etc plants | `data/GEM database_21Feb2026.csv` |
 | GCPT (EIA crosswalk) | US coal plants with EIA IDs | `data/gcpt/*.xlsx` |
 | [GPPD](https://datasets.wri.org/dataset/globalpowerplantdatabase) (Global Power Plant Database) | Global power plants | `data/crosswalks/global_power_plant_database.csv` |
+| [HJKS](https://hjks.jepx.or.jp/hjks/unit) (JEPX 発電情報公開システム) | Japanese unit rated outputs (認可出力), keyed by 発電所コード | `data/crosswalks/hjks_units.csv` — committed; refresh via `uv run python scripts/fetch_hjks_units.py` |
 
 ## Repository Structure
 
@@ -71,7 +72,8 @@ uv run python -m src.build_crosswalk --force
 2. **Exact matching** -- EIA via GCPT crosswalk ID, OE via API-embedded coords
 3. **Rapidfuzz matching** -- GEM (`token_sort_ratio >= 80`), GPPD (`token_sort_ratio >= 80`)
 4. **LLM matching** -- Gemini API with top-15 candidates per source (high/medium confidence only)
-5. **Output** -- `data/crosswalks/unified_plant_crosswalk.parquet`
+5. **Capacity overrides** -- ENTSO-E site nameplate apportioned per unit by recent coal generation; OCCTO coal capacity from HJKS rated outputs joined by plant code (`capacity_source='HJKS'`)
+6. **Output** -- `data/crosswalks/unified_plant_crosswalk.parquet` (gate it with `scripts/verify_crosswalk.py` before `scripts/bootstrap_neon_db.py --data-only`)
 
 ### Output Schema
 

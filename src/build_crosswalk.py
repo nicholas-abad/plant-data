@@ -24,6 +24,7 @@ Usage:
 
 import os
 import sys
+from pathlib import Path
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -218,6 +219,10 @@ OUTPUT_COLUMNS = [
     "coal_type",
     "combustion_tech",
     "capacity_mw",
+    # Where capacity_mw came from when it did NOT come from the coordinate
+    # match: 'HJKS' for OCCTO rated-output overrides. Null = capacity is the
+    # ref_source (GEM/GPPD) figure, or absent.
+    "capacity_source",
     "state",
     "sector",
 ]
@@ -1261,21 +1266,34 @@ def _divide_entsoe_site_capacity(
     return rows
 
 
-def load_hjks_capacity(csv_path=None) -> dict[str, float]:
-    """発電所コード → operating rated output (MW) from the HJKS unit list.
+def load_hjks_coal_units(csv_path: "Path | None" = None) -> pd.DataFrame:
+    """Active COAL units from the HJKS list: code, plant, unit, rated MW.
+
+    Coal-only (発電形式 contains 石炭): the crosswalk's capacity_mw means
+    OPERATING COAL capacity everywhere, and the dashboard's Japan queries
+    filter occto rows to fuel_type='coal' — an all-fuel sum handed a
+    coal-only numerator an inflated denominator (富山新港: 250 MW of coal
+    units read against 1,665 MW of oil+gas+coal registrations).
 
     A unit's rated output is 認可出力（変更後） when a modification is
-    recorded, else 認可出力 (both kW). Units whose 稼働終了日 has passed are
-    excluded (9999/12/31 marks no planned end). Sums per plant code.
+    recorded, else 認可出力 (both kW). Units whose 稼働終了日 has passed
+    are excluded (9999/12/31 marks no planned end; the current HJKS list
+    carries no already-ended units — the filter is belt-and-braces).
+    Unparsable rated outputs are dropped LOUDLY: the apply step requires
+    every referenced code to resolve, so a dropped unit surfaces there.
     """
     path = csv_path or HJKS_CSV
     if not path.exists():
-        logger.warning(f"HJKS unit list not found: {path}")
-        return {}
+        raise FileNotFoundError(
+            f"HJKS unit list not found: {path} — run "
+            "scripts/fetch_hjks_units.py (a build without it would silently "
+            "revert OCCTO capacities to GEM's coal-slice values)"
+        )
     # index_col=False: rows end with a trailing comma (13 fields vs 12
     # headers); without it pandas promotes the first column to the index and
     # shifts every value one column left.
     df = pd.read_csv(path, index_col=False, dtype={"発電所コード": str})
+    df = df[df["発電形式"].astype(str).str.contains("石炭")]
 
     ended = pd.to_datetime(df["稼働終了日"], format="%Y/%m/%d", errors="coerce")
     active = ended.isna() | (ended >= pd.Timestamp.now())
@@ -1283,57 +1301,108 @@ def load_hjks_capacity(csv_path=None) -> dict[str, float]:
     modified = pd.to_numeric(df["認可出力（変更後）"], errors="coerce")
     original = pd.to_numeric(df["認可出力"], errors="coerce")
     rated_kw = modified.fillna(original)
+    n_unparsable = int((rated_kw.isna() & active).sum())
+    if n_unparsable:
+        logger.warning(
+            f"HJKS: {n_unparsable} active coal unit(s) with unparsable "
+            "認可出力 dropped — their plants will keep GEM capacity"
+        )
 
-    sub = pd.DataFrame(
-        {"code": df["発電所コード"].astype(str).str.strip(), "kw": rated_kw}
+    out = pd.DataFrame(
+        {
+            "code": df["発電所コード"].astype(str).str.strip(),
+            "hjks_plant": df["発電所名"].astype(str).str.strip(),
+            "unit": df["ユニット名"].astype(str).str.strip(),
+            "mw": rated_kw / 1000.0,
+        }
     )[active & rated_kw.notna()]
-    return (sub.groupby("code")["kw"].sum() / 1000.0).to_dict()
+    return out.reset_index(drop=True)
 
 
 def _apply_hjks_occto_capacity(
-    rows: pd.DataFrame, codes_by_plant: dict[str, list[str]], csv_path=None
+    rows: pd.DataFrame,
+    codes_by_plant: dict[str, list[str]],
+    csv_path: "Path | None" = None,
 ) -> pd.DataFrame:
-    """Override OCCTO capacity with HJKS rated output, joined by plant code.
+    """Override OCCTO coal capacity with HJKS rated output, joined by code.
 
-    GEM only knows a plant's coal slice while OCCTO meters whole plants, so
-    co-fired/captive plants read >100% CF from GEM capacity (Hofu Biomass
-    219%, UBE 122%). HJKS rated output is authoritative and code-keyed — no
-    name matching. A metered plant can span several registrations (UBE holds
-    two codes for different units), so capacity sums over the plant's
-    distinct codes. Plants with no code in HJKS (below the disclosure
-    threshold) keep their existing GEM capacity.
+    OCCTO data is unit-level with a per-row fuel_type; the dashboard
+    aggregates it per plant and filters to coal. GEM only knows a plant's
+    coal slice as ONE number that often misses co-fired/captive units (Hofu
+    Biomass read 219% CF from GEM's 36 MW vs 112 MW rated), while HJKS
+    rated output is authoritative and keyed by 発電所コード — the namespace
+    occto_generation_data carries. ``codes_by_plant`` must therefore hold
+    the codes of the plant's COAL rows only.
+
+    Guards, both required by review:
+    - A plant is overridden only when EVERY one of its coal codes resolves
+      in HJKS — a partial sum would silently overwrite GEM with a too-small
+      denominator (the inverse of the bug this fixes). Misses keep GEM and
+      log.
+    - The same physical unit can be registered under several codes (勿来
+      8号機 exists per grid area), so units are deduplicated on
+      (HJKS plant name, unit name) before summing.
+
+    Overridden rows get capacity_source='HJKS'; ref_source still describes
+    where the COORDINATES came from.
     """
-    hjks = load_hjks_capacity(csv_path)
-    if not hjks:
-        return rows
+    hjks = load_hjks_coal_units(csv_path)
+    by_code = dict(tuple(hjks.groupby("code")))
 
     occto = rows["source_system"] == "OCCTO"
-    overridden = 0
+    if "capacity_source" not in rows.columns:
+        rows["capacity_source"] = None
+    overridden = skipped = 0
     for idx in rows.index[occto]:
         codes = codes_by_plant.get(rows.at[idx, "plant_name"]) or []
-        mw = sum(hjks[c] for c in codes if c in hjks)
+        if not codes:
+            continue
+        missing = [c for c in codes if c not in by_code]
+        if missing:
+            skipped += 1
+            logger.debug(
+                f"OCCTO/HJKS: {rows.at[idx, 'plant_name']!r} keeps GEM "
+                f"capacity — code(s) {missing} not in HJKS coal list"
+            )
+            continue
+        units = pd.concat([by_code[c] for c in codes])
+        units = units.drop_duplicates(subset=["hjks_plant", "unit"])
+        mw = float(units["mw"].sum())
         if mw > 0:
             rows.at[idx, "capacity_mw"] = mw
+            rows.at[idx, "capacity_source"] = "HJKS"
             overridden += 1
     logger.info(
-        f"OCCTO capacity: HJKS rated output applied to {overridden:,} of "
-        f"{int(occto.sum()):,} plants (rest keep GEM fallback)"
+        f"OCCTO capacity: HJKS coal rated output applied to {overridden:,} "
+        f"plants ({skipped:,} kept GEM — codes below HJKS's disclosure "
+        f"threshold; {int(occto.sum()):,} OCCTO rows total)"
     )
     return rows
 
 
 def _pull_occto_plant_codes(engine) -> dict[str, list[str]]:
-    """plant → distinct plant codes from occto_generation_data."""
+    """plant → distinct plant codes of its COAL rows.
+
+    Coal-only on purpose: a multi-fuel plant's gas/oil registrations must
+    not contribute codes, and pure non-coal plants must get none at all
+    (58 LNG/oil plants briefly carried coal capacity_mw when this was
+    unfiltered).
+    """
     with engine.connect() as conn:
         conn.execute(text("SET statement_timeout = '120s'"))
         rows = conn.execute(
             text(
-                "SELECT plant, array_agg(DISTINCT plant_code) FROM "
-                "occto_generation_data WHERE plant IS NOT NULL AND "
-                "plant_code IS NOT NULL GROUP BY plant"
+                "SELECT DISTINCT plant, plant_code FROM occto_generation_data "
+                "WHERE plant IS NOT NULL AND plant_code IS NOT NULL "
+                "AND fuel_type = 'coal'"
             )
         ).fetchall()
-    return {r[0]: [str(c).strip() for c in r[1] if c] for r in rows}
+    out: dict[str, list[str]] = {}
+    for plant, code in rows:
+        code = str(code).strip()
+        if code:
+            out.setdefault(plant, []).append(code)
+    return out
 
 
 def build_unified_crosswalk(
@@ -1564,9 +1633,13 @@ def build_unified_crosswalk(
     else:
         unified = new_rows
 
-    # Post-merge (so it covers OCCTO rows whether or not OCCTO was rebuilt):
-    # Japanese capacity comes from HJKS rated outputs, keyed by plant code.
-    if (unified["source_system"] == "OCCTO").any():
+    # Japanese capacity comes from HJKS coal rated outputs, keyed by plant
+    # code. Only when OCCTO was rebuilt (or a full run): rows carried over
+    # from the existing parquet already hold their override, and the code
+    # pull scans a ~12M-row table.
+    if (sources is None or "OCCTO" in sources) and (
+        unified["source_system"] == "OCCTO"
+    ).any():
         unified = _apply_hjks_occto_capacity(
             unified, _pull_occto_plant_codes(engine)
         )

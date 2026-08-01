@@ -4,9 +4,10 @@
 HJKS (発電情報公開システム, hjks.jepx.or.jp) publishes Japan's disclosed
 generation units with their AUTHORIZED RATED OUTPUT (認可出力, kW) keyed by
 発電所コード — the same plant-code namespace occto_generation_data carries.
-This is the authoritative capacity source for Japanese plants: GEM only
-knows a plant's coal slice, while OCCTO meters whole plants, which made
-co-fired/captive plants read >100% CF (Hofu Biomass 219%, UBE 122%).
+This is the authoritative capacity source for Japanese plants: GEM tracks
+a plant's coal capacity as one number that often misses co-fired/captive
+units, which made such plants read >100% CF (Hofu Biomass 219%, UBE 122%).
+The crosswalk consumes the COAL units only (発電形式 filter downstream).
 
 Plain HTTP: GET the search page for a session cookie + CSRF token, then POST
 the form with csv=csv (the CSVダウンロード button). No Selenium. Response is
@@ -37,14 +38,19 @@ OUTPUT = get_crosswalk_dir() / "hjks_units.csv"
 
 class _LegacyTlsAdapter(HTTPAdapter):
     """hjks.jepx.or.jp only offers TLS1.2 with ECDHE-RSA-AES128-SHA — a SHA-1
-    CBC suite that OpenSSL's default security level refuses. Lower the cipher
-    security level for THIS host only; certificate verification stays on."""
+    CBC cipher that OpenSSL's default security level refuses. Scope a relaxed
+    context to THIS host: high-strength ciphers at SECLEVEL=1, certifi's CA
+    bundle (matching every other requests call in this venv, rather than the
+    machine's OpenSSL store). Note SECLEVEL=1 also relaxes what certificate
+    signatures are ACCEPTED (SHA-1 sigs, 1024-bit RSA) — verification still
+    runs against the CA bundle, but with those weaker floors."""
 
     def init_poolmanager(self, *args, **kwargs):
-        ctx = ssl.create_default_context()
-        ctx.set_ciphers("DEFAULT:@SECLEVEL=1")
+        ctx = ssl.create_default_context(cafile=requests.certs.where())
+        ctx.set_ciphers("HIGH:!aNULL:@SECLEVEL=1")
         kwargs["ssl_context"] = ctx
         return super().init_poolmanager(*args, **kwargs)
+
 
 EXPECTED_COLUMNS = [
     "エリア", "発電事業者", "発電所コード", "発電所名", "発電形式",
@@ -84,20 +90,26 @@ def main() -> int:
         )
 
     text = resp.content.decode("cp932")
-    OUTPUT.write_text(text, encoding="utf-8")
+    # Validate on a temp file FIRST: a truncated/malformed response must not
+    # clobber the known-good CSV the crosswalk build reads.
+    tmp = OUTPUT.with_suffix(".csv.tmp")
+    tmp.write_text(text, encoding="utf-8")
 
     # index_col=False: every data row ends with a trailing comma (13 fields
     # vs 12 headers); without it pandas silently promotes the first column to
     # the index, shifting every value one column left.
-    df = pd.read_csv(OUTPUT, index_col=False, dtype={"発電所コード": str})
+    df = pd.read_csv(tmp, index_col=False, dtype={"発電所コード": str})
     missing = [c for c in EXPECTED_COLUMNS if c not in df.columns]
     if missing:
+        tmp.unlink()
         raise RuntimeError(f"HJKS CSV missing expected columns: {missing}")
-    if len(df) < 300:
+    if len(df) < 500:
+        tmp.unlink()
         raise RuntimeError(
             f"HJKS CSV has only {len(df)} rows — a full pull returns 500+; "
             "did a filter apply?"
         )
+    tmp.replace(OUTPUT)
     coal = df["発電形式"].astype(str).str.contains("石炭").sum()
     print(f"Wrote {OUTPUT}: {len(df)} units ({coal} coal)")
     return 0

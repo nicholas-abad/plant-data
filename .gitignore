@@ -52,6 +52,9 @@ data/cache/
 
 # Large reference CSVs / spreadsheets (download separately)
 data/crosswalks/*.csv
+# HJKS is small (75 KB) and a build-required reference — committed, unlike
+# the large GEM/GPPD reference dumps.
+!data/crosswalks/hjks_units.csv
 data/crosswalks/*.xlsx
 
 # Crosswalk test/scratch artifacts (not the real unified_plant_crosswalk.parquet)
