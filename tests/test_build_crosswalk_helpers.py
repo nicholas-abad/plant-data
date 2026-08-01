@@ -271,3 +271,60 @@ class TestDivideEntsoeSiteCapacity:
         )
         out = _divide_entsoe_site_capacity(rows)
         assert out["capacity_mw"].isna().all()
+
+
+class TestHjksOcctoCapacity:
+    def _write_csv(self, tmp_path):
+        p = tmp_path / "hjks_units.csv"
+        p.write_text(
+            "エリア,発電事業者,発電所コード,発電所名,発電形式,ユニット名,"
+            "認可出力,認可出力（変更後）,適用開始日,稼働開始日,稼働終了日,最終更新日時\n"
+            # Hofu: one active unit, ends in the future
+            '"中国","X","72203","防府バイオマス発電所","火力（石炭）","1号機",'
+            '"112000","","","2019/07/21","2039/07/20","2023/01/17 15:54",\n'
+            # UBE registration A
+            '"中国","Y","5AWR771132","宇部発電所","火力（石炭）","6号",'
+            '"216000","","","2004/03/01","9999/12/31","2026/03/26 16:43",\n'
+            # UBE registration B — a recorded modification wins over original
+            '"中国","Z","6038771106","宇部興産発電所","火力（石炭）","5号機",'
+            '"140000","145000","","1900/01/01","9999/12/31","2022/08/02 13:36",\n'
+            # Retired unit: must NOT count
+            '"東北","W","99999","終了発電所","火力（石炭）","1号機",'
+            '"500000","","","1990/01/01","2020/03/31","2020/04/01 00:00",\n',
+            encoding="utf-8",
+        )
+        return p
+
+    def test_load_hjks_capacity(self, tmp_path):
+        from src.build_crosswalk import load_hjks_capacity
+
+        caps = load_hjks_capacity(self._write_csv(tmp_path))
+        assert caps["72203"] == 112.0
+        assert caps["5AWR771132"] == 216.0
+        assert caps["6038771106"] == 145.0  # modified output wins
+        assert "99999" not in caps  # retired excluded
+
+    def test_apply_overrides_by_summing_codes(self, tmp_path):
+        import pandas as pd
+
+        from src.build_crosswalk import _apply_hjks_occto_capacity
+
+        rows = pd.DataFrame(
+            {
+                "plant_name": ["防府バイオマス発電所", "宇部興産発電所", "無名発電所", "usa plant"],
+                "source_system": ["OCCTO", "OCCTO", "OCCTO", "EIA"],
+                "capacity_mw": [36.0, 145.0, 77.0, 500.0],
+            }
+        )
+        codes = {
+            "防府バイオマス発電所": ["72203"],
+            # A metered plant spanning two registrations sums both
+            "宇部興産発電所": ["5AWR771132", "6038771106", "72203x"],
+        }
+        out = _apply_hjks_occto_capacity(rows, codes, self._write_csv(tmp_path))
+        by = dict(zip(out["plant_name"], out["capacity_mw"]))
+        assert by["防府バイオマス発電所"] == 112.0
+        assert by["宇部興産発電所"] == 216.0 + 145.0
+        # No HJKS entry -> GEM fallback untouched; non-OCCTO untouched
+        assert by["無名発電所"] == 77.0
+        assert by["usa plant"] == 500.0

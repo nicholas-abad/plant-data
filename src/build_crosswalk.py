@@ -51,6 +51,10 @@ OUTPUT_FILE = OUTPUT_DIR / "unified_plant_crosswalk.parquet"
 GEM_CSV = get_crosswalk_dir() / "GEM database_21Feb2026.csv"
 GPPD_CSV = get_crosswalk_dir() / "global_power_plant_database.csv"
 EIA_LOOKUP_CSV = get_crosswalk_dir() / "eia_plant_lookup.csv"
+# HJKS unit list (scripts/fetch_hjks_units.py) — authoritative Japanese unit
+# rated outputs (認可出力) keyed by 発電所コード, the same plant-code
+# namespace occto_generation_data carries.
+HJKS_CSV = get_crosswalk_dir() / "hjks_units.csv"
 
 # Rapidfuzz thresholds (same as notebook / dashboard)
 GEM_THRESHOLD = 80
@@ -1257,6 +1261,81 @@ def _divide_entsoe_site_capacity(
     return rows
 
 
+def load_hjks_capacity(csv_path=None) -> dict[str, float]:
+    """発電所コード → operating rated output (MW) from the HJKS unit list.
+
+    A unit's rated output is 認可出力（変更後） when a modification is
+    recorded, else 認可出力 (both kW). Units whose 稼働終了日 has passed are
+    excluded (9999/12/31 marks no planned end). Sums per plant code.
+    """
+    path = csv_path or HJKS_CSV
+    if not path.exists():
+        logger.warning(f"HJKS unit list not found: {path}")
+        return {}
+    # index_col=False: rows end with a trailing comma (13 fields vs 12
+    # headers); without it pandas promotes the first column to the index and
+    # shifts every value one column left.
+    df = pd.read_csv(path, index_col=False, dtype={"発電所コード": str})
+
+    ended = pd.to_datetime(df["稼働終了日"], format="%Y/%m/%d", errors="coerce")
+    active = ended.isna() | (ended >= pd.Timestamp.now())
+
+    modified = pd.to_numeric(df["認可出力（変更後）"], errors="coerce")
+    original = pd.to_numeric(df["認可出力"], errors="coerce")
+    rated_kw = modified.fillna(original)
+
+    sub = pd.DataFrame(
+        {"code": df["発電所コード"].astype(str).str.strip(), "kw": rated_kw}
+    )[active & rated_kw.notna()]
+    return (sub.groupby("code")["kw"].sum() / 1000.0).to_dict()
+
+
+def _apply_hjks_occto_capacity(
+    rows: pd.DataFrame, codes_by_plant: dict[str, list[str]], csv_path=None
+) -> pd.DataFrame:
+    """Override OCCTO capacity with HJKS rated output, joined by plant code.
+
+    GEM only knows a plant's coal slice while OCCTO meters whole plants, so
+    co-fired/captive plants read >100% CF from GEM capacity (Hofu Biomass
+    219%, UBE 122%). HJKS rated output is authoritative and code-keyed — no
+    name matching. A metered plant can span several registrations (UBE holds
+    two codes for different units), so capacity sums over the plant's
+    distinct codes. Plants with no code in HJKS (below the disclosure
+    threshold) keep their existing GEM capacity.
+    """
+    hjks = load_hjks_capacity(csv_path)
+    if not hjks:
+        return rows
+
+    occto = rows["source_system"] == "OCCTO"
+    overridden = 0
+    for idx in rows.index[occto]:
+        codes = codes_by_plant.get(rows.at[idx, "plant_name"]) or []
+        mw = sum(hjks[c] for c in codes if c in hjks)
+        if mw > 0:
+            rows.at[idx, "capacity_mw"] = mw
+            overridden += 1
+    logger.info(
+        f"OCCTO capacity: HJKS rated output applied to {overridden:,} of "
+        f"{int(occto.sum()):,} plants (rest keep GEM fallback)"
+    )
+    return rows
+
+
+def _pull_occto_plant_codes(engine) -> dict[str, list[str]]:
+    """plant → distinct plant codes from occto_generation_data."""
+    with engine.connect() as conn:
+        conn.execute(text("SET statement_timeout = '120s'"))
+        rows = conn.execute(
+            text(
+                "SELECT plant, array_agg(DISTINCT plant_code) FROM "
+                "occto_generation_data WHERE plant IS NOT NULL AND "
+                "plant_code IS NOT NULL GROUP BY plant"
+            )
+        ).fetchall()
+    return {r[0]: [str(c).strip() for c in r[1] if c] for r in rows}
+
+
 def build_unified_crosswalk(
     skip_llm: bool = False,
     sources: list[str] | None = None,
@@ -1484,6 +1563,13 @@ def build_unified_crosswalk(
         )
     else:
         unified = new_rows
+
+    # Post-merge (so it covers OCCTO rows whether or not OCCTO was rebuilt):
+    # Japanese capacity comes from HJKS rated outputs, keyed by plant code.
+    if (unified["source_system"] == "OCCTO").any():
+        unified = _apply_hjks_occto_capacity(
+            unified, _pull_occto_plant_codes(engine)
+        )
 
     # Save
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
