@@ -147,6 +147,58 @@ SOURCE_COUNTRIES = {
     "CHILE": {"gppd": "CHL", "gem": "Chile"},
 }
 
+# ENTSO-E bidding-zone/TSO area code → reference-DB country labels. ENTSO-E is
+# the one source spanning many countries, and matching its units against a
+# Europe-wide candidate pool produced provably-wrong cross-border matches
+# (Kosovo coal units → a German solar farm; Czech units → plants in NL/NO;
+# Hungary's Mátra → Bulgaria's Maritsa 3 — 8 rows nulled in prod 2026-08-01).
+# Candidates are now drawn ONLY from the unit's own country. GEM keys on
+# country names ("Czech Republic", not "Czechia"); GPPD on ISO-3166 alpha-3
+# EXCEPT Kosovo, which GPPD codes as "KOS" (not XKX — XKX matches nothing).
+# pull_plant_names fails loudly on an area code missing here, so a new TSO
+# area cannot silently fall back to Europe-wide matching.
+ENTSOE_AREA_COUNTRIES: dict[str, dict[str, str]] = {
+    "AT": {"gem": "Austria", "gppd": "AUT"},
+    "BA": {"gem": "Bosnia and Herzegovina", "gppd": "BIH"},
+    "BE": {"gem": "Belgium", "gppd": "BEL"},
+    "BG": {"gem": "Bulgaria", "gppd": "BGR"},
+    "CY": {"gem": "Cyprus", "gppd": "CYP"},
+    "CZ": {"gem": "Czech Republic", "gppd": "CZE"},
+    "DE_50HZ": {"gem": "Germany", "gppd": "DEU"},
+    "DE_AMPRION": {"gem": "Germany", "gppd": "DEU"},
+    "DE_TENNET": {"gem": "Germany", "gppd": "DEU"},
+    "DE_TRANSNET": {"gem": "Germany", "gppd": "DEU"},
+    "DK_CA": {"gem": "Denmark", "gppd": "DNK"},
+    "EE": {"gem": "Estonia", "gppd": "EST"},
+    "ES": {"gem": "Spain", "gppd": "ESP"},
+    "FI": {"gem": "Finland", "gppd": "FIN"},
+    "FR": {"gem": "France", "gppd": "FRA"},
+    "GB": {"gem": "United Kingdom", "gppd": "GBR"},
+    "GB_NIR": {"gem": "United Kingdom", "gppd": "GBR"},
+    "GE": {"gem": "Georgia", "gppd": "GEO"},
+    "GR": {"gem": "Greece", "gppd": "GRC"},
+    "HR": {"gem": "Croatia", "gppd": "HRV"},
+    "HU": {"gem": "Hungary", "gppd": "HUN"},
+    "IE": {"gem": "Ireland", "gppd": "IRL"},
+    "IT": {"gem": "Italy", "gppd": "ITA"},
+    "LT": {"gem": "Lithuania", "gppd": "LTU"},
+    "LU": {"gem": "Luxembourg", "gppd": "LUX"},
+    "LV": {"gem": "Latvia", "gppd": "LVA"},
+    "MD": {"gem": "Moldova", "gppd": "MDA"},
+    "ME": {"gem": "Montenegro", "gppd": "MNE"},
+    "MK": {"gem": "North Macedonia", "gppd": "MKD"},
+    "NL": {"gem": "Netherlands", "gppd": "NLD"},
+    "NO": {"gem": "Norway", "gppd": "NOR"},
+    "PL": {"gem": "Poland", "gppd": "POL"},
+    "PT": {"gem": "Portugal", "gppd": "PRT"},
+    "RO": {"gem": "Romania", "gppd": "ROU"},
+    "RS": {"gem": "Serbia", "gppd": "SRB"},
+    "SE": {"gem": "Sweden", "gppd": "SWE"},
+    "SI": {"gem": "Slovenia", "gppd": "SVN"},
+    "SK": {"gem": "Slovakia", "gppd": "SVK"},
+    "XK": {"gem": "Kosovo", "gppd": "KOS"},
+}
+
 # Columns in the output
 OUTPUT_COLUMNS = [
     "plant_name",
@@ -198,6 +250,50 @@ _NPP_NON_COAL_SUFFIX = _re_npp.compile(
     r"WIND|SOLAR|PV|HYDRO|HYDEL|RES)(?:$|[\s\W])",
     _re_npp.IGNORECASE,
 )
+
+
+def _npp_suppress_coal_metadata(plant_name, npp_fuel) -> bool:
+    """Should coal metadata be withheld from this NPP plant's match?
+
+    The DGR-2 source's own fuel section (npp_generation.fuel_type, carried on
+    the pulled frame as npp_fuel) is authoritative when present: THERMAL is
+    the coal/lignite section, anything else is hydro/nuclear/gas/diesel. Only
+    fuel-less plants (the type-less Bhutan-import section) fall back to the
+    name heuristic.
+    """
+    if isinstance(npp_fuel, str) and npp_fuel.strip():
+        return npp_fuel.strip().upper() != "THERMAL"
+    return _is_npp_likely_non_coal(plant_name)
+
+
+def _iter_match_groups(unmatched: pd.DataFrame):
+    """Yield (source, label, sub_df, gem_country, gppd_countries) work units.
+
+    Every source is one unit matched against its configured country refs —
+    except ENTSO-E, which spans ~37 areas and is split into one unit per
+    country so candidates can never come from another country (the
+    cross-border LLM mismatch class: Kosovo units → German solar farm).
+    """
+    for source in unmatched["source_system"].unique():
+        src_plants = unmatched[unmatched["source_system"] == source]
+        if src_plants.empty:
+            continue
+        if source == "ENTSOE" and "ref_gem_country" in src_plants.columns:
+            for gem_country, sub in src_plants.groupby("ref_gem_country"):
+                gppd_country = sub["ref_gppd_country"].iloc[0]
+                yield (
+                    source,
+                    f"{source}/{gem_country}",
+                    sub,
+                    gem_country,
+                    [gppd_country],
+                )
+        else:
+            cfg = SOURCE_COUNTRIES.get(source, {})
+            gppd_countries = cfg.get("gppd_countries") or (
+                [cfg["gppd"]] if cfg.get("gppd") else None
+            )
+            yield source, source, src_plants, None, gppd_countries
 
 
 def _is_npp_likely_non_coal(plant_name) -> bool:
@@ -352,12 +448,19 @@ def pull_plant_names(engine, sources: list[str] | None = None) -> pd.DataFrame:
                  If None, pull from all sources.
     """
     all_queries = {
-        "NPP": "SELECT DISTINCT plant AS plant_name FROM npp_generation WHERE plant IS NOT NULL",
+        # MAX(fuel_type): the DGR-2 source's own fuel section per plant
+        # (single-valued per plant, verified in prod), used to suppress coal
+        # enrichment on known non-coal plants more reliably than the name
+        # heuristic (_is_npp_likely_non_coal missed e.g. GANDHI SAGAR PSP).
+        "NPP": "SELECT plant AS plant_name, MAX(fuel_type) AS npp_fuel FROM npp_generation WHERE plant IS NOT NULL GROUP BY 1",
         # mv instead of the raw table: the DISTINCT scan over 60M+ raw rows
         # takes minutes on a cold Neon cache (observed: 6m14s, TCP-timing out
         # the rebuild); the 55k-row mat view has the identical plant set
         # (verified count-equal) and is refreshed by the ETL after every load.
-        "ENTSOE": "SELECT DISTINCT plant_name FROM mv_entsoe_plant_monthly WHERE plant_name IS NOT NULL",
+        # MAX(country_code): every plant_name lives in exactly one area
+        # (verified: zero multi-area names), and the area pins which country's
+        # reference candidates it may match.
+        "ENTSOE": "SELECT plant_name, MAX(country_code) AS entsoe_area FROM mv_entsoe_plant_monthly WHERE plant_name IS NOT NULL GROUP BY 1",
         "EIA": "SELECT DISTINCT plant_code AS plant_name FROM eia_generation_data WHERE plant_code IS NOT NULL",
         "ONS": "SELECT DISTINCT plant AS plant_name FROM ons_generation_data WHERE plant IS NOT NULL",
         "OE": "SELECT DISTINCT facility_name AS plant_name, latitude, longitude FROM oe_facility_generation_data WHERE facility_name IS NOT NULL",
@@ -408,27 +511,56 @@ def pull_plant_names(engine, sources: list[str] | None = None) -> pd.DataFrame:
             f["plant_code"] = None
             frames[i] = f
 
-    return pd.concat(frames, ignore_index=True)
+    out = pd.concat(frames, ignore_index=True)
+
+    # Resolve ENTSO-E areas to reference-DB country labels. Fail loud on an
+    # unknown area: a new TSO zone must be added to ENTSOE_AREA_COUNTRIES,
+    # never silently matched against the whole of Europe.
+    if "entsoe_area" in out.columns:
+        entsoe_mask = out["source_system"] == "ENTSOE"
+        areas = out.loc[entsoe_mask, "entsoe_area"]
+        unknown = sorted(set(areas.dropna()) - set(ENTSOE_AREA_COUNTRIES))
+        if unknown or areas.isna().any():
+            raise ValueError(
+                f"ENTSO-E area codes without a country mapping: {unknown or 'NULL'} "
+                "— add them to ENTSOE_AREA_COUNTRIES"
+            )
+        out.loc[entsoe_mask, "ref_gem_country"] = areas.map(
+            lambda a: ENTSOE_AREA_COUNTRIES[a]["gem"]
+        )
+        out.loc[entsoe_mask, "ref_gppd_country"] = areas.map(
+            lambda a: ENTSOE_AREA_COUNTRIES[a]["gppd"]
+        )
+    return out
 
 
 # ---------------------------------------------------------------------------
 # Step 2: Load reference databases
 # ---------------------------------------------------------------------------
-def load_gem(source_system: str | None = None) -> dict[str, dict]:
-    """Load GEM CSV filtered by country. Returns {name: {lat, lon, name}}."""
+def load_gem(
+    source_system: str | None = None, gem_country: str | None = None
+) -> dict[str, dict]:
+    """Load GEM CSV filtered by country. Returns {name: {lat, lon, name}}.
+
+    ``gem_country`` narrows the filter to a single country and takes precedence
+    over the source's configured country list — used per ENTSO-E area so a
+    unit's candidates come only from its own country.
+    """
     if not GEM_CSV.exists():
         logger.warning(f"GEM CSV not found: {GEM_CSV}")
         return {}
 
     gem_raw = pd.read_csv(GEM_CSV, low_memory=False)
-    if source_system and source_system in SOURCE_COUNTRIES:
+    if gem_country:
+        gem_raw = gem_raw[gem_raw["Country/Area"] == gem_country]
+    elif source_system and source_system in SOURCE_COUNTRIES:
         cfg = SOURCE_COUNTRIES[source_system]
         gem_countries = cfg.get("gem_countries")
-        gem_country = cfg.get("gem")
+        gem_country_cfg = cfg.get("gem")
         if gem_countries:
             gem_raw = gem_raw[gem_raw["Country/Area"].isin(gem_countries)]
-        elif gem_country:
-            gem_raw = gem_raw[gem_raw["Country/Area"] == gem_country]
+        elif gem_country_cfg:
+            gem_raw = gem_raw[gem_raw["Country/Area"] == gem_country_cfg]
 
     names: dict[str, dict] = {}
     for _, row in gem_raw.iterrows():
@@ -462,14 +594,18 @@ def load_gem(source_system: str | None = None) -> dict[str, dict]:
 
 
 def load_gppd(country_codes: list[str] | None = None) -> pd.DataFrame:
-    """Load GPPD entries from local CSV, optionally filtered by country."""
+    """Load GPPD entries from local CSV, optionally filtered by country.
+
+    Carries capacity_mw + primary_fuel: GPPD-matched plants used to get NULL
+    capacity, which silently dropped whole fleets (Boxberg, Lippendorf,
+    Jänschwalde — 52% of German generation) from capacity-factor denominators.
+    """
+    cols = ["name", "latitude", "longitude", "country", "capacity_mw", "primary_fuel"]
     if not GPPD_CSV.exists():
         logger.warning(f"GPPD CSV not found: {GPPD_CSV}")
-        return pd.DataFrame(columns=["name", "latitude", "longitude", "country"])
+        return pd.DataFrame(columns=cols)
 
-    gppd = pd.read_csv(
-        GPPD_CSV, usecols=["name", "latitude", "longitude", "country"], low_memory=False
-    )
+    gppd = pd.read_csv(GPPD_CSV, usecols=cols, low_memory=False)
     if country_codes:
         gppd = gppd[gppd["country"].isin(country_codes)]
     return gppd
@@ -668,37 +804,38 @@ def match_rapidfuzz(
     """
     results = []
 
-    for source in unmatched["source_system"].unique():
-        src_plants = unmatched[unmatched["source_system"] == source]
-        if src_plants.empty:
-            continue
+    for source, label, src_plants, gem_country, gppd_countries in _iter_match_groups(
+        unmatched
+    ):
+        logger.info(f"Rapidfuzz matching {len(src_plants):,} {label} plants...")
 
-        logger.info(f"Rapidfuzz matching {len(src_plants):,} {source} plants...")
-
-        # Load per-source references
-        gem_names = load_gem(source)
+        # Load per-group references (per-country for ENTSO-E)
+        gem_names = load_gem(source, gem_country=gem_country)
         gem_norm = build_norm_index(
-            gem_names, normalize_for_comparison, f"GEM[{source}]"
+            gem_names, normalize_for_comparison, f"GEM[{label}]"
         )
         gem_norm_list = list(gem_norm.keys())
 
-        # Load GPPD for this source's countries
-        cfg = SOURCE_COUNTRIES.get(source, {})
-        gppd_countries = cfg.get("gppd_countries") or (
-            [cfg["gppd"]] if cfg.get("gppd") else None
-        )
         gppd_df = load_gppd(gppd_countries)
         gppd_raw_names = gppd_df["name"].dropna().unique().tolist()
         gppd_norm = build_norm_index(
-            gppd_raw_names, normalize_gppd_name, f"GPPD[{source}]"
+            gppd_raw_names, normalize_gppd_name, f"GPPD[{label}]"
         )
         gppd_norm_list = list(gppd_norm.keys())
-        # Build gppd name -> coords
+        # Build gppd name -> coords (+ nameplate capacity for coal-primary
+        # plants — see load_gppd docstring)
         gppd_coords: dict[str, dict] = {}
         for _, grow in gppd_df.iterrows():
             n = grow["name"]
             if pd.notna(n) and n not in gppd_coords:
-                gppd_coords[n] = {"lat": grow["latitude"], "lon": grow["longitude"]}
+                gppd_coords[n] = {
+                    "lat": grow["latitude"],
+                    "lon": grow["longitude"],
+                    "capacity_mw": float(grow["capacity_mw"])
+                    if pd.notna(grow.get("capacity_mw"))
+                    and str(grow.get("primary_fuel")).strip() == "Coal"
+                    else None,
+                }
 
         count = 0
         for _, row in src_plants.iterrows():
@@ -760,19 +897,25 @@ def match_rapidfuzz(
                                 "coal_type": None
                                 if (
                                     source == "NPP"
-                                    and _is_npp_likely_non_coal(plant_name)
+                                    and _npp_suppress_coal_metadata(
+                                        plant_name, row.get("npp_fuel")
+                                    )
                                 )
                                 else info.get("coal_type"),
                                 "combustion_tech": None
                                 if (
                                     source == "NPP"
-                                    and _is_npp_likely_non_coal(plant_name)
+                                    and _npp_suppress_coal_metadata(
+                                        plant_name, row.get("npp_fuel")
+                                    )
                                 )
                                 else info.get("combustion_tech"),
                                 "capacity_mw": None
                                 if (
                                     source == "NPP"
-                                    and _is_npp_likely_non_coal(plant_name)
+                                    and _npp_suppress_coal_metadata(
+                                        plant_name, row.get("npp_fuel")
+                                    )
                                 )
                                 else info.get("capacity_mw"),
                             }
@@ -823,12 +966,20 @@ def match_rapidfuzz(
                                 "matching_method": "rapidfuzz",
                                 "confidence": None,
                                 "ref_matched_name": orig,
+                                "capacity_mw": None
+                                if (
+                                    source == "NPP"
+                                    and _npp_suppress_coal_metadata(
+                                        plant_name, row.get("npp_fuel")
+                                    )
+                                )
+                                else coords.get("capacity_mw"),
                             }
                         )
                         matched = True
                         count += 1
 
-        logger.info(f"  {source} rapidfuzz: {count:,} matched")
+        logger.info(f"  {label} rapidfuzz: {count:,} matched")
 
     return (
         pd.DataFrame(results, columns=OUTPUT_COLUMNS)
@@ -854,28 +1005,30 @@ def match_llm(
 
     results = []
 
-    for source in unmatched["source_system"].unique():
-        src_plants = unmatched[unmatched["source_system"] == source]
-        if src_plants.empty:
-            continue
+    for source, label, src_plants, gem_country, gppd_countries in _iter_match_groups(
+        unmatched
+    ):
+        logger.info(f"LLM matching {len(src_plants):,} {label} plants...")
 
-        logger.info(f"LLM matching {len(src_plants):,} {source} plants...")
-
-        # Build reference lists for candidate retrieval
-        gem_names = load_gem(source)
+        # Build reference lists for candidate retrieval (per-country for
+        # ENTSO-E — the LLM can only pick from its own country's plants)
+        gem_names = load_gem(source, gem_country=gem_country)
         gem_name_list = list(gem_names.keys())
 
-        cfg = SOURCE_COUNTRIES.get(source, {})
-        gppd_countries = cfg.get("gppd_countries") or (
-            [cfg["gppd"]] if cfg.get("gppd") else None
-        )
         gppd_df = load_gppd(gppd_countries)
         gppd_raw_names = gppd_df["name"].dropna().unique().tolist()
         gppd_coords: dict[str, dict] = {}
         for _, grow in gppd_df.iterrows():
             n = grow["name"]
             if pd.notna(n) and n not in gppd_coords:
-                gppd_coords[n] = {"lat": grow["latitude"], "lon": grow["longitude"]}
+                gppd_coords[n] = {
+                    "lat": grow["latitude"],
+                    "lon": grow["longitude"],
+                    "capacity_mw": float(grow["capacity_mw"])
+                    if pd.notna(grow.get("capacity_mw"))
+                    and str(grow.get("primary_fuel")).strip() == "Coal"
+                    else None,
+                }
 
         # Build retriever
         retriever_sources: dict[str, list[str]] = {"GEM": gem_name_list}
@@ -906,7 +1059,7 @@ def match_llm(
         for i, (_, row) in enumerate(src_plants.iterrows()):
             plant_name = row["plant_name"]
             if (i + 1) % 25 == 0:
-                logger.info(f"  {source} LLM: {i + 1}/{len(src_plants)}")
+                logger.info(f"  {label} LLM: {i + 1}/{len(src_plants)}")
 
             if source == "OCCTO":
                 candidates_str = all_candidates_str
@@ -977,13 +1130,28 @@ def match_llm(
                             "reasoning": result.reasoning,
                             # Same NPP non-coal suppression as the rapidfuzz path.
                             "coal_type": None
-                            if (source == "NPP" and _is_npp_likely_non_coal(plant_name))
+                            if (
+                                source == "NPP"
+                                and _npp_suppress_coal_metadata(
+                                    plant_name, row.get("npp_fuel")
+                                )
+                            )
                             else coords.get("coal_type"),
                             "combustion_tech": None
-                            if (source == "NPP" and _is_npp_likely_non_coal(plant_name))
+                            if (
+                                source == "NPP"
+                                and _npp_suppress_coal_metadata(
+                                    plant_name, row.get("npp_fuel")
+                                )
+                            )
                             else coords.get("combustion_tech"),
                             "capacity_mw": None
-                            if (source == "NPP" and _is_npp_likely_non_coal(plant_name))
+                            if (
+                                source == "NPP"
+                                and _npp_suppress_coal_metadata(
+                                    plant_name, row.get("npp_fuel")
+                                )
+                            )
                             else coords.get("capacity_mw"),
                         }
                     )
@@ -1015,6 +1183,35 @@ def _log_per_source(matched_df: pd.DataFrame, input_df: pd.DataFrame, stage: str
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
+def _divide_entsoe_site_capacity(rows: pd.DataFrame) -> pd.DataFrame:
+    """Divide reference plant capacity across ENTSO-E units matched to it.
+
+    ENTSO-E publishes per UNIT while both references are plant-level, so a
+    site's nameplate used to be stamped whole onto EVERY unit (Neurath A–G
+    each 4,424 MW — the entire complex), inflating fleet capacity ~3x and
+    gutting capacity factors. Even division is approximate per unit (real
+    units differ in size) but every per-site and fleet aggregation sums to
+    the reference nameplate exactly.
+    """
+    entsoe_cap = (
+        (rows["source_system"] == "ENTSOE")
+        & rows["capacity_mw"].notna()
+        & rows["ref_matched_name"].notna()
+    )
+    if entsoe_cap.any():
+        sub = rows.loc[entsoe_cap]
+        unit_counts = sub.groupby(["ref_source", "ref_matched_name"])[
+            "plant_name"
+        ].transform("count")
+        rows.loc[entsoe_cap, "capacity_mw"] = sub["capacity_mw"] / unit_counts
+        n_shared = int((unit_counts > 1).sum())
+        logger.info(
+            f"ENTSO-E unit capacity: divided site nameplate across matched units "
+            f"for {n_shared:,} of {int(entsoe_cap.sum()):,} capacity-bearing unit rows"
+        )
+    return rows
+
+
 def build_unified_crosswalk(
     skip_llm: bool = False,
     sources: list[str] | None = None,
@@ -1206,6 +1403,8 @@ def build_unified_crosswalk(
     new_rows = pd.concat(
         [exact_df, gem_df, gppd_df, llm_df, unmatched_df], ignore_index=True
     )
+
+    new_rows = _divide_entsoe_site_capacity(new_rows)
 
     # Expand EIA rows: if multiple plant_codes share the same plant_name,
     # create one crosswalk row per plant_code (all sharing the same coords)
