@@ -19,6 +19,7 @@ Gates:
      must land in a plausible band (site-per-unit stamping inflated it ~3x).
   4. NPP plants whose DGR-2 fuel section is non-THERMAL carry no coal
      metadata (coal_type / combustion_tech / capacity_mw all null).
+  4b. OCCTO capacity exemplars carry their HJKS coal rated outputs.
   5. Per-source coordinate coverage must not drop vs the baseline by more
      than 2 percentage points.
 """
@@ -199,6 +200,24 @@ def main() -> int:
             fail(f"gate4: {name}: {cols} present={has}, expected {should_have}")
         else:
             ok(f"gate4: {name} enrichment correct (present={has})")
+
+    # ------------------------------------------------------------------ 4b
+    # OCCTO capacity comes from HJKS rated outputs (code-keyed). The two
+    # audit exemplars that read >100% CF from GEM's coal-slice capacity:
+    occto = xw[xw["source_system"] == "OCCTO"]
+    for name, expected_mw in [
+        ("防府バイオマス発電所", 112.0),   # Hofu Biomass — was 36 (GEM), CF 219%
+        ("宇部興産発電所", 361.0),         # UBE — two registrations summed
+    ]:
+        row = occto[occto["plant_name"] == name]
+        if row.empty:
+            fail(f"gate4b: {name} missing from crosswalk")
+            continue
+        got = row.iloc[0]["capacity_mw"]
+        if pd.isna(got) or abs(float(got) - expected_mw) > 1.0:
+            fail(f"gate4b: {name} capacity {got} MW, expected ~{expected_mw}")
+        else:
+            ok(f"gate4b: {name} capacity {float(got):,.0f} MW (HJKS)")
 
     # ------------------------------------------------------------------ 5
     for src in sorted(set(base["source_system"]) & set(xw["source_system"])):

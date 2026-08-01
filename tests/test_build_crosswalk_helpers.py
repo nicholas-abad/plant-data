@@ -1,5 +1,7 @@
 """Tests for the crosswalk builder's pure matching helpers."""
 
+import pandas as pd
+
 from src.build_crosswalk import (
     _clean_llm_match,
     _is_npp_likely_non_coal,
@@ -271,3 +273,118 @@ class TestDivideEntsoeSiteCapacity:
         )
         out = _divide_entsoe_site_capacity(rows)
         assert out["capacity_mw"].isna().all()
+
+
+class TestHjksOcctoCapacity:
+    def _write_csv(self, tmp_path):
+        p = tmp_path / "hjks_units.csv"
+        p.write_text(
+            "エリア,発電事業者,発電所コード,発電所名,発電形式,ユニット名,"
+            "認可出力,認可出力（変更後）,適用開始日,稼働開始日,稼働終了日,最終更新日時\n"
+            # Hofu: one active coal unit, ends in the future
+            '"中国","X","72203","防府バイオマス発電所","火力（石炭）","1号機",'
+            '"112000","","","2019/07/21","2039/07/20","2023/01/17 15:54",\n'
+            # UBE registration A
+            '"中国","Y","5AWR771132","宇部発電所","火力（石炭）","6号",'
+            '"216000","","","2004/03/01","9999/12/31","2026/03/26 16:43",\n'
+            # UBE registration B — a recorded modification wins over original
+            '"中国","Z","6038771106","宇部興産発電所","火力（石炭）","5号機",'
+            '"140000","145000","","1900/01/01","9999/12/31","2022/08/02 13:36",\n'
+            # Retired unit: must NOT count
+            '"東北","W","99999","終了発電所","火力（石炭）","1号機",'
+            '"500000","","","1990/01/01","2020/03/31","2020/04/01 00:00",\n'
+            # Multi-fuel site: gas + oil units share the code with a coal unit;
+            # only the coal unit may count (the dashboard numerator is coal-only)
+            '"北陸","V","88888","富山新港火力発電所","火力（ガス）","1号機",'
+            '"424700","","","1900/01/01","9999/12/31","2020/01/01 00:00",\n'
+            '"北陸","V","88888","富山新港火力発電所","火力（石油）","2号機",'
+            '"240000","","","1900/01/01","9999/12/31","2020/01/01 00:00",\n'
+            '"北陸","V","88888","富山新港火力発電所","火力（石炭）","石炭1号機",'
+            '"250000","","","1900/01/01","9999/12/31","2020/01/01 00:00",\n'
+            # Same physical unit registered under two grid-area codes: summing
+            # a plant's codes must not count it twice
+            '"東北","U","70001","勿来発電所","火力（石炭）","8号機",'
+            '"600000","","","1900/01/01","9999/12/31","2020/01/01 00:00",\n'
+            '"東京","U","70002","勿来発電所","火力（石炭）","8号機",'
+            '"600000","","","1900/01/01","9999/12/31","2020/01/01 00:00",\n',
+            encoding="utf-8",
+        )
+        return p
+
+    def test_load_hjks_coal_units(self, tmp_path):
+        from src.build_crosswalk import load_hjks_coal_units
+
+        units = load_hjks_coal_units(self._write_csv(tmp_path))
+        by_code = units.groupby("code")["mw"].sum().to_dict()
+        assert by_code["72203"] == 112.0
+        assert by_code["5AWR771132"] == 216.0
+        assert by_code["6038771106"] == 145.0  # modified output wins
+        assert "99999" not in by_code  # retired excluded
+        # Coal filter: the multi-fuel site's gas (424.7) and oil (240) units
+        # are absent — only its coal unit remains
+        assert by_code["88888"] == 250.0
+
+    def test_load_missing_file_raises(self, tmp_path):
+        import pytest
+
+        from src.build_crosswalk import load_hjks_coal_units
+
+        with pytest.raises(FileNotFoundError):
+            load_hjks_coal_units(tmp_path / "nope.csv")
+
+    def test_apply_sums_codes_and_flags_source(self, tmp_path):
+        from src.build_crosswalk import _apply_hjks_occto_capacity
+
+        rows = pd.DataFrame(
+            {
+                "plant_name": ["防府バイオマス発電所", "宇部興産発電所", "usa plant"],
+                "source_system": ["OCCTO", "OCCTO", "EIA"],
+                "capacity_mw": [36.0, 145.0, 500.0],
+            }
+        )
+        codes = {
+            "防府バイオマス発電所": ["72203"],
+            "宇部興産発電所": ["5AWR771132", "6038771106"],
+        }
+        out = _apply_hjks_occto_capacity(rows, codes, self._write_csv(tmp_path))
+        by = dict(zip(out["plant_name"], out["capacity_mw"]))
+        assert by["防府バイオマス発電所"] == 112.0
+        assert by["宇部興産発電所"] == 216.0 + 145.0
+        assert by["usa plant"] == 500.0  # non-OCCTO untouched
+        src_by = dict(zip(out["plant_name"], out["capacity_source"]))
+        assert src_by["防府バイオマス発電所"] == "HJKS"
+        assert pd.isna(src_by["usa plant"]) or src_by["usa plant"] is None
+
+    def test_partial_code_coverage_keeps_existing_value(self, tmp_path):
+        # A partial sum would silently overwrite GEM with a too-small
+        # denominator — the inverse of the bug HJKS fixes. Any missing code
+        # means: keep the existing capacity, no override.
+        from src.build_crosswalk import _apply_hjks_occto_capacity
+
+        rows = pd.DataFrame(
+            {
+                "plant_name": ["宇部興産発電所"],
+                "source_system": ["OCCTO"],
+                "capacity_mw": [145.0],
+            }
+        )
+        codes = {"宇部興産発電所": ["5AWR771132", "not-in-hjks"]}
+        out = _apply_hjks_occto_capacity(rows, codes, self._write_csv(tmp_path))
+        assert out["capacity_mw"].item() == 145.0
+        assert out["capacity_source"].isna().all()
+
+    def test_duplicate_registrations_counted_once(self, tmp_path):
+        # 勿来 8号機 is registered per grid area (two codes, same unit name):
+        # summing the plant's codes must count the 600 MW hardware once.
+        from src.build_crosswalk import _apply_hjks_occto_capacity
+
+        rows = pd.DataFrame(
+            {
+                "plant_name": ["勿来発電所"],
+                "source_system": ["OCCTO"],
+                "capacity_mw": [1975.0],
+            }
+        )
+        codes = {"勿来発電所": ["70001", "70002"]}
+        out = _apply_hjks_occto_capacity(rows, codes, self._write_csv(tmp_path))
+        assert out["capacity_mw"].item() == 600.0
