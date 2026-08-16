@@ -4,40 +4,39 @@ Centralized plant coordinate matching for the energy generation dashboard. Maps 
 
 ## Reference Databases
 
-| Source | Coverage | Location |
-|--------|----------|----------|
-| [GEM](https://globalenergymonitor.org/) (Global Energy Monitor) | Global coal/gas/etc plants | `data/GEM database_21Feb2026.csv` |
-| GCPT (EIA crosswalk) | US coal plants with EIA IDs | `data/gcpt/*.xlsx` |
-| [GPPD](https://datasets.wri.org/dataset/globalpowerplantdatabase) (Global Power Plant Database) | Global power plants | `data/crosswalks/global_power_plant_database.csv` |
-| [HJKS](https://hjks.jepx.or.jp/hjks/unit) (JEPX 発電情報公開システム) | Japanese unit rated outputs (認可出力), keyed by 発電所コード | `data/crosswalks/hjks_units.csv` — committed; refresh via `uv run python scripts/fetch_hjks_units.py` |
+Everything below lives in **`data/crosswalks/`**. The large ones are gitignored — you must download them before a first build.
+
+| Source | Provides | File | How to get it |
+|---|---|---|---|
+| [GEM](https://globalenergymonitor.org/) Global Integrated Power Tracker | Coordinates, coal type, combustion tech, capacity | `GEM database_21Feb2026.csv` | Request from GEM. **The filename is hardcoded** (`build_crosswalk.py`) — rename your download to match, or update the constant |
+| [GPPD](https://datasets.wri.org/dataset/globalpowerplantdatabase) (WRI) | Coordinates, capacity (fallback when GEM misses) | `global_power_plant_database.csv` | Public download from WRI |
+| [HJKS](https://hjks.jepx.or.jp/hjks/unit) (JEPX) | Japanese unit rated outputs (認可出力), keyed by 発電所コード | `hjks_units.csv` | **Committed** — refresh with `uv run python scripts/fetch_hjks_units.py` |
+| NPP–GIPT crosswalk | India plant → GEM unit mapping | `NPP_GIPT_crosswalk (1).csv` | Curated by hand; note the literal `" (1)"` in the filename |
+| EIA Form 860 | US generator metadata (`--generator-info-only`) | `3_1_Generator_Y2024.xlsx` | EIA Form 860 annual release |
+| EIA plant lookup | plant_code → plant name | `eia_plant_lookup.csv` | Derived; see `notebooks/eia_plant_names.ipynb` |
+
+> **Prerequisite:** the crosswalk build reads plant names **from the Neon database**, so the ETL must have loaded generation data first. Building against an empty database silently produces an empty crosswalk.
 
 ## Repository Structure
 
 ```
 plant-data/
 ├── src/
-│   ├── build_crosswalk.py           # Unified crosswalk pipeline (main entry point)
-│   ├── gcpt_loader.py               # Load GCPT Excel/CSV data
-│   ├── utils.py                     # Path helpers, parquet I/O, validation
-│   └── plant_name_matchers/
-│       ├── base.py                  # BaseNameMatcher ABC + MatchResult
-│       ├── gemini.py                # Google Gemini LLM implementation
-│       ├── normalizers.py           # Shared name normalization functions
-│       └── retriever.py             # CandidateRetriever for LLM prompts
+│   ├── build_crosswalk.py           # THE pipeline (pull → match → capacity → parquet)
+│   ├── gcpt_loader.py               # GCPT Excel/CSV loading (legacy path)
+│   ├── utils.py                     # Path helpers, parquet I/O, coordinate validation
+│   └── plant_name_matchers/         # normalizers, fuzzy retriever, Gemini LLM matcher
 ├── scripts/
-│   ├── build_gcpt_crosswalks.py     # GCPT Excel → per-source crosswalk parquets
-│   ├── bootstrap_neon_db.py         # Load schema + reference data into Neon DB
-│   │   Loads: plant_crosswalk, eia_generator_info, gcpt_coal_metadata
-├── notebooks/
-│   ├── npp_coordinate_coverage.ipynb # India NPP coverage analysis
-│   └── eia_gem_coverage.ipynb        # US EIA coverage analysis
-├── tests/
-├── data/
-│   ├── GEM database_21Feb2026.csv   # GEM reference database (~64MB)
-│   ├── gcpt/                        # GCPT Excel files + README
-│   ├── cache/                       # Runtime parquet caches (gitignored)
-│   └── crosswalks/                  # Output: built crosswalk files
-└── .env.template                    # Required: Neon DB + Gemini API credentials
+│   ├── verify_crosswalk.py          # REGRESSION GATES — run before any prod swap
+│   ├── bootstrap_neon_db.py         # Load the parquet + reference tables into Neon
+│   ├── fetch_hjks_units.py          # Refresh the Japanese unit register
+│   ├── build_gcpt_crosswalks.py     # Legacy GCPT → parquet (not in the main path)
+│   ├── test_npp_llm.py              # LLM matching spot-check
+│   └── drop_old_reference_tables.sql
+├── notebooks/                       # eia_plant_names, llm_sanity_check, test_gemini_api
+├── tests/                           # pytest — matching helpers, capacity logic, HJKS
+├── data/crosswalks/                 # Reference inputs + the built parquet (see above)
+└── .env.template                    # Neon DB credentials + GEMINI_API_KEY
 ```
 
 ## Installation
@@ -77,16 +76,49 @@ uv run python -m src.build_crosswalk --force
 
 ### Output Schema
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `plant_name` | str | Original plant name from generation data |
-| `source_system` | str | NPP, ENTSOE, EIA, ONS, OE |
-| `latitude` | float | Resolved latitude (null if unmatched) |
-| `longitude` | float | Resolved longitude (null if unmatched) |
-| `ref_source` | str | GEM, GPPD, OE-direct |
-| `matching_method` | str | exact, rapidfuzz, llm, direct |
-| `confidence` | str | high/medium, lowercased (LLM only; lower-confidence matches are discarded) |
-| `ref_matched_name` | str | Name in reference DB that was matched |
+`data/crosswalks/unified_plant_crosswalk.parquet` → loaded into Neon as `plant_crosswalk`. All 16 columns:
+
+| Column | Description |
+|---|---|
+| `plant_name`, `plant_code` | Identity as the generation source spells it — this is the dashboard's join key |
+| `source_system` | NPP, ENTSOE, EIA, ONS, OE, OCCTO, CHILE |
+| `latitude`, `longitude` | Coordinates, or null when unmatched (the row is kept so its generation isn't lost) |
+| `ref_source` | GEM, GPPD, or OE-direct |
+| `matching_method` | direct, rapidfuzz, or llm |
+| `confidence` | high/medium (LLM only; anything lower is discarded) |
+| `ref_matched_name` | The name matched in the reference database |
+| `reasoning` | The LLM's stated reason — the audit trail for a judgement call |
+| `coal_type`, `combustion_tech` | Fuel metadata; drives the CO₂ emission factor downstream |
+| `capacity_mw` | Operating coal capacity |
+| `capacity_source` | Where a non-default capacity came from (`HJKS` for Japanese rated outputs); null = the `ref_source` figure |
+| `state`, `sector` | Subregion and ownership, where the source provides them |
+
+### How capacity is derived
+
+The part most likely to break if you change something, so the rules are explicit:
+
+- **Operating units only.** GEM lists every unit it has ever tracked, including *cancelled* (never built) and retired ones. Summing all statuses made Germany + Poland read ~145 GW against ~56 GW of operating plant — which is why European capacity factors were once a third of reality.
+- **ENTSO-E candidates are restricted to the unit's own country.** A Europe-wide candidate pool once matched Kosovo's coal units to a German solar farm. `ENTSOE_AREA_COUNTRIES` maps all 37 TSO areas; an unmapped area fails the build loudly rather than silently widening the search.
+- **Site nameplate is apportioned across units** by trailing-24-month coal generation, because ENTSO-E meters units while references track whole plants. Site and fleet totals stay exact; an individual unit's capacity is an estimate.
+- **Japanese capacity comes from HJKS**, joined by plant code — no name matching involved.
+
+### Verifying a rebuild
+
+**Never swap a fresh crosswalk into production unverified.**
+
+```bash
+uv run python scripts/verify_crosswalk.py           # exits non-zero on any failure
+uv run python scripts/bootstrap_neon_db.py --data-only
+```
+
+It compares against the git-committed previous parquet (`--baseline PATH` to override) and gates on: known-bad cross-border matches not recurring, every matched reference resolving inside its own country, capacity invariants and a plausible fleet total, fuel-aware NPP/OCCTO exemplars, and per-source coordinate coverage not dropping by more than 2 points.
+
+### Gotchas
+
+- **A rebuild overwrites manual DB fixes.** Anything hand-corrected in `plant_crosswalk` is replaced by the next `--data-only` swap. Fix causes in `build_crosswalk.py`, not rows in the table.
+- **The build reads plant names from Neon**, so the ETL must have loaded generation data first — against an empty database you get an empty crosswalk with no error.
+- **`--force` is ignored when `--sources` is given**; the incremental path merges into the existing parquet by design.
+- **`--yes` is needed for non-interactive runs**, or the LLM cost prompt blocks. `--no-llm` skips Gemini entirely (no API key needed, lower coverage).
 
 ## Other Scripts
 
@@ -104,7 +136,7 @@ The `bootstrap_neon_db.py` script loads reference tables into Neon PostgreSQL:
 
 | Table | Source | Rows | Description |
 |-------|--------|------|-------------|
-| `plant_crosswalk` | Unified pipeline output | ~3,500 | Maps plant names to coordinates across all 6 sources |
+| `plant_crosswalk` | Unified pipeline output | ~3,500 | Maps plant names to coordinates across all 7 sources |
 | `eia_generator_info` | EIA Form 860 (3_1_Generator_Y2024.xlsx) | ~26,800 | Generator-level technology, prime mover, capacity |
 | `gcpt_coal_metadata` | GCPT database | ~14,300 (1,170 USA with EIA IDs) | Coal type, combustion technology for CO2 estimation |
 
