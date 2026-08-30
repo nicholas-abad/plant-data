@@ -275,8 +275,10 @@ def main() -> int:
     for src in sorted(set(base["source_system"]) & set(xw["source_system"])):
         bsub = base[base["source_system"] == src]
         nsub = xw[xw["source_system"] == src]
+        # Baseline count over plants still present in the source only.
+        still = bsub[bsub["plant_name"].isin(nsub["plant_name"])]
         b_n, n_n = (
-            int(bsub["latitude"].notna().sum()),
+            int(still["latitude"].notna().sum()),
             int(nsub["latitude"].notna().sum()),
         )
         lost = set(bsub.loc[bsub["latitude"].notna(), "plant_name"]) - set(
