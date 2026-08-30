@@ -380,7 +380,8 @@ class TestFrozenValuesSurviveRebuild:
 
 class TestImportDecisions:
     def test_prepare_rows_reads_view_columns_and_keys_correctly(self):
-        import importlib.util, sys
+        import importlib.util
+        import sys
         from pathlib import Path
 
         spec = importlib.util.spec_from_file_location(
