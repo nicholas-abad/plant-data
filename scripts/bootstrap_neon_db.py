@@ -219,7 +219,11 @@ PLANT_CROSSWALK_GUARDS = [
     """,
     "CREATE TRIGGER xw_guard BEFORE INSERT OR UPDATE OF gem_location_id, override_reason, not_in_gem "
     "ON plant_crosswalk FOR EACH ROW EXECUTE FUNCTION xw_guard()",
-    # What the review team downloads: open rows, biggest first, with the hints.
+    # What the review team downloads: coal plants first, then rows without
+    # coordinates, with the pipeline's hints. DROP first: CREATE OR REPLACE
+    # refuses to reorder or insert columns, and the swap's CASCADE has already
+    # removed the view anyway.
+    "DROP VIEW IF EXISTS plant_crosswalk_review",
     """
     CREATE OR REPLACE VIEW plant_crosswalk_review AS
     WITH coal AS (  -- plants the dashboard can actually show: they burn coal in their source feed
