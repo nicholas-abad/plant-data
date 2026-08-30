@@ -41,6 +41,7 @@ from .plant_name_matchers import (
     normalize_gppd_name,
     validate_match,
 )
+from . import gem_reference as gemref
 from .utils import get_crosswalk_dir, validate_coordinates
 
 # ---------------------------------------------------------------------------
@@ -49,7 +50,6 @@ from .utils import get_crosswalk_dir, validate_coordinates
 OUTPUT_DIR = get_crosswalk_dir()
 OUTPUT_FILE = OUTPUT_DIR / "unified_plant_crosswalk.parquet"
 
-GEM_CSV = get_crosswalk_dir() / "GEM database_21Feb2026.csv"
 GPPD_CSV = get_crosswalk_dir() / "global_power_plant_database.csv"
 EIA_LOOKUP_CSV = get_crosswalk_dir() / "eia_plant_lookup.csv"
 # HJKS unit list (scripts/fetch_hjks_units.py) — authoritative Japanese unit
@@ -225,6 +225,44 @@ OUTPUT_COLUMNS = [
     "capacity_source",
     "state",
     "sector",
+    # --- GEM identity (2026-08-30: GEM's API is the sole reference) ---------
+    "gem_location_id",  # L… — the plant's permanent GEM identity, or NULL
+    "gem_unit_id",  # G… — only where it comes for free (NPP-GIPT)
+    "not_in_gem",  # True = a person decided GEM has no record of this plant
+    "source_country",  # GEM country naming; the country guard compares this
+    # Human decisions live on the row and survive rebuilds (tier 0 re-emits them)
+    "decided_by",
+    "decided_on",
+    "note",
+    "override_reason",  # required to keep a cross-country link
+    "gem_name_at_decision",
+    "gem_country_at_decision",
+    # Pipeline hints for the reviewer, blank once decided
+    "candidate_1_id",
+    "candidate_1_name",
+    "candidate_1_score",
+    "candidate_2_id",
+    "candidate_2_name",
+    "candidate_2_score",
+    "candidate_3_id",
+    "candidate_3_name",
+    "candidate_3_score",
+]
+
+# matching_method values a human (or the one-off cutover) writes; the rebuild
+# re-emits such rows' link columns untouched.
+HUMAN_METHODS = {"manual", "legacy"}
+LINK_COLUMNS = [
+    "gem_location_id",
+    "gem_unit_id",
+    "not_in_gem",
+    "matching_method",
+    "decided_by",
+    "decided_on",
+    "note",
+    "override_reason",
+    "gem_name_at_decision",
+    "gem_country_at_decision",
 ]
 
 NPP_GIPT_CSV = get_crosswalk_dir() / "NPP_GIPT_crosswalk (1).csv"
@@ -555,70 +593,29 @@ def pull_plant_names(engine, sources: list[str] | None = None) -> pd.DataFrame:
 def load_gem(
     source_system: str | None = None, gem_country: str | None = None
 ) -> dict[str, dict]:
-    """Load GEM CSV filtered by country. Returns {name: {lat, lon, name}}.
+    """GEM reference names for one source / country: {name or alias: info}.
 
-    ``gem_country`` narrows the filter to a single country and takes precedence
-    over the source's configured country list — used per ENTSO-E area so a
-    unit's candidates come only from its own country.
+    Read from the gem_locations / gem_units tables (GEM's API, via
+    scripts/fetch_gem.py) — no spreadsheet. ``info`` carries lat/lon, the
+    canonical name, gem_location_id, and for coal sites coal_type,
+    combustion_tech and capacity_mw (OPERATING coal units only: summing
+    cancelled and retired units once read Germany+Poland at ~145 GW where ~56
+    GW operates). A location's alternative and local-language names are extra
+    keys pointing at the same info, so the fuzzy stage sees aliases.
+
+    ``gem_country`` narrows to a single country and takes precedence over the
+    source's configured country list — used per ENTSO-E area so a unit's
+    candidates come only from its own country.
     """
-    if not GEM_CSV.exists():
-        logger.warning(f"GEM CSV not found: {GEM_CSV}")
-        return {}
-
-    gem_raw = pd.read_csv(GEM_CSV, low_memory=False)
     if gem_country:
-        gem_raw = gem_raw[gem_raw["Country/Area"] == gem_country]
-    elif source_system and source_system in SOURCE_COUNTRIES:
+        return gemref.name_index(country=gem_country)
+    if source_system and source_system in SOURCE_COUNTRIES:
         cfg = SOURCE_COUNTRIES[source_system]
-        gem_countries = cfg.get("gem_countries")
-        gem_country_cfg = cfg.get("gem")
-        if gem_countries:
-            gem_raw = gem_raw[gem_raw["Country/Area"].isin(gem_countries)]
-        elif gem_country_cfg:
-            gem_raw = gem_raw[gem_raw["Country/Area"] == gem_country_cfg]
-
-    names: dict[str, dict] = {}
-    for _, row in gem_raw.iterrows():
-        name = row["Project Name"]
-        if pd.isna(name):
-            continue
-        is_coal = _is_gem_coal_row(row.get("Fuel"))
-        # Capacity counts OPERATING units only. GEM lists every unit ever
-        # tracked — summing all statuses stamped cancelled (never built!)
-        # and retired units into nameplate: Germany+Poland coal read
-        # ~145 GW where ~56 GW operates, which is why European capacity
-        # factors came out a third of reality. A fully retired site gets
-        # None (its CF is honestly incomputable at today's nameplate).
-        is_operating = (
-            str(row.get("Status", "")).strip().casefold() == "operating"
-        )
-        cap = (
-            _parse_gem_capacity(row.get("Capacity"))
-            if (is_coal and is_operating)
-            else None
-        )
-        info = {
-            "lat": row["Latitude"],
-            "lon": row["Longitude"],
-            "name": name,
-            "coal_type": _parse_gem_coal_type(row.get("Fuel")) if is_coal else None,
-            "combustion_tech": _normalize_combustion_tech(row.get("Technology"))
-            if is_coal
-            else None,
-            "capacity_mw": cap,
-            "_is_coal": is_coal,
-        }
-        existing = names.get(name)
-        if existing is None:
-            names[name] = info
-        elif is_coal and not existing.get("_is_coal"):
-            # Coal entry replaces non-coal first-wins
-            names[name] = info
-        elif is_coal and existing.get("_is_coal"):
-            # Both coal: sum capacity across units; keep first coords/tech/type
-            if cap is not None:
-                existing["capacity_mw"] = (existing.get("capacity_mw") or 0.0) + cap
-    return names
+        if cfg.get("gem_countries"):
+            return gemref.name_index(countries=cfg["gem_countries"])
+        if cfg.get("gem"):
+            return gemref.name_index(country=cfg["gem"])
+    return gemref.name_index()
 
 
 def load_gppd(country_codes: list[str] | None = None) -> pd.DataFrame:
@@ -673,12 +670,6 @@ def match_npp_via_gipt(plants_df: pd.DataFrame) -> pd.DataFrame:
         f"{gipt_coal['DGR plant name'].nunique():,} distinct DGR plants"
     )
 
-    if not GEM_CSV.exists():
-        logger.warning(f"GEM CSV not found: {GEM_CSV}")
-        return pd.DataFrame(columns=OUTPUT_COLUMNS)
-    gem_raw = pd.read_csv(GEM_CSV, low_memory=False)
-    gem_by_uid = gem_raw.set_index("Unit ID", drop=False)
-
     results = []
     npp_names = set(npp_plants["plant_name"].dropna().astype(str).unique())
     # Map normalized key -> actual name as stored in npp_generation, so coal
@@ -698,29 +689,29 @@ def match_npp_via_gipt(plants_df: pd.DataFrame) -> pd.DataFrame:
         techs = []
         lats, lons = [], []
         gem_project_names = []
+        loc_ids: list[str] = []
+        unit_ids: list[str] = []
         for _, row in group.iterrows():
             uid = row.get("GEM unit/phase ID")
-            if not isinstance(uid, str) or uid not in gem_by_uid.index:
+            if not isinstance(uid, str):
                 continue
-            gem_row = gem_by_uid.loc[uid]
-            if isinstance(gem_row, pd.DataFrame):
-                gem_row = gem_row.iloc[0]
-            cap = _parse_gem_capacity(gem_row.get("Capacity"))
-            if cap is not None:
-                unit_caps.append(cap)
-            ct = _parse_gem_coal_type(gem_row.get("Fuel"))
-            if ct:
-                coal_types.append(ct)
-            tech = _normalize_combustion_tech(gem_row.get("Technology"))
-            if tech:
-                techs.append(tech)
-            lat, lon = gem_row.get("Latitude"), gem_row.get("Longitude")
-            if pd.notna(lat) and pd.notna(lon):
-                lats.append(float(lat))
-                lons.append(float(lon))
-            pn = gem_row.get("Project Name")
-            if isinstance(pn, str):
-                gem_project_names.append(pn)
+            gu = gemref.unit(uid)
+            if gu is None:
+                continue
+            unit_ids.append(uid)
+            if gu["gem_location_id"] and gu["gem_location_id"] not in loc_ids:
+                loc_ids.append(gu["gem_location_id"])
+            if gu["capacity_mw"] is not None and gu["status"] == "operating":
+                unit_caps.append(gu["capacity_mw"])
+            if gu["coal_type"]:
+                coal_types.append(gu["coal_type"])
+            if gu["combustion_tech"]:
+                techs.append(gu["combustion_tech"])
+            if pd.notna(gu["lat"]) and pd.notna(gu["lon"]):
+                lats.append(float(gu["lat"]))
+                lons.append(float(gu["lon"]))
+            if isinstance(gu["name"], str):
+                gem_project_names.append(gu["name"])
 
         # Use first valid coords; sum unit capacities; first coal_type / tech as representative.
         plant_cap = sum(unit_caps) if unit_caps else None
@@ -763,6 +754,11 @@ def match_npp_via_gipt(plants_df: pd.DataFrame) -> pd.DataFrame:
                 "capacity_mw": plant_cap,
                 "state": plant_state,
                 "sector": plant_sector,
+                # One GEM location per plant; a unit id only when the file
+                # names exactly one unit (multi-unit plants link at location
+                # level like everything else).
+                "gem_location_id": loc_ids[0] if len(loc_ids) == 1 else None,
+                "gem_unit_id": unit_ids[0] if len(unit_ids) == 1 else None,
             }
         )
 
@@ -918,6 +914,7 @@ def match_rapidfuzz(
                                 "matching_method": "rapidfuzz",
                                 "confidence": None,
                                 "ref_matched_name": orig,
+                                "gem_location_id": info.get("gem_location_id"),
                                 # Suppress coal-metadata attribution when an NPP plant's
                                 # name has a non-coal technology suffix (HPS/CCPP/etc.).
                                 # This avoids spurious "coal" capacity on hydro/gas
@@ -1156,6 +1153,7 @@ def match_llm(
                             "confidence": confidence,
                             "ref_matched_name": matched_name,
                             "reasoning": result.reasoning,
+                            "gem_location_id": coords.get("gem_location_id"),
                             # Same NPP non-coal suppression as the rapidfuzz path.
                             "coal_type": None
                             if (
@@ -1248,14 +1246,25 @@ def _divide_entsoe_site_capacity(
 
     sub = rows.loc[entsoe_cap].copy()
     gen = sub["plant_name"].map(gen_by_plant or {}).fillna(0.0)
-    site = sub.groupby(["ref_source", "ref_matched_name"])
-    site_gen = gen.groupby(
-        [sub["ref_source"], sub["ref_matched_name"]]
-    ).transform("sum")
+    # Site identity: the GEM location where the row is linked (two units may
+    # have matched the same site under different alias spellings), else the
+    # reference name as before.
+    by_name = sub["ref_source"].astype(str) + "|" + sub["ref_matched_name"].astype(str)
+    if "gem_location_id" in sub.columns:
+        site_key = sub["gem_location_id"].where(sub["gem_location_id"].notna(), by_name)
+    else:
+        site_key = by_name
+    if "capacity_source" not in rows.columns:
+        rows["capacity_source"] = None
+    site = sub.groupby(site_key)
+    site_gen = gen.groupby(site_key).transform("sum")
     unit_counts = site["plant_name"].transform("count")
     # Generation share where the site has any observed generation, else equal.
     weights = (gen / site_gen).where(site_gen > 0, 1.0 / unit_counts)
     rows.loc[entsoe_cap, "capacity_mw"] = sub["capacity_mw"] * weights
+    rows.loc[entsoe_cap & rows["capacity_source"].isna(), "capacity_source"] = (
+        "ENTSOE_APPORTIONED"
+    )
     n_shared = int((unit_counts > 1).sum())
     n_equal_fallback = int(((site_gen <= 0) & (unit_counts > 1)).sum())
     logger.info(
@@ -1405,10 +1414,260 @@ def _pull_occto_plant_codes(engine) -> dict[str, list[str]]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# GEM identity: decisions, grandfathering, derivation, reviewer candidates
+# ---------------------------------------------------------------------------
+
+
+def _row_key(df: pd.DataFrame) -> pd.Series:
+    """The crosswalk's natural key: (source_system, COALESCE(plant_code, plant_name))."""
+    code = (
+        df["plant_code"]
+        if "plant_code" in df.columns
+        else pd.Series([None] * len(df), index=df.index)
+    )
+    return (
+        df["source_system"].astype(str)
+        + "|"
+        + code.where(code.notna(), df["plant_name"]).astype(str)
+    )
+
+
+def _stamp_source_country(rows: pd.DataFrame, plants_df: pd.DataFrame) -> pd.DataFrame:
+    """GEM-named country of the SOURCE plant; the country guard compares against it."""
+    country = pd.Series([None] * len(rows), index=rows.index, dtype=object)
+    for src, cfg in SOURCE_COUNTRIES.items():
+        if cfg.get("gem"):
+            country[rows["source_system"] == src] = cfg["gem"]
+    if "ref_gem_country" in plants_df.columns:
+        by_name = (
+            plants_df[plants_df["source_system"] == "ENTSOE"]
+            .dropna(subset=["ref_gem_country"])
+            .set_index("plant_name")["ref_gem_country"]
+            .to_dict()
+        )
+        ent = rows["source_system"] == "ENTSOE"
+        country[ent] = rows.loc[ent, "plant_name"].map(by_name)
+    rows["source_country"] = country
+    return rows
+
+
+def load_existing_decisions(engine) -> pd.DataFrame:
+    """Rows of the LIVE plant_crosswalk a person (or the cutover) decided.
+
+    Tier 0 of the funnel: these link columns are re-emitted verbatim and never
+    re-matched. Returns an empty frame on a database that predates the link
+    columns (first run after this change).
+    """
+    with engine.connect() as conn:
+        cols = {
+            r[0]
+            for r in conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'plant_crosswalk'"
+                )
+            )
+        }
+        if not {"decided_by", "gem_location_id"} <= cols:
+            logger.info("plant_crosswalk has no decision columns yet — tier 0 empty")
+            return pd.DataFrame(
+                columns=["source_system", "plant_code", "plant_name", *LINK_COLUMNS]
+            )
+        sel = ", ".join(
+            c
+            for c in ["source_system", "plant_code", "plant_name", *LINK_COLUMNS]
+            if c in cols
+        )
+        df = pd.read_sql(
+            text(
+                f"SELECT {sel} FROM plant_crosswalk WHERE decided_by IS NOT NULL OR not_in_gem"
+            ),
+            conn,
+        )
+    for c in LINK_COLUMNS:
+        if c not in df.columns:
+            df[c] = None
+    logger.info(f"tier 0: {len(df):,} decided rows loaded from plant_crosswalk")
+    return df
+
+
+def apply_decisions(rows: pd.DataFrame, decisions: pd.DataFrame) -> pd.DataFrame:
+    """Overwrite link columns with existing decisions, keyed on the natural key."""
+    if decisions.empty:
+        return rows
+    dec = decisions.copy()
+    dec["_k"] = _row_key(dec)
+    dec = dec.drop_duplicates("_k").set_index("_k")
+    keys = _row_key(rows)
+    hit = keys.isin(dec.index)
+    for col in LINK_COLUMNS:
+        rows.loc[hit, col] = keys[hit].map(dec[col]).values
+    logger.info(
+        f"tier 0: {int(hit.sum()):,} rows carry a prior decision (of {len(dec):,} on file)"
+    )
+    return rows
+
+
+def grandfather_legacy(rows: pd.DataFrame, live: pd.DataFrame) -> pd.DataFrame:
+    """One-off cutover: keep today's GEM name-matches as GEM IDs (`legacy`).
+
+    For every row of the LIVE crosswalk that was matched to GEM by name, resolve
+    its ``ref_matched_name`` to a location within the source's country. Rows the
+    new pipeline left empty get that location as a legacy decision; rows it
+    linked to a DIFFERENT location keep the legacy link too (the dashboard must
+    not move at cutover) with the pipeline's alternative recorded in ``note``
+    for the reviewer. Ambiguous / unresolvable names are left empty → review.
+    """
+    from datetime import date
+
+    if live.empty or "ref_matched_name" not in live.columns:
+        return rows
+    live = live[(live["ref_source"] == "GEM") & live["ref_matched_name"].notna()].copy()
+    live["_k"] = _row_key(live)
+    live = live.drop_duplicates("_k").set_index("_k")
+    keys = _row_key(rows)
+    today = date.today().isoformat()
+    n_kept = n_diff = n_unres = 0
+    for idx, k in keys.items():
+        if (
+            k not in live.index
+            or rows.at[idx, "decided_by"] is not None
+            and pd.notna(rows.at[idx, "decided_by"])
+        ):
+            continue
+        L = gemref.resolve_name(
+            live.at[k, "ref_matched_name"], rows.at[idx, "source_country"]
+        )
+        if L is None:
+            n_unres += 1
+            continue
+        current = rows.at[idx, "gem_location_id"]
+        if pd.notna(current) and current == L:
+            continue  # pipeline reproduced it — stays a pipeline match
+        note = f"grandfathered from {live.at[k, 'matching_method']} match {live.at[k, 'ref_matched_name']!r}"
+        if pd.notna(current) and current != L:
+            note += f"; pipeline proposed {current}"
+            n_diff += 1
+        else:
+            n_kept += 1
+        rows.at[idx, "gem_location_id"] = L
+        rows.at[idx, "matching_method"] = "legacy"
+        rows.at[idx, "decided_by"] = "legacy-pipeline"
+        rows.at[idx, "decided_on"] = today
+        rows.at[idx, "note"] = note
+        rows.at[idx, "gem_name_at_decision"] = gemref.location(L)["name"]
+        rows.at[idx, "gem_country_at_decision"] = gemref.country_of(L)
+    logger.info(
+        f"grandfather: {n_kept:,} live matches kept as legacy links, {n_diff:,} kept over a differing "
+        f"pipeline proposal (noted), {n_unres:,} could not be resolved to one GEM location → review"
+    )
+    return rows
+
+
+def derive_from_gem(
+    rows: pd.DataFrame, npp_fuel_by_name: dict[str, str]
+) -> pd.DataFrame:
+    """Rows linked by a DECISION (manual/legacy) get their attributes from GEM.
+
+    Pipeline-matched rows already carry them from the matching stage. Site
+    capacity is the sum of OPERATING coal units and is apportioned per ENTSO-E
+    unit afterwards, so this must run before _divide_entsoe_site_capacity.
+    """
+    decided = rows["decided_by"].notna() & rows["gem_location_id"].notna()
+    n = 0
+    for idx in rows.index[decided]:
+        info = gemref.location(rows.at[idx, "gem_location_id"])
+        if info is None:
+            continue
+        rows.at[idx, "latitude"] = info["lat"]
+        rows.at[idx, "longitude"] = info["lon"]
+        rows.at[idx, "ref_source"] = "GEM"
+        rows.at[idx, "ref_matched_name"] = info["name"]
+        suppress = rows.at[
+            idx, "source_system"
+        ] == "NPP" and _npp_suppress_coal_metadata(
+            rows.at[idx, "plant_name"], npp_fuel_by_name.get(rows.at[idx, "plant_name"])
+        )
+        rows.at[idx, "coal_type"] = None if suppress else info["coal_type"]
+        rows.at[idx, "combustion_tech"] = None if suppress else info["combustion_tech"]
+        rows.at[idx, "capacity_mw"] = None if suppress else info["capacity_mw"]
+        n += 1
+    rows.loc[rows["not_in_gem"] == True, ["gem_location_id", "gem_unit_id"]] = None  # noqa: E712
+    logger.info(f"derived GEM attributes for {n:,} decided rows")
+    return rows
+
+
+def _stamp_capacity_source(rows: pd.DataFrame) -> pd.DataFrame:
+    has = rows["capacity_mw"].notna() & rows["capacity_source"].isna()
+    rows.loc[has & (rows["ref_source"] == "GEM"), "capacity_source"] = "GEM"
+    rows.loc[has & (rows["ref_source"] == "GPPD"), "capacity_source"] = "GPPD"
+    return rows
+
+
+CANDIDATE_CUTOFF = 55
+
+
+def add_candidates(rows: pd.DataFrame, plants_df: pd.DataFrame) -> pd.DataFrame:
+    """Top-3 within-country GEM candidates for every row still without a link."""
+    open_rows = rows[rows["gem_location_id"].isna() & (rows["not_in_gem"] != True)]  # noqa: E712
+    if open_rows.empty:
+        return rows
+    work = open_rows[["plant_name", "source_system"]].copy()
+    if "ref_gem_country" in plants_df.columns:
+        by_name = plants_df[plants_df["source_system"] == "ENTSOE"].set_index(
+            "plant_name"
+        )
+        ent = work["source_system"] == "ENTSOE"
+        work.loc[ent, "ref_gem_country"] = work.loc[ent, "plant_name"].map(
+            by_name["ref_gem_country"]
+        )
+        work.loc[ent, "ref_gppd_country"] = work.loc[ent, "plant_name"].map(
+            by_name["ref_gppd_country"]
+        )
+    filled = 0
+    for source, label, sub, gem_country, _ in _iter_match_groups(work):
+        gem_names = load_gem(source, gem_country=gem_country)
+        norm = build_norm_index(
+            gem_names, normalize_for_comparison, f"GEM[{label}] candidates"
+        )
+        choices = list(norm.keys())
+        if not choices:
+            continue
+        for idx, r in sub.iterrows():
+            q = normalize_for_comparison(str(r["plant_name"]))
+            if not q:
+                continue
+            seen: dict[str, tuple[str, float]] = {}
+            for key, score, _ in process.extract(
+                q,
+                choices,
+                scorer=fuzz.token_sort_ratio,
+                limit=10,
+                score_cutoff=CANDIDATE_CUTOFF,
+            ):
+                info = gem_names[norm[key]]
+                L = info.get("gem_location_id")
+                if L and (L not in seen or seen[L][1] < score):
+                    seen[L] = (info["name"], float(score))
+            top = sorted(seen.items(), key=lambda kv: -kv[1][1])[:3]
+            for i, (L, (name, score)) in enumerate(top, 1):
+                rows.at[idx, f"candidate_{i}_id"] = L
+                rows.at[idx, f"candidate_{i}_name"] = name
+                rows.at[idx, f"candidate_{i}_score"] = round(score, 1)
+            if top:
+                filled += 1
+    logger.info(
+        f"candidates: hints written for {filled:,} of {len(open_rows):,} unlinked rows"
+    )
+    return rows
+
+
 def build_unified_crosswalk(
-    skip_llm: bool = False,
+    skip_llm: bool = True,
     sources: list[str] | None = None,
     yes: bool = False,
+    grandfather: bool = False,
 ) -> pd.DataFrame:
     """Run the full pipeline and return the unified crosswalk DataFrame.
 
@@ -1440,6 +1699,7 @@ def build_unified_crosswalk(
         return cached
 
     engine = _make_engine()
+    gemref.load_tables(engine)
 
     # Step 1: Pull plant names
     logger.info("=" * 60)
@@ -1604,8 +1864,6 @@ def build_unified_crosswalk(
         if "entsoe_gen_mwh" in plants_df.columns
         else {}
     )
-    new_rows = _divide_entsoe_site_capacity(new_rows, entsoe_gen_by_plant)
-
     # Expand EIA rows: if multiple plant_codes share the same plant_name,
     # create one crosswalk row per plant_code (all sharing the same coords)
     eia_rows = new_rows[new_rows["source_system"] == "EIA"]
@@ -1624,6 +1882,28 @@ def build_unified_crosswalk(
                 f"Expanded {n_added} additional EIA rows for duplicate plant names"
             )
 
+    # --- GEM identity ------------------------------------------------------
+    # Order matters: decisions are keyed on plant_code for EIA (hence after the
+    # expansion); derivation stamps SITE capacity, which the ENTSO-E division
+    # then apportions per unit; and both must run on new_rows only — rows
+    # carried over from the existing parquet are already divided.
+    new_rows["not_in_gem"] = new_rows["not_in_gem"].fillna(False).astype(bool)
+    new_rows = _stamp_source_country(new_rows, plants_df)
+    new_rows = apply_decisions(new_rows, load_existing_decisions(engine))
+    if grandfather:
+        with engine.connect() as conn:
+            live = pd.read_sql("SELECT * FROM plant_crosswalk", conn)
+        new_rows = grandfather_legacy(new_rows, live)
+    npp_fuel_by_name = (
+        plants_df[plants_df["source_system"] == "NPP"]
+        .set_index("plant_name")["npp_fuel"]
+        .to_dict()
+        if "npp_fuel" in plants_df.columns
+        else {}
+    )
+    new_rows = derive_from_gem(new_rows, npp_fuel_by_name)
+    new_rows = _divide_entsoe_site_capacity(new_rows, entsoe_gen_by_plant)
+
     # Merge with existing crosswalk when running for specific sources
     if existing is not None:
         unified = pd.concat([existing, new_rows], ignore_index=True)
@@ -1640,9 +1920,12 @@ def build_unified_crosswalk(
     if (sources is None or "OCCTO" in sources) and (
         unified["source_system"] == "OCCTO"
     ).any():
-        unified = _apply_hjks_occto_capacity(
-            unified, _pull_occto_plant_codes(engine)
-        )
+        unified = _apply_hjks_occto_capacity(unified, _pull_occto_plant_codes(engine))
+
+    unified = _stamp_capacity_source(unified)
+    unified["not_in_gem"] = unified["not_in_gem"].fillna(False).astype(bool)
+    unified = add_candidates(unified, plants_df)
+    unified = unified[OUTPUT_COLUMNS]
 
     # Save
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -1682,7 +1965,19 @@ def main():
     parser = argparse.ArgumentParser(
         description="Build unified plant coordinate crosswalk"
     )
-    parser.add_argument("--no-llm", action="store_true", help="Skip LLM matching step")
+    parser.add_argument(
+        "--no-llm", action="store_true", help="(default) skip the LLM matching step"
+    )
+    parser.add_argument(
+        "--llm",
+        action="store_true",
+        help="Run the Gemini LLM matching step (off by default since GEM IDs)",
+    )
+    parser.add_argument(
+        "--grandfather",
+        action="store_true",
+        help="One-off cutover: keep today's name-based GEM matches as `legacy` GEM-ID links",
+    )
     parser.add_argument(
         "--force", action="store_true", help="Overwrite existing output file"
     )
@@ -1705,7 +2000,12 @@ def main():
         OUTPUT_FILE.unlink()
         logger.info(f"Removed existing output: {OUTPUT_FILE}")
 
-    build_unified_crosswalk(skip_llm=args.no_llm, sources=args.sources, yes=args.yes)
+    build_unified_crosswalk(
+        skip_llm=not args.llm,
+        sources=args.sources,
+        yes=args.yes,
+        grandfather=args.grandfather,
+    )
 
 
 if __name__ == "__main__":

@@ -44,6 +44,7 @@ SCHEMA_FILES = [
     "occto_generation.sql",
     "chile_generation.sql",
     "materialized_views.sql",
+    "row_count_views.sql",  # feeds /data-quality; was missing, so a fresh DB lacked those 7 views
 ]
 
 
@@ -187,6 +188,51 @@ def _table_grants(conn, table: str) -> list[tuple[str, str]]:
     ]
 
 
+# Guards on the GEM link columns. Re-created on every swap (the table is a new
+# relation each Sunday), like the indexes. They protect what a HUMAN writes
+# through import_decisions.py; the build's own rows are validated by
+# verify_crosswalk.py before they get here (to_sql fills the staging table
+# before these exist).
+PLANT_CROSSWALK_GUARDS = [
+    # A row is linked, or explicitly not in GEM, or still open — never both linked and not-in-GEM.
+    "ALTER TABLE plant_crosswalk ADD CONSTRAINT xw_link_xor "
+    "CHECK (NOT (gem_location_id IS NOT NULL AND not_in_gem))",
+    """
+    CREATE OR REPLACE FUNCTION xw_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+    DECLARE gem_country TEXT;
+    BEGIN
+      IF NEW.gem_location_id IS NULL THEN
+        RETURN NEW;
+      END IF;
+      SELECT country INTO gem_country FROM gem_locations WHERE gem_location_id = NEW.gem_location_id;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'plant_crosswalk: gem_location_id % does not exist in gem_locations', NEW.gem_location_id;
+      END IF;
+      IF NEW.source_country IS NOT NULL AND gem_country IS DISTINCT FROM NEW.source_country
+         AND NEW.override_reason IS NULL THEN
+        RAISE EXCEPTION 'plant_crosswalk: % is in %, but the source plant is in % — set override_reason to keep a cross-border link',
+          NEW.gem_location_id, gem_country, NEW.source_country;
+      END IF;
+      RETURN NEW;
+    END $$
+    """,
+    "CREATE TRIGGER xw_guard BEFORE INSERT OR UPDATE OF gem_location_id, override_reason, not_in_gem "
+    "ON plant_crosswalk FOR EACH ROW EXECUTE FUNCTION xw_guard()",
+    # What the review team downloads: open rows, biggest first, with the hints.
+    """
+    CREATE OR REPLACE VIEW plant_crosswalk_review AS
+    SELECT source_system, plant_code, plant_name, source_country,
+           candidate_1_id, candidate_1_name, candidate_1_score,
+           candidate_2_id, candidate_2_name, candidate_2_score,
+           candidate_3_id, candidate_3_name, candidate_3_score,
+           gem_location_id, not_in_gem, note
+    FROM plant_crosswalk
+    WHERE gem_location_id IS NULL AND NOT not_in_gem
+    ORDER BY source_system, plant_name
+    """,
+]
+
+
 def load_unified_crosswalk(engine):
     """Load the unified plant crosswalk parquet into Neon as plant_crosswalk."""
     path = DATA_DIR / "crosswalks" / "unified_plant_crosswalk.parquet"
@@ -211,6 +257,7 @@ def load_unified_crosswalk(engine):
             "ON plant_crosswalk (plant_code) WHERE plant_code IS NOT NULL",
             "CREATE INDEX idx_plant_crosswalk_plant_name "
             "ON plant_crosswalk (plant_name, source_system)",
+            *PLANT_CROSSWALK_GUARDS,
         ],
     )
 

@@ -120,6 +120,36 @@ It compares against the git-committed previous parquet (`--baseline PATH` to ove
 - **`--force` is ignored when `--sources` is given**; the incremental path merges into the existing parquet by design.
 - **`--yes` is needed for non-interactive runs**, or the LLM cost prompt blocks. `--no-llm` skips Gemini entirely (no API key needed, lower coverage).
 
+### GEM identity on `plant_crosswalk` (2026-08-30)
+
+Every row carries its GEM link — or an explicit reason it has none:
+
+| Column | Meaning |
+|---|---|
+| `gem_location_id` | The plant's permanent GEM identity (`L…`), or NULL |
+| `gem_unit_id` | `G…` only where it comes for free (India's NPP-GIPT file names one unit) |
+| `not_in_gem` | A person decided GEM has no record of this plant |
+| `matching_method` | `direct` / `rapidfuzz` / `llm` (pipeline), `legacy` (today's matches grandfathered at cutover), `manual` (review team) |
+| `decided_by`, `decided_on`, `note`, `override_reason` | Who decided, when, and why a cross-border link was allowed |
+| `source_country` | GEM-named country of the source plant — the country guard compares against it |
+| `candidate_1..3_{id,name,score}` | Pipeline hints for the reviewer; blank once decided |
+
+**The one rule:** the weekly rebuild reads the live table's decided rows first (tier 0) and re-emits their link columns unchanged; it only fills rows that are still empty. Coordinates, capacity and coal type are re-derived from the GEM tables for every linked row (site capacity = operating coal units; Japan keeps HJKS ratings, Europe keeps per-unit apportionment).
+
+**Review workflow** — no queue table, no admin page:
+
+```bash
+# 1. download:  Neon console → SQL editor → SELECT * FROM plant_crosswalk_review → Export CSV
+# 2. fill:      gem_location_id (L…)  or  not_in_gem = true ; leave unknowns blank
+# 3. upload:
+uv run python scripts/import_decisions.py review.csv --by "C. Team"            # dry run
+uv run python scripts/import_decisions.py review.csv --by "C. Team" --commit
+```
+
+The upload is **fill-empty-only**: rows already decided are skipped, so concurrent edits and stale files are harmless. The table's triggers refuse an unknown GEM ID or a wrong-country link (unless `--override-reason`), row by row, with reasons. `verify_crosswalk.py` gates 6a–6f check the same invariants on every build, plus that no prior decision was lost.
+
+**Cutover (once):** `uv run python -m src.build_crosswalk --grandfather --force` keeps today's name-based GEM matches as `legacy` links so the dashboard does not move; the rows it cannot resolve to exactly one GEM location are the review team's first batch.
+
 ## Other Scripts
 
 ```bash
