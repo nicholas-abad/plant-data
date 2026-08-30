@@ -170,64 +170,112 @@ class TestDecisions:
 
 
 class TestGrandfather:
-    def test_live_name_match_becomes_legacy_link(self, gem):
+    def _live(self, **kw):
+        base = {
+            "source_system": "EIA",
+            "plant_code": "2",
+            "plant_name": "Beta",
+            "ref_source": "GEM",
+            "ref_matched_name": "Beta Generating Station",
+            "matching_method": "llm",
+            "latitude": 20.5,
+            "longitude": -20.5,
+            "capacity_mw": 123.0,
+            "coal_type": "lignite",
+            "combustion_tech": "IGCC",
+            "capacity_source": None,
+            "state": None,
+            "sector": None,
+        }
+        return pd.DataFrame([{**base, **kw}])
+
+    def test_live_name_match_becomes_legacy_link_with_frozen_values(self, gem):
         rows = bc._stamp_source_country(_rows(), PLANTS)
-        live = pd.DataFrame(
-            [
-                {
-                    "source_system": "EIA",
-                    "plant_code": "2",
-                    "plant_name": "Beta",
-                    "ref_source": "GEM",
-                    "ref_matched_name": "Beta Generating Station",
-                    "matching_method": "llm",
-                }
-            ]
+        rows = bc.grandfather_legacy(rows, self._live())
+        beta = rows.set_index("plant_name").loc["Beta"]
+        assert beta.gem_location_id == "L2" and beta.matching_method == "legacy"
+        assert (
+            beta.decided_by == "legacy-pipeline"
+            and beta.gem_country_at_decision == "United States"
+        )
+        # values frozen from the live row, NOT re-derived from GEM (700 MW / waste)
+        assert (beta.latitude, beta.capacity_mw, beta.coal_type) == (
+            20.5,
+            123.0,
+            "lignite",
+        )
+        assert beta.capacity_source == "LEGACY"
+
+    def test_gppd_match_is_frozen_without_link(self, gem):
+        rows = bc._stamp_source_country(_rows(), PLANTS)
+        live = self._live(
+            ref_source="GPPD",
+            ref_matched_name="Beta (GPPD)",
+            matching_method="rapidfuzz",
+            latitude=21.0,
+            capacity_mw=None,
         )
         rows = bc.grandfather_legacy(rows, live)
         beta = rows.set_index("plant_name").loc["Beta"]
         assert (
-            beta.gem_location_id == "L2"
+            pd.isna(beta.gem_location_id)
             and beta.matching_method == "legacy"
-            and beta.decided_by == "legacy-pipeline"
+            and beta.latitude == 21.0
         )
-        assert beta.gem_country_at_decision == "United States"
+        assert "no GEM link" in beta.note and beta.capacity_source is None
 
     def test_reproduced_match_stays_pipeline(self, gem):
         rows = bc._stamp_source_country(_rows(), PLANTS)
-        live = pd.DataFrame(
-            [
-                {
-                    "source_system": "EIA",
-                    "plant_code": "1",
-                    "plant_name": "Alpha",
-                    "ref_source": "GEM",
-                    "ref_matched_name": "Alpha power station",
-                    "matching_method": "rapidfuzz",
-                }
-            ]
+        live = self._live(
+            plant_code="1",
+            plant_name="Alpha",
+            ref_matched_name="Alpha power station",
+            matching_method="rapidfuzz",
+            latitude=10.0,
+            longitude=-10.0,
         )
         rows = bc.grandfather_legacy(rows, live)
         assert (
             rows.set_index("plant_name").loc["Alpha", "matching_method"] == "rapidfuzz"
         )
 
-    def test_unresolvable_name_left_open(self, gem):
+    def test_unresolvable_name_frozen_and_flagged(self, gem):
         rows = bc._stamp_source_country(_rows(), PLANTS)
-        live = pd.DataFrame(
-            [
-                {
-                    "source_system": "EIA",
-                    "plant_code": "2",
-                    "plant_name": "Beta",
-                    "ref_source": "GEM",
-                    "ref_matched_name": "Nowhere station",
-                    "matching_method": "llm",
-                }
-            ]
+        rows = bc.grandfather_legacy(
+            rows, self._live(ref_matched_name="Nowhere station", latitude=1.0)
         )
-        rows = bc.grandfather_legacy(rows, live)
-        assert pd.isna(rows.set_index("plant_name").loc["Beta", "gem_location_id"])
+        beta = rows.set_index("plant_name").loc["Beta"]
+        assert (
+            pd.isna(beta.gem_location_id)
+            and beta.latitude == 1.0
+            and "did not resolve" in beta.note
+        )
+
+    def test_frozen_entsoe_capacity_is_not_apportioned_again(self):
+        rows = pd.DataFrame(
+            {
+                "source_system": ["ENTSOE", "ENTSOE"],
+                "plant_name": ["X1", "X2"],
+                "plant_code": [None, None],
+                "ref_source": ["GEM", "GEM"],
+                "ref_matched_name": ["X", "X"],
+                "gem_location_id": ["L9", "L9"],
+                "capacity_mw": [100.0, 100.0],
+                "capacity_source": ["LEGACY", None],
+            }
+        )
+        out = bc._divide_entsoe_site_capacity(rows, {"X1": 10.0, "X2": 10.0})
+        assert (
+            out.set_index("plant_name").at["X1", "capacity_mw"] == 100.0
+        )  # frozen, untouched
+        assert (
+            out.set_index("plant_name").at["X2", "capacity_mw"]
+            == 0.0  # the frozen row already holds the whole site
+        )  # alone in its group → weight 1
+        assert (
+            out.set_index("plant_name").at["X2", "capacity_source"]
+            == "ENTSOE_APPORTIONED"
+        )
 
 
 class TestCandidates:

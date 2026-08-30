@@ -161,7 +161,12 @@ def main() -> int:
     # no overlap with mapped ENTSO-E countries.
     valid_countries = {c["gem"] for c in ENTSOE_AREA_COUNTRIES.values()}
     valid_iso = {c["gppd"] for c in ENTSOE_AREA_COUNTRIES.values()}
-    matched = entsoe[entsoe["ref_matched_name"].notna()]
+    # Frozen legacy rows keep a reference name from an older GEM release; their
+    # GEM link is validated by gate 6b instead.
+    matched = entsoe[
+        entsoe["ref_matched_name"].notna()
+        & ~entsoe["matching_method"].isin(HUMAN_METHODS)
+    ]
     dangling = []
     out_of_region = []
     for _, r in matched.iterrows():
@@ -264,13 +269,30 @@ def main() -> int:
             ok(f"gate4b: {name} capacity {float(got):,.0f} MW (HJKS)")
 
     # ------------------------------------------------------------------ 5
+    # Coverage is compared as a COUNT of coordinated plants, not a share: a
+    # source that gained many new (as yet unmatched) plants since the baseline
+    # would otherwise fail on a falling percentage while losing nothing.
     for src in sorted(set(base["source_system"]) & set(xw["source_system"])):
-        b = base[base["source_system"] == src]["latitude"].notna().mean()
-        n = xw[xw["source_system"] == src]["latitude"].notna().mean()
-        if n < b - 0.02:
-            fail(f"gate5: {src} coverage {n:.1%} < baseline {b:.1%} - 2pp")
+        bsub = base[base["source_system"] == src]
+        nsub = xw[xw["source_system"] == src]
+        b_n, n_n = (
+            int(bsub["latitude"].notna().sum()),
+            int(nsub["latitude"].notna().sum()),
+        )
+        lost = set(bsub.loc[bsub["latitude"].notna(), "plant_name"]) - set(
+            nsub.loc[nsub["latitude"].notna(), "plant_name"]
+        )
+        # Plants that left the SOURCE (e.g. mojibake identities merged away) are
+        # not losses of ours.
+        lost -= set(bsub["plant_name"]) - set(nsub["plant_name"])
+        if n_n < b_n or lost:
+            fail(
+                f"gate5: {src} coordinated plants {n_n} < baseline {b_n} ({len(lost)} lost: {sorted(lost)[:3]})"
+            )
         else:
-            ok(f"gate5: {src} coverage {n:.1%} (baseline {b:.1%})")
+            ok(
+                f"gate5: {src} coordinated plants {n_n} (baseline {b_n}); {nsub['latitude'].notna().mean():.1%} of {len(nsub)} rows"
+            )
 
     # ------------------------------------------------------------------ 6  GEM identity
     key = (

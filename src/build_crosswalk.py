@@ -701,8 +701,10 @@ def match_npp_via_gipt(plants_df: pd.DataFrame) -> pd.DataFrame:
             unit_ids.append(uid)
             if gu["gem_location_id"] and gu["gem_location_id"] not in loc_ids:
                 loc_ids.append(gu["gem_location_id"])
-            if gu["capacity_mw"] is not None and gu["status"] == "operating":
-                unit_caps.append(gu["capacity_mw"])
+            if gu["capacity_mw"] is not None:
+                unit_caps.append(
+                    gu["capacity_mw"]
+                )  # every unit the curated file names, as before
             if gu["coal_type"]:
                 coal_types.append(gu["coal_type"])
             if gu["combustion_tech"]:
@@ -1219,11 +1221,11 @@ def _divide_entsoe_site_capacity(
     each 4,424 MW — the entire complex), inflating fleet capacity ~3x and
     gutting capacity factors.
 
-    PRECONDITION: every row still carries the reference's SITE-LEVEL
-    capacity, as freshly stamped by the matching stages — the division is
-    row_capacity × weight, so applying it to already-divided rows divides
-    them twice. (This bit an offline re-apply once; a fresh build always
-    satisfies it.)
+    PRECONDITION: every row to be divided still carries the reference's
+    SITE-LEVEL capacity, as freshly stamped by the matching stages — the
+    division is row_capacity × weight, so applying it to already-divided rows
+    divides them twice. Rows with a ``capacity_source`` (frozen legacy shares,
+    HJKS) are never re-divided.
 
     Apportionment is by each unit's share of the site's observed generation
     (``gen_by_plant``: plant_name → recent coal MWh). Equal division looked
@@ -1235,42 +1237,51 @@ def _divide_entsoe_site_capacity(
     which is the honest statement of what we actually know. Sites with no
     generation info fall back to equal division. Per-site and fleet sums
     equal the reference nameplate either way.
-    """
-    entsoe_cap = (
-        (rows["source_system"] == "ENTSOE")
-        & rows["capacity_mw"].notna()
-        & rows["ref_matched_name"].notna()
-    )
-    if not entsoe_cap.any():
-        return rows
 
-    sub = rows.loc[entsoe_cap].copy()
-    gen = sub["plant_name"].map(gen_by_plant or {}).fillna(0.0)
-    # Site identity: the GEM location where the row is linked (two units may
-    # have matched the same site under different alias spellings), else the
-    # reference name as before.
-    by_name = sub["ref_source"].astype(str) + "|" + sub["ref_matched_name"].astype(str)
-    if "gem_location_id" in sub.columns:
-        site_key = sub["gem_location_id"].where(sub["gem_location_id"].notna(), by_name)
-    else:
-        site_key = by_name
+    Mixed sites: where some units of a site are frozen (legacy shares from the
+    cutover) and others are freshly matched, the fresh units share only the
+    capacity the frozen ones do not already hold (site − Σ frozen, floor 0),
+    so a site never sums to more than its nameplate.
+    """
     if "capacity_source" not in rows.columns:
         rows["capacity_source"] = None
-    site = sub.groupby(site_key)
+    entsoe = (rows["source_system"] == "ENTSOE") & rows["ref_matched_name"].notna()
+    if "gem_location_id" in rows.columns:
+        by_name = (
+            rows["ref_source"].astype(str) + "|" + rows["ref_matched_name"].astype(str)
+        )
+        site_key_all = rows["gem_location_id"].where(
+            rows["gem_location_id"].notna(), by_name
+        )
+    else:
+        site_key_all = (
+            rows["ref_source"].astype(str) + "|" + rows["ref_matched_name"].astype(str)
+        )
+    frozen = entsoe & rows["capacity_source"].notna() & rows["capacity_mw"].notna()
+    fresh = entsoe & rows["capacity_source"].isna() & rows["capacity_mw"].notna()
+    if not fresh.any():
+        return rows
+
+    frozen_by_site = rows.loc[frozen, "capacity_mw"].groupby(site_key_all[frozen]).sum()
+    sub = rows.loc[fresh].copy()
+    site_key = site_key_all[fresh]
+    gen = sub["plant_name"].map(gen_by_plant or {}).fillna(0.0)
     site_gen = gen.groupby(site_key).transform("sum")
-    unit_counts = site["plant_name"].transform("count")
+    unit_counts = sub.groupby(site_key)["plant_name"].transform("count")
     # Generation share where the site has any observed generation, else equal.
     weights = (gen / site_gen).where(site_gen > 0, 1.0 / unit_counts)
-    rows.loc[entsoe_cap, "capacity_mw"] = sub["capacity_mw"] * weights
-    rows.loc[entsoe_cap & rows["capacity_source"].isna(), "capacity_source"] = (
-        "ENTSOE_APPORTIONED"
+    remaining = (sub["capacity_mw"] - site_key.map(frozen_by_site).fillna(0.0)).clip(
+        lower=0.0
     )
+    rows.loc[fresh, "capacity_mw"] = remaining * weights
+    rows.loc[fresh, "capacity_source"] = "ENTSOE_APPORTIONED"
     n_shared = int((unit_counts > 1).sum())
     n_equal_fallback = int(((site_gen <= 0) & (unit_counts > 1)).sum())
+    n_mixed = int(site_key.isin(frozen_by_site.index).sum())
     logger.info(
         f"ENTSO-E unit capacity: apportioned site nameplate by generation share "
-        f"for {n_shared:,} of {int(entsoe_cap.sum()):,} capacity-bearing unit rows "
-        f"({n_equal_fallback:,} fell back to equal division)"
+        f"for {n_shared:,} of {int(fresh.sum()):,} capacity-bearing unit rows "
+        f"({n_equal_fallback:,} fell back to equal division; {n_mixed:,} shared a site with frozen rows)"
     )
     return rows
 
@@ -1510,57 +1521,100 @@ def apply_decisions(rows: pd.DataFrame, decisions: pd.DataFrame) -> pd.DataFrame
 
 
 def grandfather_legacy(rows: pd.DataFrame, live: pd.DataFrame) -> pd.DataFrame:
-    """One-off cutover: keep today's GEM name-matches as GEM IDs (`legacy`).
+    """One-off cutover: today's matches become `legacy` decisions, values frozen.
 
-    For every row of the LIVE crosswalk that was matched to GEM by name, resolve
-    its ``ref_matched_name`` to a location within the source's country. Rows the
-    new pipeline left empty get that location as a legacy decision; rows it
-    linked to a DIFFERENT location keep the legacy link too (the dashboard must
-    not move at cutover) with the pipeline's alternative recorded in ``note``
-    for the reviewer. Ambiguous / unresolvable names are left empty → review.
+    The dashboard must not move on cutover day. So every row of the LIVE
+    crosswalk that has coordinates and that the new pipeline did not reproduce
+    identically keeps its live coordinates, capacity, coal type and technology
+    verbatim, marked ``matching_method = legacy`` / ``decided_by =
+    legacy-pipeline`` — a decision like any other, re-emitted by every later
+    rebuild (tier 0). Where the live reference name resolves to exactly one
+    GEM location in the source's country, the row also gets its GEM ID; GPPD
+    matches and unresolvable names get the frozen values without a link and a
+    note saying why, so the review team can see them as lower-priority rows.
+
+    Pipeline-reproduced rows (same GEM location) stay pipeline rows. Legacy
+    values are refreshed from GEM only by an explicit later pass, never by a
+    routine rebuild — that pass gets its own before/after diff.
     """
     from datetime import date
 
     if live.empty or "ref_matched_name" not in live.columns:
         return rows
-    live = live[(live["ref_source"] == "GEM") & live["ref_matched_name"].notna()].copy()
+    live = live[live["latitude"].notna()].copy()
     live["_k"] = _row_key(live)
     live = live.drop_duplicates("_k").set_index("_k")
     keys = _row_key(rows)
     today = date.today().isoformat()
-    n_kept = n_diff = n_unres = 0
+    n_linked = n_diff = n_frozen_gppd = n_frozen_unres = 0
+    copy_cols = [
+        "latitude",
+        "longitude",
+        "ref_source",
+        "ref_matched_name",
+        "coal_type",
+        "combustion_tech",
+        "capacity_mw",
+        "state",
+        "sector",
+    ]
     for idx, k in keys.items():
+        if k not in live.index:
+            continue
+        if pd.notna(rows.at[idx, "decided_by"]):
+            continue
+        lv = live.loc[k]
+        # Pipeline reproduced the live match (same reference row) — stays a
+        # pipeline row; likewise the same GEM location under an alias spelling.
         if (
-            k not in live.index
-            or rows.at[idx, "decided_by"] is not None
-            and pd.notna(rows.at[idx, "decided_by"])
+            pd.notna(rows.at[idx, "latitude"])
+            and rows.at[idx, "ref_source"] == lv["ref_source"]
+            and rows.at[idx, "ref_matched_name"] == lv["ref_matched_name"]
         ):
             continue
-        L = gemref.resolve_name(
-            live.at[k, "ref_matched_name"], rows.at[idx, "source_country"]
+        L = (
+            gemref.resolve_name(lv["ref_matched_name"], rows.at[idx, "source_country"])
+            if lv["ref_source"] == "GEM"
+            else None
         )
-        if L is None:
-            n_unres += 1
-            continue
         current = rows.at[idx, "gem_location_id"]
-        if pd.notna(current) and current == L:
-            continue  # pipeline reproduced it — stays a pipeline match
-        note = f"grandfathered from {live.at[k, 'matching_method']} match {live.at[k, 'ref_matched_name']!r}"
-        if pd.notna(current) and current != L:
-            note += f"; pipeline proposed {current}"
-            n_diff += 1
+        if L is not None and pd.notna(current) and current == L:
+            continue
+        # Freeze the live values.
+        for c in copy_cols:
+            if c in lv.index:
+                rows.at[idx, c] = lv[c]
+        rows.at[idx, "capacity_source"] = (
+            lv["capacity_source"]
+            if pd.notna(lv.get("capacity_source"))
+            else ("LEGACY" if pd.notna(lv["capacity_mw"]) else None)
+        )
+        note = f"grandfathered {lv['matching_method']} match to {lv['ref_source']} {lv['ref_matched_name']!r}"
+        if L is not None:
+            rows.at[idx, "gem_location_id"] = L
+            rows.at[idx, "gem_name_at_decision"] = gemref.location(L)["name"]
+            rows.at[idx, "gem_country_at_decision"] = gemref.country_of(L)
+            if pd.notna(current) and current != L:
+                note += f"; pipeline proposed {current}"
+                n_diff += 1
+            else:
+                n_linked += 1
         else:
-            n_kept += 1
-        rows.at[idx, "gem_location_id"] = L
+            rows.at[idx, "gem_location_id"] = None
+            if lv["ref_source"] == "GEM":
+                note += "; GEM name did not resolve to one location — review"
+                n_frozen_unres += 1
+            else:
+                note += "; no GEM link — review"
+                n_frozen_gppd += 1
         rows.at[idx, "matching_method"] = "legacy"
         rows.at[idx, "decided_by"] = "legacy-pipeline"
         rows.at[idx, "decided_on"] = today
         rows.at[idx, "note"] = note
-        rows.at[idx, "gem_name_at_decision"] = gemref.location(L)["name"]
-        rows.at[idx, "gem_country_at_decision"] = gemref.country_of(L)
     logger.info(
-        f"grandfather: {n_kept:,} live matches kept as legacy links, {n_diff:,} kept over a differing "
-        f"pipeline proposal (noted), {n_unres:,} could not be resolved to one GEM location → review"
+        f"grandfather: {n_linked:,} live matches frozen with a GEM link, {n_diff:,} kept over a differing "
+        f"pipeline proposal (noted), {n_frozen_gppd:,} GPPD matches frozen without a link, "
+        f"{n_frozen_unres:,} GEM names unresolvable → frozen, flagged for review"
     )
     return rows
 
@@ -1568,13 +1622,14 @@ def grandfather_legacy(rows: pd.DataFrame, live: pd.DataFrame) -> pd.DataFrame:
 def derive_from_gem(
     rows: pd.DataFrame, npp_fuel_by_name: dict[str, str]
 ) -> pd.DataFrame:
-    """Rows linked by a DECISION (manual/legacy) get their attributes from GEM.
+    """Rows linked by a MANUAL decision get their attributes from GEM.
 
-    Pipeline-matched rows already carry them from the matching stage. Site
+    Pipeline-matched rows already carry them from the matching stage; legacy
+    rows keep their frozen live values (see grandfather_legacy). Site
     capacity is the sum of OPERATING coal units and is apportioned per ENTSO-E
     unit afterwards, so this must run before _divide_entsoe_site_capacity.
     """
-    decided = rows["decided_by"].notna() & rows["gem_location_id"].notna()
+    decided = (rows["matching_method"] == "manual") & rows["gem_location_id"].notna()
     n = 0
     for idx in rows.index[decided]:
         info = gemref.location(rows.at[idx, "gem_location_id"])

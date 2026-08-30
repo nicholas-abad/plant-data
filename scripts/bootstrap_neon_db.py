@@ -222,13 +222,15 @@ PLANT_CROSSWALK_GUARDS = [
     """
     CREATE OR REPLACE VIEW plant_crosswalk_review AS
     SELECT source_system, plant_code, plant_name, source_country,
+           (latitude IS NOT NULL) AS has_coordinates,
+           decided_by, note AS pipeline_note,
            candidate_1_id, candidate_1_name, candidate_1_score,
            candidate_2_id, candidate_2_name, candidate_2_score,
            candidate_3_id, candidate_3_name, candidate_3_score,
-           gem_location_id, not_in_gem, note
+           gem_location_id, not_in_gem, NULL::text AS decision_note
     FROM plant_crosswalk
     WHERE gem_location_id IS NULL AND NOT not_in_gem
-    ORDER BY source_system, plant_name
+    ORDER BY (latitude IS NOT NULL), source_system, plant_name  -- rows with no coordinates first
     """,
 ]
 
