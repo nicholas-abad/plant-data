@@ -222,16 +222,31 @@ PLANT_CROSSWALK_GUARDS = [
     # What the review team downloads: open rows, biggest first, with the hints.
     """
     CREATE OR REPLACE VIEW plant_crosswalk_review AS
-    SELECT source_system, plant_code, plant_name, source_country,
-           (latitude IS NOT NULL) AS has_coordinates,
-           decided_by, note AS pipeline_note,
-           candidate_1_id, candidate_1_name, candidate_1_score,
-           candidate_2_id, candidate_2_name, candidate_2_score,
-           candidate_3_id, candidate_3_name, candidate_3_score,
-           gem_location_id, not_in_gem, NULL::text AS decision_note
-    FROM plant_crosswalk
-    WHERE gem_location_id IS NULL AND NOT not_in_gem
-    ORDER BY (latitude IS NOT NULL), source_system, plant_name  -- rows with no coordinates first
+    WITH coal AS (  -- plants the dashboard can actually show: they burn coal in their source feed
+      SELECT 'EIA' AS source_system, plant_code AS key FROM eia_generator_info
+        WHERE technology IN ('Conventional Steam Coal','Coal Integrated Gasification Combined Cycle','Petroleum Coke') GROUP BY 1, 2
+      UNION SELECT 'ENTSOE', plant_name FROM mv_entsoe_plant_monthly
+        WHERE fuel_type IN ('Fossil Hard coal','Fossil Brown coal/Lignite') GROUP BY 1, 2
+      UNION SELECT 'NPP', plant FROM mv_npp_plant_monthly WHERE fuel_type = 'THERMAL' GROUP BY 1, 2
+      UNION SELECT 'ONS', plant FROM mv_ons_plant_monthly WHERE fuel_type = 'Carvão' GROUP BY 1, 2
+      UNION SELECT 'OCCTO', plant FROM mv_occto_plant_monthly WHERE fuel_type = 'coal' GROUP BY 1, 2
+      UNION SELECT 'CHILE', plant FROM mv_chile_plant_monthly WHERE fuel_type = 'Carbón' GROUP BY 1, 2
+      UNION SELECT 'OE', facility_name FROM oe_facility_generation_data
+        WHERE fueltech IN ('coal_black','coal_brown') GROUP BY 1, 2
+    )
+    SELECT x.source_system, x.plant_code, x.plant_name, x.source_country,
+           (c.key IS NOT NULL) AS coal_relevant,
+           (x.latitude IS NOT NULL) AS has_coordinates,
+           x.decided_by, x.note AS pipeline_note,
+           x.candidate_1_id, x.candidate_1_name, x.candidate_1_score,
+           x.candidate_2_id, x.candidate_2_name, x.candidate_2_score,
+           x.candidate_3_id, x.candidate_3_name, x.candidate_3_score,
+           x.gem_location_id, x.not_in_gem, NULL::text AS decision_note
+    FROM plant_crosswalk x
+    LEFT JOIN coal c ON c.source_system = x.source_system AND c.key = COALESCE(x.plant_code, x.plant_name)
+    WHERE x.gem_location_id IS NULL AND NOT x.not_in_gem
+    -- coal plants first, then those with no coordinates at all
+    ORDER BY (c.key IS NOT NULL) DESC, (x.latitude IS NOT NULL), x.source_system, x.plant_name
     """,
 ]
 
