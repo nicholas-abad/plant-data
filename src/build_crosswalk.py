@@ -252,6 +252,21 @@ OUTPUT_COLUMNS = [
 # matching_method values a human (or the one-off cutover) writes; the rebuild
 # re-emits such rows' link columns untouched.
 HUMAN_METHODS = {"manual", "legacy"}
+# Values a frozen (legacy) row carries verbatim across rebuilds — the whole
+# point of grandfathering: the pipeline cannot reproduce them (they came from
+# Gemini or an older GEM release), so tier 0 must carry them, not just the link.
+FROZEN_VALUE_COLUMNS = [
+    "latitude",
+    "longitude",
+    "ref_source",
+    "ref_matched_name",
+    "coal_type",
+    "combustion_tech",
+    "capacity_mw",
+    "capacity_source",
+    "state",
+    "sector",
+]
 LINK_COLUMNS = [
     "gem_location_id",
     "gem_unit_id",
@@ -1485,18 +1500,21 @@ def load_existing_decisions(engine) -> pd.DataFrame:
             return pd.DataFrame(
                 columns=["source_system", "plant_code", "plant_name", *LINK_COLUMNS]
             )
-        sel = ", ".join(
-            c
-            for c in ["source_system", "plant_code", "plant_name", *LINK_COLUMNS]
-            if c in cols
-        )
+        wanted = [
+            "source_system",
+            "plant_code",
+            "plant_name",
+            *LINK_COLUMNS,
+            *FROZEN_VALUE_COLUMNS,
+        ]
+        sel = ", ".join(c for c in wanted if c in cols)
         df = pd.read_sql(
             text(
                 f"SELECT {sel} FROM plant_crosswalk WHERE decided_by IS NOT NULL OR not_in_gem"
             ),
             conn,
         )
-    for c in LINK_COLUMNS:
+    for c in [*LINK_COLUMNS, *FROZEN_VALUE_COLUMNS]:
         if c not in df.columns:
             df[c] = None
     logger.info(f"tier 0: {len(df):,} decided rows loaded from plant_crosswalk")
@@ -1514,10 +1532,37 @@ def apply_decisions(rows: pd.DataFrame, decisions: pd.DataFrame) -> pd.DataFrame
     hit = keys.isin(dec.index)
     for col in LINK_COLUMNS:
         rows.loc[hit, col] = keys[hit].map(dec[col]).values
+    # Legacy rows are frozen: their displayed values travel with the decision.
+    legacy = hit & (keys.map(dec["matching_method"]) == "legacy")
+    for col in FROZEN_VALUE_COLUMNS:
+        if col in dec.columns:
+            rows.loc[legacy, col] = keys[legacy].map(dec[col]).values
     logger.info(
-        f"tier 0: {int(hit.sum()):,} rows carry a prior decision (of {len(dec):,} on file)"
+        f"tier 0: {int(hit.sum()):,} rows carry a prior decision (of {len(dec):,} on file); "
+        f"{int(legacy.sum()):,} legacy rows keep their frozen values"
     )
     return rows
+
+
+def _same_values(new_row, live_row, compare_capacity: bool) -> bool:
+    """Displayed values equal (NaN == NaN; coordinates to 1e-6, capacity to 0.5 MW)."""
+
+    def eq(a, b, tol=None):
+        if pd.isna(a) and pd.isna(b):
+            return True
+        if pd.isna(a) or pd.isna(b):
+            return False
+        return abs(float(a) - float(b)) <= tol if tol is not None else str(a) == str(b)
+
+    checks = [
+        eq(new_row["latitude"], live_row["latitude"], 1e-6),
+        eq(new_row["longitude"], live_row["longitude"], 1e-6),
+        eq(new_row["coal_type"], live_row["coal_type"]),
+        eq(new_row["combustion_tech"], live_row["combustion_tech"]),
+    ]
+    if compare_capacity:
+        checks.append(eq(new_row["capacity_mw"], live_row["capacity_mw"], 0.5))
+    return all(checks)
 
 
 def grandfather_legacy(rows: pd.DataFrame, live: pd.DataFrame) -> pd.DataFrame:
@@ -1541,7 +1586,7 @@ def grandfather_legacy(rows: pd.DataFrame, live: pd.DataFrame) -> pd.DataFrame:
 
     if live.empty or "ref_matched_name" not in live.columns:
         return rows
-    live = live[live["latitude"].notna()].copy()
+    live = live[live["latitude"].notna() | live["capacity_mw"].notna()].copy()
     live["_k"] = _row_key(live)
     live = live.drop_duplicates("_k").set_index("_k")
     keys = _row_key(rows)
@@ -1564,13 +1609,18 @@ def grandfather_legacy(rows: pd.DataFrame, live: pd.DataFrame) -> pd.DataFrame:
         if pd.notna(rows.at[idx, "decided_by"]):
             continue
         lv = live.loc[k]
-        # Pipeline reproduced the live match (same reference row) — stays a
-        # pipeline row; likewise the same GEM location under an alias spelling.
-        if (
-            pd.notna(rows.at[idx, "latitude"])
-            and rows.at[idx, "ref_source"] == lv["ref_source"]
+        # Pipeline reproduced the live row — same reference AND same displayed
+        # values — stays a pipeline row. Values are compared because the
+        # reference itself moved (Feb-2026 CSV → API release; capacity-weighted
+        # coal type); ENTSO-E capacity is excluded from the comparison since its
+        # per-unit share is legitimately re-weighted on every rebuild (site
+        # totals are checked by the verify gates instead).
+        cmp_cap = lv["source_system"] != "ENTSOE"
+        same_ref = (
+            rows.at[idx, "ref_source"] == lv["ref_source"]
             and rows.at[idx, "ref_matched_name"] == lv["ref_matched_name"]
-        ):
+        )
+        if same_ref and _same_values(rows.loc[idx], lv, cmp_cap):
             continue
         L = (
             gemref.resolve_name(lv["ref_matched_name"], rows.at[idx, "source_country"])
@@ -1578,7 +1628,12 @@ def grandfather_legacy(rows: pd.DataFrame, live: pd.DataFrame) -> pd.DataFrame:
             else None
         )
         current = rows.at[idx, "gem_location_id"]
-        if L is not None and pd.notna(current) and current == L:
+        if (
+            L is not None
+            and pd.notna(current)
+            and current == L
+            and _same_values(rows.loc[idx], lv, cmp_cap)
+        ):
             continue
         # Freeze the live values.
         for c in copy_cols:
@@ -1590,6 +1645,8 @@ def grandfather_legacy(rows: pd.DataFrame, live: pd.DataFrame) -> pd.DataFrame:
             else ("LEGACY" if pd.notna(lv["capacity_mw"]) else None)
         )
         note = f"grandfathered {lv['matching_method']} match to {lv['ref_source']} {lv['ref_matched_name']!r}"
+        if same_ref:
+            note += "; pipeline reproduces the match, values frozen"
         if L is not None:
             rows.at[idx, "gem_location_id"] = L
             rows.at[idx, "gem_name_at_decision"] = gemref.location(L)["name"]
@@ -1648,7 +1705,11 @@ def derive_from_gem(
         rows.at[idx, "combustion_tech"] = None if suppress else info["combustion_tech"]
         rows.at[idx, "capacity_mw"] = None if suppress else info["capacity_mw"]
         n += 1
-    rows.loc[rows["not_in_gem"] == True, ["gem_location_id", "gem_unit_id"]] = None  # noqa: E712
+    both = rows["not_in_gem"].astype(bool) & rows["gem_location_id"].notna()
+    if both.any():
+        raise ValueError(
+            f"{int(both.sum())} rows are both linked and not_in_gem: {rows.loc[both, 'plant_name'].head(5).tolist()}"
+        )
     logger.info(f"derived GEM attributes for {n:,} decided rows")
     return rows
 

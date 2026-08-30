@@ -233,7 +233,11 @@ class TestGrandfather:
             matching_method="rapidfuzz",
             latitude=10.0,
             longitude=-10.0,
+            capacity_mw=None,
+            coal_type=None,
+            combustion_tech=None,
         )
+
         rows = bc.grandfather_legacy(rows, live)
         assert (
             rows.set_index("plant_name").loc["Alpha", "matching_method"] == "rapidfuzz"
@@ -290,3 +294,132 @@ class TestCandidates:
         )  # already linked
         gamma = rows.set_index("plant_name").loc["Gamma Kraftwerk A"]
         assert gamma.candidate_1_id == "L3"  # German candidates only
+
+
+class TestFrozenValuesSurviveRebuild:
+    def test_apply_decisions_carries_frozen_values_for_legacy_rows(self):
+        decisions = pd.DataFrame(
+            [
+                {
+                    "source_system": "EIA",
+                    "plant_code": "2",
+                    "plant_name": "Beta",
+                    "gem_location_id": "L2",
+                    "gem_unit_id": None,
+                    "not_in_gem": False,
+                    "matching_method": "legacy",
+                    "decided_by": "legacy-pipeline",
+                    "decided_on": "2026-08-30",
+                    "note": "frozen",
+                    "override_reason": None,
+                    "gem_name_at_decision": "Beta",
+                    "gem_country_at_decision": "US",
+                    # frozen values the pipeline cannot reproduce
+                    "latitude": 20.5,
+                    "longitude": -20.5,
+                    "ref_source": "GEM",
+                    "ref_matched_name": "Beta (old name)",
+                    "coal_type": "lignite",
+                    "combustion_tech": "IGCC",
+                    "capacity_mw": 123.0,
+                    "capacity_source": "LEGACY",
+                    "state": None,
+                    "sector": None,
+                }
+            ]
+        )
+        rows = bc.apply_decisions(
+            _rows(), decisions
+        )  # Beta is empty in the fresh build
+        beta = rows.set_index("plant_name").loc["Beta"]
+        assert beta.gem_location_id == "L2" and beta.matching_method == "legacy"
+        assert (beta.latitude, beta.longitude, beta.capacity_mw, beta.coal_type) == (
+            20.5,
+            -20.5,
+            123.0,
+            "lignite",
+        )
+        assert beta.capacity_source == "LEGACY"
+
+    def test_manual_decision_does_not_carry_values(self):
+        decisions = pd.DataFrame(
+            [
+                {
+                    "source_system": "EIA",
+                    "plant_code": "2",
+                    "plant_name": "Beta",
+                    "gem_location_id": "L2",
+                    "gem_unit_id": None,
+                    "not_in_gem": False,
+                    "matching_method": "manual",
+                    "decided_by": "C. Team",
+                    "decided_on": "2026-09-01",
+                    "note": None,
+                    "override_reason": None,
+                    "gem_name_at_decision": None,
+                    "gem_country_at_decision": None,
+                    "latitude": 99.0,
+                    "longitude": 99.0,
+                    "ref_source": None,
+                    "ref_matched_name": None,
+                    "coal_type": None,
+                    "combustion_tech": None,
+                    "capacity_mw": None,
+                    "capacity_source": None,
+                    "state": None,
+                    "sector": None,
+                }
+            ]
+        )
+        rows = bc.apply_decisions(_rows(), decisions)
+        beta = rows.set_index("plant_name").loc["Beta"]
+        assert beta.matching_method == "manual" and pd.isna(
+            beta.latitude
+        )  # derive_from_gem fills it later
+
+
+class TestImportDecisions:
+    def test_prepare_rows_reads_view_columns_and_keys_correctly(self):
+        import importlib.util, sys
+        from pathlib import Path
+
+        spec = importlib.util.spec_from_file_location(
+            "import_decisions",
+            Path(__file__).resolve().parents[1] / "scripts" / "import_decisions.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["import_decisions"] = mod
+        spec.loader.exec_module(mod)
+        df = pd.DataFrame(
+            {
+                "source_system": ["EIA", "OCCTO", "ONS"],
+                "plant_code": ["6002", None, None],
+                "plant_name": [
+                    "James H Miller Jr",
+                    "碧南火力発電所",
+                    "UTE Bio-Cerrado",
+                ],
+                "gem_location_id": ["L100000102214", None, None],
+                "not_in_gem": [None, None, "true"],
+                "decision_note": [None, None, "biomass, GEM has none"],
+            }
+        ).astype(object)
+        rows = mod.prepare_rows(df)
+        assert (
+            rows[0]["key"] == "6002"
+            and rows[0]["link"] == "L100000102214"
+            and rows[0]["nig"] is False
+        )
+        assert rows[1]["key"] == "碧南火力発電所" and rows[1]["link"] is None
+        assert rows[2]["nig"] is True and rows[2]["note"] == "biomass, GEM has none"
+
+        class Cur:
+            def __init__(self, L, nig, by):
+                self.gem_location_id, self.not_in_gem, self.decided_by = L, nig, by
+
+        assert mod.is_open(Cur(None, False, None))
+        assert mod.is_open(
+            Cur(None, False, "legacy-pipeline")
+        )  # frozen values, identity still open
+        assert not mod.is_open(Cur("L1", False, "legacy-pipeline"))
+        assert not mod.is_open(Cur(None, True, "C. Team"))

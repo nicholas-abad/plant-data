@@ -2,15 +2,17 @@
 
 Workflow:
     1. download  SELECT * FROM plant_crosswalk_review   (Neon console → Export CSV)
-    2. fill      gem_location_id = L…   or   not_in_gem = true ; leave unknown rows blank
+    2. fill      gem_location_id = L…   or   not_in_gem = true ; leave unknown rows blank;
+                 optional free text in decision_note
     3. upload    uv run python scripts/import_decisions.py review.csv --by "C. Team"           # dry run
                  uv run python scripts/import_decisions.py review.csv --by "C. Team" --commit
 
 Rules:
-    * Only rows whose link columns are still EMPTY in the database are touched.
-      A row someone already decided is skipped, so concurrent edits and stale
-      files are harmless. Changing a decision is a separate, deliberate step:
-      --replace "SOURCE|KEY" with a mandatory --note.
+    * Only OPEN rows are touched: no GEM link, not not_in_gem, and no human
+      decision (rows the cutover froze as `legacy-pipeline` are open — the
+      pipeline decided their values, nobody decided their identity). Rows a
+      person already decided are skipped and listed. Changing a decision is a
+      separate, deliberate step: --replace "SOURCE|KEY" with a mandatory --note.
     * The table's own guards refuse an unknown GEM ID or a GEM country that
       differs from the source plant's (unless --override-reason is given); each
       refused row is reported with the reason and the rest still go through.
@@ -37,6 +39,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from bootstrap_neon_db import get_engine  # noqa: E402
 
 KEY_SQL = "source_system = :source_system AND COALESCE(plant_code, plant_name) = :key"
+REQUIRED_COLUMNS = {"gem_location_id", "decided_by", "not_in_gem", "source_country"}
 
 
 def _truthy(v) -> bool:
@@ -48,6 +51,40 @@ def _clean(v):
         return None
     s = str(v).strip()
     return s or None
+
+
+def prepare_rows(df: pd.DataFrame) -> list[dict]:
+    """Normalise the team's CSV (as exported from plant_crosswalk_review) into plain dicts.
+
+    Accepts the view's columns (`decision_note`) and the raw table's (`note`).
+    Plain dicts, not itertuples: pandas renames underscore-prefixed columns
+    positionally in namedtuples, which silently breaks attribute access.
+    """
+    out = []
+    for rec in df.to_dict("records"):
+        code = _clean(rec.get("plant_code"))
+        name = _clean(rec.get("plant_name"))
+        out.append(
+            {
+                "source_system": _clean(rec.get("source_system")),
+                "key": code or name,
+                "link": _clean(rec.get("gem_location_id")),
+                "nig": _truthy(rec.get("not_in_gem"))
+                if _clean(rec.get("not_in_gem"))
+                else False,
+                "note": _clean(rec.get("decision_note")) or _clean(rec.get("note")),
+            }
+        )
+    return out
+
+
+def is_open(current) -> bool:
+    """A row nobody has decided yet (pipeline-frozen legacy rows count as open)."""
+    return (
+        current.gem_location_id is None
+        and not current.not_in_gem
+        and current.decided_by in (None, "legacy-pipeline")
+    )
 
 
 def main() -> int:
@@ -71,85 +108,90 @@ def main() -> int:
         ap.error("--replace requires --note")
 
     df = pd.read_csv(args.csv, dtype=str)
-    need = {"source_system", "plant_name"}
-    if not need <= set(df.columns):
+    if not {"source_system", "plant_name"} <= set(df.columns):
         logger.error(
-            f"CSV must have columns {sorted(need)} (download plant_crosswalk_review)"
+            "CSV must have columns source_system and plant_name (download plant_crosswalk_review)"
         )
         return 2
-    if "plant_code" not in df.columns:
-        df["plant_code"] = None
-    df["_key"] = df["plant_code"].where(df["plant_code"].notna(), df["plant_name"])
-    df["_L"] = df.get("gem_location_id", pd.Series([None] * len(df))).map(_clean)
-    df["_nig"] = df.get("not_in_gem", pd.Series([None] * len(df))).map(
-        lambda v: _truthy(v) if _clean(v) else False
-    )
-    df["_note"] = df.get("note", pd.Series([None] * len(df))).map(_clean)
-    decided = df[df["_L"].notna() | df["_nig"]]
+    rows = prepare_rows(df)
+    decided = [r for r in rows if r["link"] or r["nig"]]
     logger.info(
-        f"{len(df):,} rows in file · {len(decided):,} carry a decision · {'COMMIT' if args.commit else 'DRY RUN'}"
+        f"{len(rows):,} rows in file · {len(decided):,} carry a decision · {'COMMIT' if args.commit else 'DRY RUN'}"
     )
 
     engine = get_engine()
     today = date.today().isoformat()
     filled = skipped = refused = 0
     with engine.begin() as conn:
-        for r in decided.itertuples():
-            params = {"source_system": r.source_system, "key": r._key}
+        have = {
+            r[0]
+            for r in conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'plant_crosswalk'"
+                )
+            )
+        }
+        if not REQUIRED_COLUMNS <= have:
+            logger.error(
+                "plant_crosswalk has no GEM link columns yet — run the crosswalk cutover first"
+            )
+            return 2
+        for r in decided:
+            params = {"source_system": r["source_system"], "key": r["key"]}
+            target = f"{r['source_system']}|{r['key']}"
             cur = conn.execute(
                 text(
-                    f"SELECT gem_location_id, not_in_gem, decided_by, source_country FROM plant_crosswalk WHERE {KEY_SQL}"
+                    f"SELECT gem_location_id, not_in_gem, decided_by FROM plant_crosswalk WHERE {KEY_SQL}"
                 ),
                 params,
             ).fetchone()
             if cur is None:
                 refused += 1
-                logger.warning(
-                    f"refused  {r.source_system} {r._key!r}: not in plant_crosswalk"
+                logger.warning(f"refused  {target}: not in plant_crosswalk")
+                continue
+            if not is_open(cur) and args.replace != target:
+                skipped += 1
+                logger.info(
+                    f"skipped  {target}: already decided by {cur.decided_by} "
+                    f"({cur.gem_location_id or 'not in GEM'})"
                 )
                 continue
-            is_open = (
-                cur.gem_location_id is None
-                and not cur.not_in_gem
-                and cur.decided_by is None
-            )
-            target = f"{r.source_system}|{r._key}"
-            if not is_open and args.replace != target:
-                skipped += 1
-                continue
-            if r._L and r._nig:
+            if r["link"] and r["nig"]:
                 refused += 1
                 logger.warning(f"refused  {target}: both a GEM ID and not_in_gem")
                 continue
             gem_name = gem_country = None
-            if r._L:
+            if r["link"]:
                 g = conn.execute(
                     text(
                         "SELECT name, country FROM gem_locations WHERE gem_location_id = :L"
                     ),
-                    {"L": r._L},
+                    {"L": r["link"]},
                 ).fetchone()
                 if g:
                     gem_name, gem_country = g.name, g.country
             sp = conn.begin_nested()
             try:
                 conn.execute(
-                    text(f"""
-                    UPDATE plant_crosswalk SET
-                        gem_location_id = :L, not_in_gem = :nig, matching_method = 'manual',
-                        decided_by = :by, decided_on = :today, note = :note, override_reason = :ovr,
-                        gem_name_at_decision = :gname, gem_country_at_decision = :gcountry,
-                        candidate_1_id = NULL, candidate_1_name = NULL, candidate_1_score = NULL,
-                        candidate_2_id = NULL, candidate_2_name = NULL, candidate_2_score = NULL,
-                        candidate_3_id = NULL, candidate_3_name = NULL, candidate_3_score = NULL
-                    WHERE {KEY_SQL}"""),
+                    text(
+                        f"""
+                        UPDATE plant_crosswalk SET
+                            gem_location_id = :L, not_in_gem = :nig, matching_method = 'manual',
+                            decided_by = :by, decided_on = :today, note = :note, override_reason = :ovr,
+                            gem_name_at_decision = :gname, gem_country_at_decision = :gcountry,
+                            candidate_1_id = NULL, candidate_1_name = NULL, candidate_1_score = NULL,
+                            candidate_2_id = NULL, candidate_2_name = NULL, candidate_2_score = NULL,
+                            candidate_3_id = NULL, candidate_3_name = NULL, candidate_3_score = NULL
+                        WHERE {KEY_SQL}"""
+                    ),
                     {
                         **params,
-                        "L": r._L,
-                        "nig": bool(r._nig),
+                        "L": r["link"],
+                        "nig": bool(r["nig"]),
                         "by": args.by,
                         "today": today,
-                        "note": args.note or r._note,
+                        "note": args.note or r["note"],
                         "ovr": args.override_reason,
                         "gname": gem_name,
                         "gcountry": gem_country,
@@ -157,9 +199,8 @@ def main() -> int:
                 )
                 sp.commit()
                 filled += 1
-                logger.info(
-                    f"filled   {target} → {r._L or 'not in GEM'}{' (' + gem_name + ', ' + gem_country + ')' if gem_name else ''}"
-                )
+                where = f" ({gem_name}, {gem_country})" if gem_name else ""
+                logger.info(f"filled   {target} → {r['link'] or 'not in GEM'}{where}")
             except Exception as e:  # guard trigger refused it
                 sp.rollback()
                 refused += 1

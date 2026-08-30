@@ -52,7 +52,9 @@ SOURCE_LABEL_TO_TRACKER = {
 # Statuses whose units the dashboard can ever show generation for. Cancelled,
 # announced, shelved and under-construction units carry no generation and are
 # excluded from the (expensive) detail pull.
-DETAIL_STATUSES = {"operating", "mothballed", "retired"}
+# GEM's API status vocabulary is operating / retired / cancelled / planned;
+# "mothballed" is a sub_status of operating and is therefore already covered.
+DETAIL_STATUSES = {"operating", "retired"}
 
 PAGE_LIMIT = 500  # API maximum
 
@@ -181,6 +183,10 @@ def parse_release(source_file: str) -> str:
     Falls back to a version token (e.g. 'GBPT-V3' → 'V3') and finally to the
     file stem, so a release string is never empty.
     """
+    if not source_file or not source_file.strip():
+        raise GemApiError(
+            "empty source_file in /catalog/sources — cannot determine the GEM release"
+        )
     m = _MONTH_YEAR.search(source_file)
     if m:
         return f"{m.group(1).capitalize()} {m.group(2)}"

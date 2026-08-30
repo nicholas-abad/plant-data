@@ -117,8 +117,9 @@ def _atomic_replace_table(engine, df, table: str, post_load_sql: list[str]):
     constraints inside ONE transaction — any failure rolls the swap back
     and the previous table survives intact.
 
-    Note: dropping the old table still uses CASCADE, so dependent views
-    (none today) would be destroyed by a SUCCESSFUL swap exactly as before.
+    Note: dropping the old table still uses CASCADE, so dependent views are
+    destroyed by a SUCCESSFUL swap; plant_crosswalk_review is therefore
+    re-created in post_load_sql after every swap (PLANT_CROSSWALK_GUARDS).
 
     Privileges survive the swap. DROP + RENAME hands the name to a brand-new
     relation carrying only the owner's implicit rights, so every GRANT on the

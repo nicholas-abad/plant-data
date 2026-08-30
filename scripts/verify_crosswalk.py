@@ -296,6 +296,69 @@ def main() -> int:
                 f"gate5: {src} coordinated plants {n_n} (baseline {b_n}); {nsub['latitude'].notna().mean():.1%} of {len(nsub)} rows"
             )
 
+    # ------------------------------------------------------------------ 7  displayed values vs baseline
+    # Coordinates, capacity, coal type and technology are what the dashboard
+    # shows. Compare against the baseline per source with explicit tolerances:
+    # capacity fleet totals within 3% (ENTSO-E re-weights per unit every
+    # build; totals must hold), and no more than 2% of a source's rows changing
+    # coal_type / combustion_tech / coordinates.
+    bk = (
+        base["source_system"].astype(str)
+        + "|"
+        + base["plant_code"]
+        .where(base["plant_code"].notna(), base["plant_name"])
+        .astype(str)
+    )
+    bb = base.assign(_k=bk).drop_duplicates("_k").set_index("_k")
+    nk = (
+        xw["source_system"].astype(str)
+        + "|"
+        + xw["plant_code"].where(xw["plant_code"].notna(), xw["plant_name"]).astype(str)
+    )
+    nn = xw.assign(_k=nk).drop_duplicates("_k").set_index("_k")
+    common = bb.index.intersection(nn.index)
+    for src in sorted(set(base["source_system"]) & set(xw["source_system"])):
+        idx = [k for k in common if k.startswith(f"{src}|")]
+        if not idx:
+            continue
+        b, n = bb.loc[idx], nn.loc[idx]
+        bcap, ncap = (
+            float(b["capacity_mw"].fillna(0).sum()),
+            float(n["capacity_mw"].fillna(0).sum()),
+        )
+        if bcap > 0 and abs(ncap - bcap) > 0.03 * bcap:
+            fail(
+                f"gate7: {src} fleet capacity {ncap:,.0f} MW vs baseline {bcap:,.0f} MW (>3%)"
+            )
+        else:
+            ok(f"gate7: {src} fleet capacity {ncap:,.0f} MW (baseline {bcap:,.0f})")
+        changed = 0
+        for col in ("coal_type", "combustion_tech"):
+            changed += int(
+                (
+                    ~(
+                        (b[col].isna() & n[col].isna())
+                        | (b[col].astype(str) == n[col].astype(str))
+                    )
+                ).sum()
+            )
+        moved = int(
+            (
+                ((b["latitude"] - n["latitude"]).abs() > 1e-4)
+                | ((b["longitude"] - n["longitude"]).abs() > 1e-4)
+            )
+            .fillna(False)
+            .sum()
+        )
+        if changed + moved > max(3, 0.02 * len(idx)):
+            fail(
+                f"gate7: {src}: {changed} coal-type/tech changes and {moved} moved coordinates among {len(idx)} common rows (>2%)"
+            )
+        else:
+            ok(
+                f"gate7: {src}: {changed} attribute changes, {moved} moved coordinates among {len(idx)} rows"
+            )
+
     # ------------------------------------------------------------------ 6  GEM identity
     key = (
         xw["source_system"].astype(str)

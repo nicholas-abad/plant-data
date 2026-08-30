@@ -134,7 +134,7 @@ Every row carries its GEM link — or an explicit reason it has none:
 | `source_country` | GEM-named country of the source plant — the country guard compares against it |
 | `candidate_1..3_{id,name,score}` | Pipeline hints for the reviewer; blank once decided |
 
-**The one rule:** the weekly rebuild reads the live table's decided rows first (tier 0) and re-emits their link columns unchanged; it only fills rows that are still empty. Coordinates, capacity and coal type are re-derived from the GEM tables for every linked row (site capacity = operating coal units; Japan keeps HJKS ratings, Europe keeps per-unit apportionment).
+**The one rule:** the weekly rebuild reads the live table's decided rows first (tier 0) and re-emits them unchanged — link columns for every decision, and the frozen coordinates/capacity/coal type as well for `legacy` rows; it only matches rows that are still empty. Pipeline-matched rows get their values from the GEM tables at match time (site capacity = operating coal units; Japan keeps HJKS ratings, Europe keeps per-unit apportionment); `manual` decisions are derived from GEM on the next build; `legacy` values are refreshed from GEM only by an explicit later pass with its own before/after diff.
 
 **Review workflow** — no queue table, no admin page:
 
@@ -148,7 +148,7 @@ uv run python scripts/import_decisions.py review.csv --by "C. Team" --commit
 
 The upload is **fill-empty-only**: rows already decided are skipped, so concurrent edits and stale files are harmless. The table's triggers refuse an unknown GEM ID or a wrong-country link (unless `--override-reason`), row by row, with reasons. `verify_crosswalk.py` gates 6a–6f check the same invariants on every build, plus that no prior decision was lost.
 
-**Cutover (once):** `uv run python -m src.build_crosswalk --grandfather --force` keeps today's name-based GEM matches as `legacy` links so the dashboard does not move; the rows it cannot resolve to exactly one GEM location are the review team's first batch.
+**Cutover (once):** `uv run python -m src.build_crosswalk --grandfather --force --yes` keeps today's name-based GEM matches as `legacy` links so the dashboard does not move; the rows it cannot resolve to exactly one GEM location are the review team's first batch.
 
 ## Other Scripts
 
