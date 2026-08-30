@@ -66,7 +66,10 @@ def get_engine():
         database=os.getenv("POSTGRES_DB", "power_generation"),
         query={"sslmode": sslmode} if sslmode else {},
     )
-    return create_engine(connection_url)
+    # pool_pre_ping: a connection opened before a long API pull (fetch_gem.py
+    # runs ~45 min) is dead by the time it is used — Neon closes idle SSL
+    # sessions. Pre-ping transparently reconnects instead of failing the write.
+    return create_engine(connection_url, pool_pre_ping=True)
 
 
 # ---------------------------------------------------------------------------
