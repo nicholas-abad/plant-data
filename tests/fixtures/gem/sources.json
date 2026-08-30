@@ -1,0 +1,137 @@
+{
+ "total": 11,
+ "results": [
+  {
+   "source_id": 1,
+   "source_file": "Copy-of-Global-Bioenergy-Power-Tracker-GBPT-V3-DATA-TEAM-COPY.xlsx",
+   "source_sheet": "Data",
+   "source_table": "derived_Copy_of_Global_Bioenergy_Power_Tracker_GBPT_V3_DATA_TEAM_COPY_Data",
+   "asset_type": "Bioenergy Plant",
+   "load_timestamp": "2026-07-28 08:13:09.77896",
+   "row_count_input": null,
+   "row_count_output": 4536,
+   "rows_filtered": null,
+   "url": "/catalog/sources/1"
+  },
+  {
+   "source_id": 2,
+   "source_file": "Copy-of-Global-Coal-Plant-Tracker-January-2026-DATA-TEAM-COPY.xlsx",
+   "source_sheet": "Units",
+   "source_table": "derived_Copy_of_Global_Coal_Plant_Tracker_January_2026_DATA_TEAM_COPY_Units",
+   "asset_type": "Coal Plant",
+   "load_timestamp": "2026-07-28 08:13:09.779963",
+   "row_count_input": null,
+   "row_count_output": 14509,
+   "rows_filtered": null,
+   "url": "/catalog/sources/2"
+  },
+  {
+   "source_id": 3,
+   "source_file": "Copy-of-Global-Iron-Ore-Mines-Tracker---August-2025---Standard-Copy-V1DATA-TEAM-COPY-Main.xlsx",
+   "source_sheet": "Data",
+   "source_table": "derived_Copy_of_Global_Iron_Ore_Mines_Tracker___August_2025___Standard_Copy_V1DATA_TEAM_COPY_Main_Data",
+   "asset_type": "Iron Ore Mine",
+   "load_timestamp": "2026-07-28 08:13:09.780871",
+   "row_count_input": null,
+   "row_count_output": 949,
+   "rows_filtered": null,
+   "url": "/catalog/sources/3"
+  },
+  {
+   "source_id": 4,
+   "source_file": "Copy-of-Global-Oil-and-Gas-Plant-Tracker-GOGPT---January-2026-DATA-TEAM-COPY-Gas--Oil.xlsx",
+   "source_sheet": "Units",
+   "source_table": "derived_Copy_of_Global_Oil_and_Gas_Plant_Tracker_GOGPT___January_2026_DATA_TEAM_COPY_Gas__Oil_Units",
+   "asset_type": "Oil & Gas Plant",
+   "load_timestamp": "2026-07-28 08:13:09.78154",
+   "row_count_input": null,
+   "row_count_output": 13634,
+   "rows_filtered": null,
+   "url": "/catalog/sources/4"
+  },
+  {
+   "source_id": 5,
+   "source_file": "Copy-of-Global-Oil-and-Gas-Plant-Tracker-GOGPT---January-2026-DATA-TEAM-COPY-sub-threshold-units.xlsx",
+   "source_sheet": null,
+   "source_table": "derived_Copy_of_Global_Oil_and_Gas_Plant_Tracker_GOGPT___January_2026_DATA_TEAM_COPY_sub_threshold_units",
+   "asset_type": "Oil & Gas Plant",
+   "load_timestamp": "2026-07-28 08:13:09.782165",
+   "row_count_input": null,
+   "row_count_output": 1111,
+   "rows_filtered": null,
+   "url": "/catalog/sources/5"
+  },
+  {
+   "source_id": 6,
+   "source_file": "GEM-GGIT-Gas-Pipelines-2025-11.xlsx",
+   "source_sheet": "Pipelines",
+   "source_table": "derived_GEM_GGIT_Gas_Pipelines_2025_11_Pipelines",
+   "asset_type": "Natural Gas Transmission Pipeline",
+   "load_timestamp": "2026-07-28 08:13:09.783085",
+   "row_count_input": null,
+   "row_count_output": 4246,
+   "rows_filtered": null,
+   "url": "/catalog/sources/6"
+  },
+  {
+   "source_id": 7,
+   "source_file": "GEM-GOIT-Oil-NGL-Pipelines-2025-03.xlsx",
+   "source_sheet": "Pipelines",
+   "source_table": "derived_GEM_GOIT_Oil_NGL_Pipelines_2025_03_Pipelines",
+   "asset_type": "Oil or NGL Pipeline",
+   "load_timestamp": "2026-07-28 08:13:09.783815",
+   "row_count_input": null,
+   "row_count_output": 1873,
+   "rows_filtered": null,
+   "url": "/catalog/sources/7"
+  },
+  {
+   "source_id": 8,
+   "source_file": "Global-Coal-Mine-Tracker-May-2026-Closed-mines.xlsx",
+   "source_sheet": null,
+   "source_table": "derived_Global_Coal_Mine_Tracker_May_2026_Closed_mines",
+   "asset_type": "Coal Mine",
+   "load_timestamp": "2026-07-28 08:13:09.78446",
+   "row_count_input": null,
+   "row_count_output": 1754,
+   "rows_filtered": null,
+   "url": "/catalog/sources/8"
+  },
+  {
+   "source_id": 9,
+   "source_file": "Global-Coal-Mine-Tracker-May-2026-Non-closed-mines.xlsx",
+   "source_sheet": null,
+   "source_table": "derived_Global_Coal_Mine_Tracker_May_2026_Non_closed_mines",
+   "asset_type": "Coal Mine",
+   "load_timestamp": "2026-07-28 08:13:09.785121",
+   "row_count_input": null,
+   "row_count_output": 5354,
+   "rows_filtered": null,
+   "url": "/catalog/sources/9"
+  },
+  {
+   "source_id": 10,
+   "source_file": "Iron-Steel-March-2026.xlsx",
+   "source_sheet": "Units",
+   "source_table": "derived_Iron_Steel_March_2026_Units",
+   "asset_type": "Iron & Steel Plant",
+   "load_timestamp": "2026-07-28 08:13:09.785747",
+   "row_count_input": null,
+   "row_count_output": 5965,
+   "rows_filtered": null,
+   "url": "/catalog/sources/10"
+  },
+  {
+   "source_id": 11,
+   "source_file": "Plant-level-data---Global-Cement-and-Concrete-Tracker---July-2026---Standard-Copy-V1-1-Final-data.xlsx",
+   "source_sheet": null,
+   "source_table": "derived_Plant_level_data___Global_Cement_and_Concrete_Tracker___July_2026___Standard_Copy_V1_1_Final_data",
+   "asset_type": "Cement or Concrete Plant",
+   "load_timestamp": "2026-07-28 08:13:09.786347",
+   "row_count_input": null,
+   "row_count_output": 3884,
+   "rows_filtered": null,
+   "url": "/catalog/sources/11"
+  }
+ ]
+}

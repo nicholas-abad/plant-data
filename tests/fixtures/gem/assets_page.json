@@ -1,0 +1,63 @@
+{
+ "total": 2,
+ "limit": 500,
+ "offset": 0,
+ "count": 2,
+ "results": [
+  {
+   "asset_id": "L100000103878_G100000100001",
+   "location_id": "L100000103878",
+   "asset_name": "A. B. Brown power station Unit 1",
+   "asset_type": "Coal Plant",
+   "operating_status": "retired",
+   "operating_sub_status": "retired",
+   "capacity_value": 265.2,
+   "capacity_unit": "MW",
+   "country": "United States",
+   "state_province": "Indiana",
+   "latitude": 37.910539,
+   "longitude": -87.923058,
+   "wiki_url": "https://www.gem.wiki/A._B._Brown_power_station",
+   "unit_name": "Unit 1",
+   "url": "/assets/L100000103878_G100000100001",
+   "upstream_entity_count": 13,
+   "owners": [
+    {
+     "entity_id": "E100000001177",
+     "name": "CenterPoint Energy Inc",
+     "ownership_share": 100.0,
+     "hq_country": "United States"
+    }
+   ],
+   "project_name": "A. B. Brown power station"
+  },
+  {
+   "asset_id": "L100000103878_G100000100002",
+   "location_id": "L100000103878",
+   "asset_name": "A. B. Brown power station Unit 2",
+   "asset_type": "Coal Plant",
+   "operating_status": "retired",
+   "operating_sub_status": "retired",
+   "capacity_value": 265.2,
+   "capacity_unit": "MW",
+   "country": "United States",
+   "state_province": "Indiana",
+   "latitude": 37.910539,
+   "longitude": -87.923058,
+   "wiki_url": "https://www.gem.wiki/A._B._Brown_power_station",
+   "unit_name": "Unit 2",
+   "url": "/assets/L100000103878_G100000100002",
+   "upstream_entity_count": 13,
+   "owners": [
+    {
+     "entity_id": "E100000001177",
+     "name": "CenterPoint Energy Inc",
+     "ownership_share": 100.0,
+     "hq_country": "United States"
+    }
+   ],
+   "project_name": "A. B. Brown power station"
+  }
+ ],
+ "asset_type": "coal-plant"
+}
