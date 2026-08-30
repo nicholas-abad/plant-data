@@ -140,6 +140,7 @@ Every row carries its GEM link — or an explicit reason it has none:
 
 ```bash
 # 1. download:  Neon console → SQL editor → SELECT * FROM plant_crosswalk_review → Export CSV
+#               (coal-relevant plants first — the only ones the dashboard can show — then rows with no coordinates)
 # 2. fill:      gem_location_id (L…)  or  not_in_gem = true ; leave unknowns blank
 # 3. upload:
 uv run python scripts/import_decisions.py review.csv --by "C. Team"            # dry run
