@@ -115,6 +115,15 @@ def _atomic_replace_table(engine, df, table: str, post_load_sql: list[str]):
 
     Note: dropping the old table still uses CASCADE, so dependent views
     (none today) would be destroyed by a SUCCESSFUL swap exactly as before.
+
+    Privileges survive the swap. DROP + RENAME hands the name to a brand-new
+    relation carrying only the owner's implicit rights, so every GRANT on the
+    old table used to vanish with it — including the dashboard's read-only
+    role's SELECT on plant_crosswalk (power-generation-etl migration 004),
+    which this job re-creates every Sunday. The ACL is read before the DROP
+    and re-applied after the RENAME, in the same transaction, so a swap can
+    never leave a consumer locked out. Nothing here knows WHICH roles exist;
+    whatever was granted is what gets granted back.
     """
     if df.empty:
         # 0 == 0 would pass the count check below and swap an EMPTY table
@@ -133,10 +142,46 @@ def _atomic_replace_table(engine, df, table: str, post_load_sql: list[str]):
         n = conn.execute(text(f"SELECT COUNT(*) FROM {staging}")).scalar()
         if n != len(df):
             raise RuntimeError(f"{staging}: expected {len(df):,} rows, found {n:,}")
+        grants = _table_grants(conn, table)
         conn.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
         conn.execute(text(f"ALTER TABLE {staging} RENAME TO {table}"))
         for sql in post_load_sql:
             conn.execute(text(sql))
+        for grantee, privileges in grants:
+            conn.execute(text(f"GRANT {privileges} ON {table} TO {grantee}"))
+        if grants:
+            print(
+                f"  INFO  {table}: re-applied grants for {', '.join(g for g, _ in grants)}"
+            )
+
+
+def _table_grants(conn, table: str) -> list[tuple[str, str]]:
+    """Explicit grants on `table` as (grantee, 'PRIV, PRIV') pairs, owner excluded.
+
+    Returns [] when the table does not exist yet (first-ever load). Grantees
+    are returned already SQL-quoted so the caller can splice them into GRANT.
+    """
+    rows = conn.execute(
+        text(
+            """
+            SELECT g.grantee, string_agg(DISTINCT g.privilege_type, ', ' ORDER BY g.privilege_type)
+            FROM information_schema.role_table_grants g
+            JOIN pg_class c ON c.relname = g.table_name
+            JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = g.table_schema
+            WHERE g.table_schema = 'public' AND g.table_name = :table
+              AND g.grantee <> pg_get_userbyid(c.relowner)
+            GROUP BY g.grantee
+            """
+        ),
+        {"table": table},
+    ).fetchall()
+    return [
+        (
+            grantee if grantee == "PUBLIC" else '"' + grantee.replace('"', '""') + '"',
+            privileges,
+        )
+        for grantee, privileges in rows
+    ]
 
 
 def load_unified_crosswalk(engine):
