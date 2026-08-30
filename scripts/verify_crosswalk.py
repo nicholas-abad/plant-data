@@ -35,11 +35,13 @@ import pandas as pd
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
+from src import gem_reference as gemref  # noqa: E402
 from src.build_crosswalk import (  # noqa: E402
     ENTSOE_AREA_COUNTRIES,
-    GEM_CSV,
     GPPD_CSV,
+    HUMAN_METHODS,
     OUTPUT_FILE,
+    _make_engine,
 )
 
 # The 8 provably-wrong LLM matches found in the 2026-07 audit (coal units
@@ -81,9 +83,15 @@ def main() -> int:
         base = pd.read_parquet(args.baseline)
     else:
         raw = subprocess.run(
-            ["git", "-C", str(REPO), "show",
-             "HEAD:data/crosswalks/unified_plant_crosswalk.parquet"],
-            capture_output=True, check=True,
+            [
+                "git",
+                "-C",
+                str(REPO),
+                "show",
+                "HEAD:data/crosswalks/unified_plant_crosswalk.parquet",
+            ],
+            capture_output=True,
+            check=True,
         ).stdout
         with tempfile.NamedTemporaryFile(suffix=".parquet") as tmp:
             tmp.write(raw)
@@ -99,12 +107,22 @@ def main() -> int:
     # at build time, so here we validate ref-side only: the ref name must be
     # unique to ONE country, and where resolvable it must match for the
     # KNOWN_BAD rows (gate 1) and for all rows (gate 2, ref-existence form).
-    gem = pd.read_csv(
-        GEM_CSV, low_memory=False, usecols=["Project Name", "Country/Area"]
-    )
-    gem_countries: dict[str, set] = (
-        gem.dropna().groupby("Project Name")["Country/Area"].agg(set).to_dict()
-    )
+    # GEM reference from the gem_* tables (GEM's API); parquet cache if no DB.
+    try:
+        gem_tables = gemref.load_tables(_make_engine())
+    except Exception as e:  # noqa: BLE001 — offline verification of a parquet
+        print(f"  (gem tables from parquet cache: {e})")
+        gem_tables = gemref.load_tables()
+    gem_locs = gem_tables["locations"]
+    gem_countries: dict[str, set] = {}
+    for L in gem_locs.itertuples():
+        for nm in (
+            L.name,
+            getattr(L, "name_other", None),
+            getattr(L, "name_local", None),
+        ):
+            if isinstance(nm, str) and nm:
+                gem_countries.setdefault(nm, set()).add(L.country)
     gppd = pd.read_csv(GPPD_CSV, usecols=["name", "country"], low_memory=False)
     gppd_countries: dict[str, set] = (
         gppd.dropna().groupby("name")["country"].agg(set).to_dict()
@@ -113,18 +131,26 @@ def main() -> int:
     # ------------------------------------------------------------------ 1
     bad = entsoe[entsoe["plant_name"].isin(KNOWN_BAD) & entsoe["latitude"].notna()]
     # Cross-border refs the audit identified:
-    bad_refs = {"Embrets3", "Ede power station", "Maritsa 3 power station",
-                "Torgau Solar Power Plant"}
+    bad_refs = {
+        "Embrets3",
+        "Ede power station",
+        "Maritsa 3 power station",
+        "Torgau Solar Power Plant",
+    }
     relapsed = bad[bad["ref_matched_name"].isin(bad_refs)]
     n_unmatched_bad = int(
         (entsoe["plant_name"].isin(KNOWN_BAD) & entsoe["latitude"].isna()).sum()
     )
     if len(relapsed):
-        fail(f"gate1: {len(relapsed)} known-bad rows re-matched their wrong ref: "
-             f"{relapsed[['plant_name', 'ref_matched_name']].to_dict('records')}")
+        fail(
+            f"gate1: {len(relapsed)} known-bad rows re-matched their wrong ref: "
+            f"{relapsed[['plant_name', 'ref_matched_name']].to_dict('records')}"
+        )
     else:
-        ok(f"gate1: none of the 8 known-bad rows re-matched a wrong-country ref "
-           f"({len(bad)} re-matched in-country, {n_unmatched_bad} unmatched)")
+        ok(
+            f"gate1: none of the 8 known-bad rows re-matched a wrong-country ref "
+            f"({len(bad)} re-matched in-country, {n_unmatched_bad} unmatched)"
+        )
 
     # ------------------------------------------------------------------ 2
     # Every matched ENTSO-E ref must exist in exactly the country set that
@@ -135,12 +161,21 @@ def main() -> int:
     # no overlap with mapped ENTSO-E countries.
     valid_countries = {c["gem"] for c in ENTSOE_AREA_COUNTRIES.values()}
     valid_iso = {c["gppd"] for c in ENTSOE_AREA_COUNTRIES.values()}
-    matched = entsoe[entsoe["ref_matched_name"].notna()]
+    # Frozen legacy rows keep a reference name from an older GEM release; their
+    # GEM link is validated by gate 6b instead.
+    matched = entsoe[
+        entsoe["ref_matched_name"].notna()
+        & ~entsoe["matching_method"].isin(HUMAN_METHODS)
+    ]
     dangling = []
     out_of_region = []
     for _, r in matched.iterrows():
         name = r["ref_matched_name"]
-        cset = gem_countries.get(name) if r["ref_source"] == "GEM" else gppd_countries.get(name)
+        cset = (
+            gem_countries.get(name)
+            if r["ref_source"] == "GEM"
+            else gppd_countries.get(name)
+        )
         if not cset:
             dangling.append((r["plant_name"], r["ref_source"], name))
         elif r["ref_source"] == "GEM" and not (cset & valid_countries):
@@ -148,21 +183,31 @@ def main() -> int:
         elif r["ref_source"] == "GPPD" and not (cset & valid_iso):
             out_of_region.append((r["plant_name"], name, sorted(cset)))
     if dangling:
-        fail(f"gate2: {len(dangling)} matched refs not found in their reference DB: {dangling[:5]}")
+        fail(
+            f"gate2: {len(dangling)} matched refs not found in their reference DB: {dangling[:5]}"
+        )
     else:
-        ok(f"gate2: all {len(matched)} matched ENTSO-E refs resolve in their reference DB")
+        ok(
+            f"gate2: all {len(matched)} matched ENTSO-E refs resolve in their reference DB"
+        )
     if out_of_region:
-        fail(f"gate2b: {len(out_of_region)} refs outside the ENTSO-E country set: {out_of_region[:5]}")
+        fail(
+            f"gate2b: {len(out_of_region)} refs outside the ENTSO-E country set: {out_of_region[:5]}"
+        )
     else:
         ok("gate2b: no matched ref lies outside the ENTSO-E country set")
 
     # ------------------------------------------------------------------ 3
     cap = entsoe[entsoe["capacity_mw"].notna() & entsoe["ref_matched_name"].notna()]
-    gem_cap_raw = pd.read_csv(
-        GEM_CSV, low_memory=False,
-        usecols=["Project Name", "Country/Area", "Capacity", "Fuel"],
+    site_key = (
+        cap["gem_location_id"].where(
+            cap["gem_location_id"].notna(),
+            cap["ref_source"].astype(str) + "|" + cap["ref_matched_name"].astype(str),
+        )
+        if "gem_location_id" in cap.columns
+        else cap["ref_source"].astype(str) + "|" + cap["ref_matched_name"].astype(str)
     )
-    per_site = cap.groupby(["ref_source", "ref_matched_name"])["capacity_mw"].sum()
+    per_site = cap.groupby(site_key)["capacity_mw"].sum()
     max_site = per_site.max()
     if max_site > 6000:
         fail(f"gate3: a single site sums to {max_site:,.0f} MW — division regressed?")
@@ -174,10 +219,14 @@ def main() -> int:
     # pre-fix) above, and a broken status filter / empty capacities below.
     total = cap["capacity_mw"].sum()
     if not (40_000 <= total <= 120_000):
-        fail(f"gate3b: ENTSO-E fleet capacity {total:,.0f} MW outside 40-120 GW "
-             "operating-only band (416 GW = pre-fix inflation)")
+        fail(
+            f"gate3b: ENTSO-E fleet capacity {total:,.0f} MW outside 40-120 GW "
+            "operating-only band (416 GW = pre-fix inflation)"
+        )
     else:
-        ok(f"gate3b: ENTSO-E fleet capacity {total:,.0f} MW plausible (was 416 GW pre-fix)")
+        ok(
+            f"gate3b: ENTSO-E fleet capacity {total:,.0f} MW plausible (was 416 GW pre-fix)"
+        )
 
     # ------------------------------------------------------------------ 4
     npp = xw[xw["source_system"] == "NPP"]
@@ -206,8 +255,8 @@ def main() -> int:
     # audit exemplars that read >100% CF from GEM's coal-slice capacity:
     occto = xw[xw["source_system"] == "OCCTO"]
     for name, expected_mw in [
-        ("防府バイオマス発電所", 112.0),   # Hofu Biomass — was 36 (GEM), CF 219%
-        ("宇部興産発電所", 361.0),         # UBE — two registrations summed
+        ("防府バイオマス発電所", 112.0),  # Hofu Biomass — was 36 (GEM), CF 219%
+        ("宇部興産発電所", 361.0),  # UBE — two registrations summed
     ]:
         row = occto[occto["plant_name"] == name]
         if row.empty:
@@ -220,15 +269,189 @@ def main() -> int:
             ok(f"gate4b: {name} capacity {float(got):,.0f} MW (HJKS)")
 
     # ------------------------------------------------------------------ 5
+    # Coverage is compared as a COUNT of coordinated plants, not a share: a
+    # source that gained many new (as yet unmatched) plants since the baseline
+    # would otherwise fail on a falling percentage while losing nothing.
     for src in sorted(set(base["source_system"]) & set(xw["source_system"])):
-        b = base[base["source_system"] == src]["latitude"].notna().mean()
-        n = xw[xw["source_system"] == src]["latitude"].notna().mean()
-        if n < b - 0.02:
-            fail(f"gate5: {src} coverage {n:.1%} < baseline {b:.1%} - 2pp")
+        bsub = base[base["source_system"] == src]
+        nsub = xw[xw["source_system"] == src]
+        # Baseline count over plants still present in the source only.
+        still = bsub[bsub["plant_name"].isin(nsub["plant_name"])]
+        b_n, n_n = (
+            int(still["latitude"].notna().sum()),
+            int(nsub["latitude"].notna().sum()),
+        )
+        lost = set(bsub.loc[bsub["latitude"].notna(), "plant_name"]) - set(
+            nsub.loc[nsub["latitude"].notna(), "plant_name"]
+        )
+        # Plants that left the SOURCE (e.g. mojibake identities merged away) are
+        # not losses of ours.
+        lost -= set(bsub["plant_name"]) - set(nsub["plant_name"])
+        if n_n < b_n or lost:
+            fail(
+                f"gate5: {src} coordinated plants {n_n} < baseline {b_n} ({len(lost)} lost: {sorted(lost)[:3]})"
+            )
         else:
-            ok(f"gate5: {src} coverage {n:.1%} (baseline {b:.1%})")
+            ok(
+                f"gate5: {src} coordinated plants {n_n} (baseline {b_n}); {nsub['latitude'].notna().mean():.1%} of {len(nsub)} rows"
+            )
 
-    print(f"\n{'ALL GATES PASSED' if fail.count == 0 else f'{fail.count} GATE(S) FAILED'}")
+    # ------------------------------------------------------------------ 7  displayed values vs baseline
+    # Coordinates, capacity, coal type and technology are what the dashboard
+    # shows. Compare against the baseline per source with explicit tolerances:
+    # capacity fleet totals within 3% (ENTSO-E re-weights per unit every
+    # build; totals must hold), and no more than 2% of a source's rows changing
+    # coal_type / combustion_tech / coordinates.
+    bk = (
+        base["source_system"].astype(str)
+        + "|"
+        + base["plant_code"]
+        .where(base["plant_code"].notna(), base["plant_name"])
+        .astype(str)
+    )
+    bb = base.assign(_k=bk).drop_duplicates("_k").set_index("_k")
+    nk = (
+        xw["source_system"].astype(str)
+        + "|"
+        + xw["plant_code"].where(xw["plant_code"].notna(), xw["plant_name"]).astype(str)
+    )
+    nn = xw.assign(_k=nk).drop_duplicates("_k").set_index("_k")
+    common = bb.index.intersection(nn.index)
+    for src in sorted(set(base["source_system"]) & set(xw["source_system"])):
+        idx = [k for k in common if k.startswith(f"{src}|")]
+        if not idx:
+            continue
+        b, n = bb.loc[idx], nn.loc[idx]
+        bcap, ncap = (
+            float(b["capacity_mw"].fillna(0).sum()),
+            float(n["capacity_mw"].fillna(0).sum()),
+        )
+        if bcap > 0 and abs(ncap - bcap) > 0.03 * bcap:
+            fail(
+                f"gate7: {src} fleet capacity {ncap:,.0f} MW vs baseline {bcap:,.0f} MW (>3%)"
+            )
+        else:
+            ok(f"gate7: {src} fleet capacity {ncap:,.0f} MW (baseline {bcap:,.0f})")
+        changed = 0
+        for col in ("coal_type", "combustion_tech"):
+            changed += int(
+                (
+                    ~(
+                        (b[col].isna() & n[col].isna())
+                        | (b[col].astype(str) == n[col].astype(str))
+                    )
+                ).sum()
+            )
+        moved = int(
+            (
+                ((b["latitude"] - n["latitude"]).abs() > 1e-4)
+                | ((b["longitude"] - n["longitude"]).abs() > 1e-4)
+            )
+            .fillna(False)
+            .sum()
+        )
+        if changed + moved > max(3, 0.02 * len(idx)):
+            fail(
+                f"gate7: {src}: {changed} coal-type/tech changes and {moved} moved coordinates among {len(idx)} common rows (>2%)"
+            )
+        else:
+            ok(
+                f"gate7: {src}: {changed} attribute changes, {moved} moved coordinates among {len(idx)} rows"
+            )
+
+    # ------------------------------------------------------------------ 6  GEM identity
+    key = (
+        xw["source_system"].astype(str)
+        + "|"
+        + xw["plant_code"].where(xw["plant_code"].notna(), xw["plant_name"]).astype(str)
+    )
+    dup = key[key.duplicated()]
+    if len(dup):
+        fail(
+            f"gate6a: {len(dup)} duplicate natural keys (dashboard joins fan out): {dup.head(5).tolist()}"
+        )
+    else:
+        ok(
+            f"gate6a: {len(xw):,} rows, one per (source_system, COALESCE(plant_code, plant_name))"
+        )
+
+    linked = xw[xw["gem_location_id"].notna()]
+    unknown = linked[~linked["gem_location_id"].isin(gem_locs.index)]
+    if len(unknown):
+        fail(
+            f"gate6b: {len(unknown)} rows link to a gem_location_id absent from gem_locations: "
+            f"{unknown['gem_location_id'].head(5).tolist()}"
+        )
+    else:
+        ok(f"gate6b: all {len(linked):,} GEM links resolve in gem_locations")
+
+    gem_country_of = gem_locs["country"].to_dict()
+    lc = linked[linked["source_country"].notna()]
+    cross = lc[
+        (lc["gem_location_id"].map(gem_country_of) != lc["source_country"])
+        & lc["override_reason"].isna()
+    ]
+    if len(cross):
+        fail(
+            f"gate6c: {len(cross)} cross-country links without override_reason: "
+            f"{cross[['plant_name', 'source_country', 'gem_location_id']].head(5).to_dict('records')}"
+        )
+    else:
+        ok(
+            f"gate6c: no cross-country GEM link without an override reason ({len(lc):,} checked)"
+        )
+
+    human = xw[xw["matching_method"].isin(HUMAN_METHODS)]
+    orphan_manual = human[human["decided_by"].isna()]
+    if len(orphan_manual):
+        fail(f"gate6d: {len(orphan_manual)} manual/legacy rows without decided_by")
+    else:
+        ok(f"gate6d: all {len(human):,} human-decided rows carry decided_by")
+
+    both = xw[xw["gem_location_id"].notna() & (xw["not_in_gem"] == True)]  # noqa: E712
+    if len(both):
+        fail(f"gate6e: {len(both)} rows both linked and not_in_gem")
+    else:
+        ok("gate6e: no row is both linked and not_in_gem")
+
+    # Decisions must survive the rebuild: every decided row in the baseline
+    # keeps its link columns byte-for-byte.
+    if "decided_by" in base.columns:
+        bkey = (
+            base["source_system"].astype(str)
+            + "|"
+            + base["plant_code"]
+            .where(base["plant_code"].notna(), base["plant_name"])
+            .astype(str)
+        )
+        bdec = (
+            base[base["decided_by"].notna()]
+            .assign(_k=bkey[base["decided_by"].notna()])
+            .set_index("_k")
+        )
+        now = xw.assign(_k=key).set_index("_k")
+        lost = [k for k in bdec.index if k not in now.index]
+        changed = [
+            k
+            for k in bdec.index
+            if k in now.index
+            and (
+                str(now.at[k, "gem_location_id"]) != str(bdec.at[k, "gem_location_id"])
+                or bool(now.at[k, "not_in_gem"]) != bool(bdec.at[k, "not_in_gem"])
+            )
+        ]
+        if lost or changed:
+            fail(
+                f"gate6f: decisions not preserved — {len(lost)} rows gone, {len(changed)} links changed: {(lost + changed)[:5]}"
+            )
+        else:
+            ok(f"gate6f: all {len(bdec):,} prior decisions preserved")
+    else:
+        ok("gate6f: baseline predates decisions (nothing to preserve)")
+
+    print(
+        f"\n{'ALL GATES PASSED' if fail.count == 0 else f'{fail.count} GATE(S) FAILED'}"
+    )
     return 1 if fail.count else 0
 
 

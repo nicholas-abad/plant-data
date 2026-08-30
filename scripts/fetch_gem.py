@@ -5,7 +5,7 @@ Usage:
     uv run python scripts/fetch_gem.py --force-detail  # detail pull regardless (≈ 40 min)
     uv run python scripts/fetch_gem.py --no-detail     # core pull only, carry previous details over
     uv run python scripts/fetch_gem.py --dry-run       # write parquet to data/cache/gem/, touch nothing in Neon
-    uv run python scripts/fetch_gem.py --max-detail 20 # smoke test the detail path
+    uv run python scripts/fetch_gem.py --dry-run --max-detail 20   # smoke test the detail path (dry run is implied)
 
 Tables are swapped in with bootstrap_neon_db._atomic_replace_table (grants
 preserved, empty frames refused). gem_external_ids is created empty and left
@@ -52,9 +52,15 @@ from src.gem_api import (  # noqa: E402
 )
 
 CACHE_DIR = ROOT / "data" / "cache" / "gem"
+DRYRUN_DIR = (
+    CACHE_DIR / "dryrun"
+)  # --dry-run output; never the parquet the build falls back to
 
 POST_LOAD_SQL = {
     "gem_locations": [
+        # to_sql writes the array literal as TEXT; convert inside the swap
+        # transaction so a crash can never leave \'{GCPT}\' strings behind.
+        "ALTER TABLE gem_locations ALTER COLUMN trackers TYPE TEXT[] USING trackers::TEXT[]",
         "ALTER TABLE gem_locations ADD PRIMARY KEY (gem_location_id)",
         "CREATE INDEX idx_gem_locations_country ON gem_locations (country)",
     ],
@@ -182,6 +188,11 @@ def main() -> int:
         help="seconds between API calls (default 0.25)",
     )
     args = ap.parse_args()
+    if args.max_detail is not None and not args.dry_run:
+        logger.warning(
+            "--max-detail implies --dry-run: a partial detail pull must never reach Neon"
+        )
+        args.dry_run = True
 
     client = GemClient(min_interval=args.min_interval)
     engine = None if args.dry_run else get_engine()
@@ -247,6 +258,27 @@ def main() -> int:
 
     # 3. post-conditions --------------------------------------------------------
     problems = check_frames(locations, units, api_totals)
+    if not prev_locs.empty and len(locations) < 0.98 * len(prev_locs):
+        problems.append(
+            f"mirror shrank: {len(locations):,} locations vs {len(prev_locs):,} previously"
+        )
+    if not prev_units.empty and len(units) < 0.98 * len(prev_units):
+        problems.append(
+            f"mirror shrank: {len(units):,} units vs {len(prev_units):,} previously"
+        )
+    if need_detail:
+        scope_n = len(detail_scope(units))
+        with_type = int(
+            units.loc[units["tracker"] == "GCPT", "coal_type"].notna().sum()
+        )
+        if with_type < 0.9 * scope_n:
+            problems.append(
+                f"detail coverage: {with_type:,} coal units with coal_type of {scope_n:,} in scope"
+            )
+        if len(snapshots) < 10 * scope_n:
+            problems.append(
+                f"only {len(snapshots):,} status snapshots for {scope_n:,} units in scope"
+            )
     if problems:
         for p in problems:
             logger.error(f"post-condition failed: {p}")
@@ -263,24 +295,18 @@ def main() -> int:
         lambda t: "{" + ",".join(t) + "}"
     )  # text[] literal
     if args.dry_run:
-        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        DRYRUN_DIR.mkdir(parents=True, exist_ok=True)
         for name, df in (
             ("gem_locations", locations),
             ("gem_units", units),
             ("gem_unit_status_snapshots", snapshots),
         ):
-            df.to_parquet(CACHE_DIR / f"{name}.parquet", index=False)
-        logger.info(f"dry run: parquet written to {CACHE_DIR}")
+            df.to_parquet(DRYRUN_DIR / f"{name}.parquet", index=False)
+        logger.info(f"dry run: parquet written to {DRYRUN_DIR}")
         return 0
     _atomic_replace_table(
         engine, locations, "gem_locations", POST_LOAD_SQL["gem_locations"]
     )
-    with engine.begin() as conn:  # text[] column type after to_sql's TEXT
-        conn.execute(
-            text(
-                "ALTER TABLE gem_locations ALTER COLUMN trackers TYPE TEXT[] USING trackers::TEXT[]"
-            )
-        )
     _atomic_replace_table(engine, units, "gem_units", POST_LOAD_SQL["gem_units"])
     if not snapshots.empty:
         _atomic_replace_table(
