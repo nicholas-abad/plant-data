@@ -1,0 +1,64 @@
+{
+ "asset_id": "L100000103878_G100000100001",
+ "asset_name": "A. B. Brown power station Unit 1",
+ "asset_type": "Coal Plant",
+ "operating_status": "retired",
+ "operating_sub_status": "retired",
+ "country": "United States",
+ "state_province": "Indiana",
+ "latitude": 37.910539,
+ "longitude": -87.923058,
+ "capacity_value": 265.2,
+ "capacity_unit": "MW",
+ "wiki_url": "https://www.gem.wiki/A._B._Brown_power_station",
+ "location_id": "L100000103878",
+ "unit_id": "G100000100001",
+ "unit_name": "Unit 1",
+ "source_id": 2,
+ "url": "/assets/L100000103878_G100000100001",
+ "ownership_graph_url": "/ownership/graph?root=L100000103878_G100000100001&direction=up",
+ "eventual_owners_url": "/owners?asset_id=L100000103878_G100000100001",
+ "project_name": "A. B. Brown power station",
+ "upstream_entity_count": 13,
+ "status_changes": [
+  {
+   "period": "H2 2014",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2015",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2015",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2016",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2025",
+   "value": "retired"
+  },
+  {
+   "period": "H2 2025",
+   "value": "retired"
+  }
+ ],
+ "coal_plant_fields": {
+  "start_year": "1979.0",
+  "retired_year": "2023.0",
+  "planned_retirement": null,
+  "status": "retired",
+  "plant_name": "A. B. Brown power station",
+  "plant_name_2": null,
+  "plant_name_3": "A.B. Brown Generating Station",
+  "coal_type": "bituminous",
+  "combustion_technology": "subcritical",
+  "capacity_megawatts": "265.2",
+  "location_accuracy": "exact",
+  "gem_location_id": "L100000103878",
+  "gem_unit_phase_id": "G100000100001"
+ }
+}

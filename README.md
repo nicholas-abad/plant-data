@@ -157,6 +157,24 @@ Located in `etl/power-generation-etl/schema/`:
 - `eia_generator_info.sql` — EIA Form 860 generator reference data
 - `gcpt_coal_metadata.sql` — GCPT coal type and technology for CO2 estimation
 
+## GEM reference tables (`gem_locations`, `gem_units`, `gem_unit_status_snapshots`)
+
+Global Energy Monitor's Ownership API is the **sole** reference for plant identity — no tracker spreadsheet is read anywhere in this pipeline. `scripts/fetch_gem.py` mirrors GEM's three power trackers (coal, gas & oil, bioenergy; ~14,300 locations, ~34,000 units) into Neon:
+
+```bash
+uv run python scripts/fetch_gem.py                 # weekly: core pull (<1 min); detail pull only when GEM released
+uv run python scripts/fetch_gem.py --force-detail  # ≈ 40 min: coal type, technology, years, aliases, status history
+uv run python scripts/fetch_gem.py --dry-run       # parquet to data/cache/gem/, Neon untouched
+```
+
+- **Core pull** (every run): `/assets?asset_type=…` paginated — id, location, name, status, capacity, country, coordinates for every unit.
+- **Detail pull** (once per GEM release): `/assets/{L_G}` for coal units that are operating, mothballed or retired. Throttled to 4 requests/s, checkpointed in `data/cache/gem/` so it resumes, and guarded: if GEM publishes a new release mid-pull, the pull is discarded and repeated so a table never mixes releases. On a core-only run the previous detail columns are carried over.
+- **Why all three trackers**: a third of the plants on the dashboard's map were located through GEM's non-coal records. Coordinates may come from any tracker; every coal aggregate downstream filters `tracker = 'GCPT'`.
+- `gem_external_ids` is created empty: the API does not yet expose GEM's "Other IDs" column (EIA plant codes etc.). When it does, the loader fills it and ID-based US matching switches on — the deferred next item.
+- Tables are swapped in with `_atomic_replace_table` (grants preserved). No foreign key `gem_units → gem_locations` on purpose: the swap's `DROP … CASCADE` would drop it; integrity is a post-condition of the pull and a `verify_crosswalk.py` gate.
+
+Attribution: data © Global Energy Monitor, Global Coal Plant Tracker / Global Oil & Gas Plant Tracker / Global Bioenergy Power Tracker (release recorded per row in `gem_release`), CC BY 4.0.
+
 ## License
 
 - Code: MIT License
