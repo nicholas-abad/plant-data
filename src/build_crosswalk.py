@@ -540,7 +540,7 @@ def pull_plant_names(engine, sources: list[str] | None = None) -> pd.DataFrame:
 
     frames = []
     with engine.connect() as conn:
-        conn.execute(text("SET statement_timeout = '120s'"))
+        conn.execute(text("SET LOCAL statement_timeout = '120s'"))
         for source, sql in queries.items():
             logger.info(f"Pulling {source} plant names...")
             df = pd.read_sql(text(sql), conn)
@@ -1424,7 +1424,7 @@ def _pull_occto_plant_codes(engine) -> dict[str, list[str]]:
     unfiltered).
     """
     with engine.connect() as conn:
-        conn.execute(text("SET statement_timeout = '120s'"))
+        conn.execute(text("SET LOCAL statement_timeout = '120s'"))
         rows = conn.execute(
             text(
                 "SELECT DISTINCT plant, plant_code FROM occto_generation_data "

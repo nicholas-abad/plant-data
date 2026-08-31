@@ -55,7 +55,7 @@ def pull_npp_plant_names(engine) -> pd.DataFrame:
     """Pull distinct NPP plant names from Neon."""
     sql = "SELECT DISTINCT plant AS plant_name FROM npp_generation WHERE plant IS NOT NULL"
     with engine.connect() as conn:
-        conn.execute(text("SET statement_timeout = '120s'"))
+        conn.execute(text("SET LOCAL statement_timeout = '120s'"))
         logger.info("Pulling NPP plant names...")
         df = pd.read_sql(text(sql), conn)
         df["source_system"] = "NPP"

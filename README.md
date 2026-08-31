@@ -163,6 +163,10 @@ uv run python scripts/bootstrap_neon_db.py
 
 ## Bootstrap Database Reference Tables
 
+> ⚠️ **Sibling checkout requirement (since ETL migration 006):** `bootstrap_neon_db.py` reads the ETL repo's `schema/*.sql` from the sibling checkout at `../../etl/power-generation-etl`. That checkout must be on a **post-006** commit — the pre-006 files create raw tables in `public`, which would silently shadow the real ones in `ingestion` and swallow writes. The weekly `no_shadow_tables` check catches it; better not to trigger it.
+
+
+
 The `bootstrap_neon_db.py` script loads reference tables into Neon PostgreSQL:
 
 | Table | Source | Rows | Description |
