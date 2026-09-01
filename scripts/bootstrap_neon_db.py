@@ -195,6 +195,9 @@ def _table_grants(conn, table: str) -> list[tuple[str, str]]:
 # verify_crosswalk.py before they get here (to_sql fills the staging table
 # before these exist).
 PLANT_CROSSWALK_GUARDS = [
+    # The natural key's second half must always exist (the swap recreates the
+    # table from a DataFrame, so this is re-asserted after every rebuild).
+    "ALTER TABLE plant_crosswalk ALTER COLUMN source_system SET NOT NULL",
     # A row is linked, or explicitly not in GEM, or still open — never both linked and not-in-GEM.
     "ALTER TABLE plant_crosswalk ADD CONSTRAINT xw_link_xor "
     "CHECK (NOT (gem_location_id IS NOT NULL AND not_in_gem))",
