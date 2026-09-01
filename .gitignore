@@ -55,6 +55,11 @@ data/crosswalks/*.csv
 # HJKS is small (75 KB) and a build-required reference — committed, unlike
 # the large GEM/GPPD reference dumps.
 !data/crosswalks/hjks_units.csv
+# GPPD (11 MB, CC BY 4.0) and the EIA plant lookup (392 KB) are build-required
+# too — committed since 2026-09-01 so CI rebuilds need no hosted bundle
+# (CROSSWALK_REF_DATA_URL secret retired).
+!data/crosswalks/global_power_plant_database.csv
+!data/crosswalks/eia_plant_lookup.csv
 data/crosswalks/*.xlsx
 
 # Crosswalk test/scratch artifacts (not the real unified_plant_crosswalk.parquet)
