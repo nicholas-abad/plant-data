@@ -279,6 +279,11 @@ def load_unified_crosswalk(engine):
             "ON plant_crosswalk (plant_code) WHERE plant_code IS NOT NULL",
             "CREATE INDEX idx_plant_crosswalk_plant_name "
             "ON plant_crosswalk (plant_name, source_system)",
+            # The dashboard's sole-claimant probe (gem window capacity) runs a
+            # correlated COUNT(*) on (gem_location_id, source_system) per row.
+            "CREATE INDEX idx_plant_crosswalk_gem_location "
+            "ON plant_crosswalk (gem_location_id, source_system) "
+            "WHERE gem_location_id IS NOT NULL",
             *PLANT_CROSSWALK_GUARDS,
         ],
     )
