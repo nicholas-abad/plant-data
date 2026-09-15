@@ -75,6 +75,12 @@ def ok(msg: str) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--baseline", type=Path, default=None)
+    ap.add_argument(
+        "--expect-gppd-migration",
+        action="store_true",
+        help="One-off GPPD purge run: assert zero GPPD provenance remains and "
+        "relax the coverage/churn gates that the intentional migration trips",
+    )
     args = ap.parse_args()
 
     xw = pd.read_parquet(OUTPUT_FILE)
@@ -241,6 +247,11 @@ def main() -> int:
         ("KUDANKULAM", ["coal_type", "combustion_tech", "capacity_mw"], False),
         ("NIGRI TPP", ["capacity_mw"], True),
     ]:
+        if name == "NIGRI TPP" and args.expect_gppd_migration:
+            # NIGRI's nameplate WAS the GPPD figure; the purge legitimately
+            # opens it for review. Exemplar retires with GPPD itself.
+            ok("gate4: NIGRI TPP exemplar skipped (GPPD purge run)")
+            continue
         row = npp[npp["plant_name"] == name]
         if row.empty:
             continue
@@ -288,9 +299,15 @@ def main() -> int:
         # not losses of ours.
         lost -= set(bsub["plant_name"]) - set(nsub["plant_name"])
         if n_n < b_n or lost:
-            fail(
-                f"gate5: {src} coordinated plants {n_n} < baseline {b_n} ({len(lost)} lost: {sorted(lost)[:3]})"
-            )
+            if args.expect_gppd_migration:
+                ok(
+                    f"gate5: {src} coordinated plants {n_n} < baseline {b_n} — "
+                    f"expected: the GPPD purge opens unconfirmable rows ({len(lost)} lost)"
+                )
+            else:
+                fail(
+                    f"gate5: {src} coordinated plants {n_n} < baseline {b_n} ({len(lost)} lost: {sorted(lost)[:3]})"
+                )
         else:
             ok(
                 f"gate5: {src} coordinated plants {n_n} (baseline {b_n}); {nsub['latitude'].notna().mean():.1%} of {len(nsub)} rows"
@@ -327,7 +344,7 @@ def main() -> int:
             float(n["capacity_mw"].fillna(0).sum()),
         )
         if bcap > 0 and abs(ncap - bcap) > 0.03 * bcap:
-            fail(
+            (ok if args.expect_gppd_migration else fail)(
                 f"gate7: {src} fleet capacity {ncap:,.0f} MW vs baseline {bcap:,.0f} MW (>3%)"
             )
         else:
@@ -351,7 +368,7 @@ def main() -> int:
             .sum()
         )
         if changed + moved > max(3, 0.02 * len(idx)):
-            fail(
+            (ok if args.expect_gppd_migration else fail)(
                 f"gate7: {src}: {changed} coal-type/tech changes and {moved} moved coordinates among {len(idx)} common rows (>2%)"
             )
         else:
@@ -440,6 +457,23 @@ def main() -> int:
                 or bool(now.at[k, "not_in_gem"]) != bool(bdec.at[k, "not_in_gem"])
             )
         ]
+        if args.expect_gppd_migration and changed:
+            # the purge deliberately supersedes legacy-pipeline pseudo-decisions
+            # with durable gppd-migration links (null → link only); anything
+            # else is still a failure.
+            allowed = [
+                k
+                for k in changed
+                if str(bdec.at[k, "decided_by"]) == "legacy-pipeline"
+                and pd.isna(bdec.at[k, "gem_location_id"])
+                and pd.notna(now.at[k, "gem_location_id"])
+                and pd.notna(now.at[k, "decided_by"])
+            ]
+            if allowed:
+                ok(
+                    f"gate6f: {len(allowed)} legacy rows superseded by the GPPD migration (null → link)"
+                )
+            changed = [k for k in changed if k not in set(allowed)]
         if lost or changed:
             fail(
                 f"gate6f: decisions not preserved — {len(lost)} rows gone, {len(changed)} links changed: {(lost + changed)[:5]}"
@@ -448,6 +482,43 @@ def main() -> int:
             ok(f"gate6f: all {len(bdec):,} prior decisions preserved")
     else:
         ok("gate6f: baseline predates decisions (nothing to preserve)")
+
+    # G-LIVE: no PIPELINE link may point at a location whose GCPT units are all
+    # cancelled/shelved (paper projects sharing coords/names with real plants —
+    # the Itaqui/Jänschwalde/Vuosaari trap). Human decisions are exempt: a
+    # person may deliberately link one.
+    units_t = gem_tables["units"]
+    gcpt = units_t[units_t["tracker"] == "GCPT"]
+    # dead = the location HAS coal-tracker units and ALL of them are
+    # cancelled/shelved (a paper coal project). Locations with no GCPT units
+    # at all are simply non-coal sites — legitimate link targets for the
+    # non-coal rows the feeds carry (GIPT spans all trackers).
+    dead_locs = set(gcpt["gem_location_id"]) - set(
+        gcpt[~gcpt["status"].astype(str).str.lower().isin(["cancelled", "shelved"])][
+            "gem_location_id"
+        ]
+    )
+    pipe_linked = xw[
+        xw["gem_location_id"].notna() & ~xw["matching_method"].isin(HUMAN_METHODS)
+    ]
+    dead_linked = pipe_linked[pipe_linked["gem_location_id"].isin(dead_locs)]
+    if len(dead_linked):
+        fail(
+            f"G-LIVE: {len(dead_linked)} pipeline links point at all-cancelled/shelved GEM sites: "
+            f"{dead_linked[['source_system', 'plant_name', 'gem_location_id']].head(5).to_dict('records')}"
+        )
+    else:
+        ok(f"G-LIVE: no pipeline link points at a paper-only GEM site ({len(pipe_linked):,} checked)")
+
+    if args.expect_gppd_migration:
+        leftover = xw[(xw["ref_source"] == "GPPD") | (xw["capacity_source"] == "GPPD")]
+        if len(leftover):
+            fail(
+                f"gppd-purge: {len(leftover)} rows still carry GPPD provenance: "
+                f"{leftover[['source_system', 'plant_name']].head(5).to_dict('records')}"
+            )
+        else:
+            ok("gppd-purge: zero rows with GPPD provenance remain")
 
     # ── CT gates (Climate TRACE lane, 2026-09) ───────────────────────────────
     ct = xw[xw["source_system"] == "CT"]
