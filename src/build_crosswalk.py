@@ -1951,9 +1951,9 @@ def pull_ct_plants(engine) -> pd.DataFrame:
     with engine.connect() as conn:
         conn.execute(text("SET LOCAL statement_timeout = '120s'"))
         df = pd.read_sql(text(sql_text), conn)
-    # A lost ::text turns plant_code int64 → to_sql would rebuild the column
-    # as bigint for EVERY source. Fail here, not in prod.
-    if df["plant_code"].dtype != object:
+    if pd.api.types.is_numeric_dtype(df["plant_code"]):
+        # A lost ::text lets pandas infer int64 → to_sql would rebuild the
+        # column as bigint for EVERY source.
         raise TypeError(f"CT plant_code must be text, got {df['plant_code'].dtype}")
     logger.info(f"CT: {len(df):,} distinct coal plants pulled")
     return df
