@@ -240,6 +240,9 @@ PLANT_CROSSWALK_GUARDS = [
       UNION SELECT 'CHILE', plant FROM mv_chile_plant_monthly WHERE fuel_type = 'Carbón' GROUP BY 1, 2
       UNION SELECT 'OE', facility_name FROM oe_facility_generation_data
         WHERE fueltech IN ('coal_black','coal_brown') GROUP BY 1, 2
+      -- CT crosswalk rows are coal by construction (built from the coal-only
+      -- matview), keyed on climatetrace_id = plant_code.
+      UNION SELECT 'CT', climatetrace_id FROM mv_climatetrace_coal_monthly GROUP BY 1, 2
     )
     SELECT x.source_system, x.plant_code, x.plant_name, x.source_country,
            (c.key IS NOT NULL) AS coal_relevant,
