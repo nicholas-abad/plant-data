@@ -70,6 +70,9 @@ VALIDATE_TRUST_SCORE = 90
 
 # Country filters for each source when querying GPPD / GEM
 SOURCE_COUNTRIES = {
+    # CT is matched by its own lane (match_ct) — empty config on purpose so the
+    # generic stages can never pull a global candidate pool for it.
+    "CT": {},
     "NPP": {"gppd": "IND", "gem": "India"},
     "ENTSOE": {
         "gppd_countries": [
@@ -1461,7 +1464,12 @@ def _row_key(df: pd.DataFrame) -> pd.Series:
 
 def _stamp_source_country(rows: pd.DataFrame, plants_df: pd.DataFrame) -> pd.DataFrame:
     """GEM-named country of the SOURCE plant; the country guard compares against it."""
-    country = pd.Series([None] * len(rows), index=rows.index, dtype=object)
+    # Seed from any pre-set values: CT rows arrive with source_country already
+    # stamped by match_ct (per-plant, from CT_ISO3_TO_GEM_COUNTRY).
+    if "source_country" in rows.columns:
+        country = rows["source_country"].copy().astype(object)
+    else:
+        country = pd.Series([None] * len(rows), index=rows.index, dtype=object)
     for src, cfg in SOURCE_COUNTRIES.items():
         if cfg.get("gem"):
             country[rows["source_system"] == src] = cfg["gem"]
@@ -1703,7 +1711,12 @@ def derive_from_gem(
         )
         rows.at[idx, "coal_type"] = None if suppress else info["coal_type"]
         rows.at[idx, "combustion_tech"] = None if suppress else info["combustion_tech"]
-        rows.at[idx, "capacity_mw"] = None if suppress else info["capacity_mw"]
+        if rows.at[idx, "source_system"] != "CT":
+            # CT keeps its own capacity even when a human links the row: 515
+            # CT plants are co-fired (whole-plant generation vs GEM's
+            # coal-only nameplate), and 414 linked sites have no operating
+            # GCPT sum at all — GEM capacity would wipe or inflate CF.
+            rows.at[idx, "capacity_mw"] = None if suppress else info["capacity_mw"]
         n += 1
     both = rows["not_in_gem"].astype(bool) & rows["gem_location_id"].notna()
     if both.any():
@@ -1726,7 +1739,13 @@ CANDIDATE_CUTOFF = 55
 
 def add_candidates(rows: pd.DataFrame, plants_df: pd.DataFrame) -> pd.DataFrame:
     """Top-3 within-country GEM candidates for every row still without a link."""
-    open_rows = rows[rows["gem_location_id"].isna() & (rows["not_in_gem"] != True)]  # noqa: E712
+    open_rows = rows[
+        rows["gem_location_id"].isna()
+        & (rows["not_in_gem"] != True)  # noqa: E712
+        # CT candidates are prewritten by match_ct from its per-country index;
+        # this generic path would hand CT a global (or empty) candidate pool.
+        & (rows["source_system"] != "CT")
+    ]
     if open_rows.empty:
         return rows
     work = open_rows[["plant_name", "source_system"]].copy()
@@ -1777,6 +1796,324 @@ def add_candidates(rows: pd.DataFrame, plants_df: pd.DataFrame) -> pd.DataFrame:
         f"candidates: hints written for {filled:,} of {len(open_rows):,} unlinked rows"
     )
     return rows
+
+
+# ── Climate TRACE (CT): the 8th source — a parallel lane ─────────────────────
+# CT rows never enter the name-keyed generic stages (pull_plant_names,
+# match_rapidfuzz, GPPD, LLM, add_candidates): Climate TRACE's coal inventory
+# is itself built on GEM, so exact-name+geography links ~86% mechanically, and
+# the generic machinery's (plant_name, source_system) identity would drop CT's
+# 13 duplicate-name pairs. match_ct() produces fully-formed crosswalk rows that
+# splice in just before the tier-0 decision re-apply.
+#
+# GEM supplies IDENTITY (gem_location_id, coords, coal_type, combustion_tech).
+# CAPACITY STAYS CT's (capacity_source='CT'): 515 of 3,028 CT coal plants are
+# co-fired and their generation_mwh is whole-plant, so GEM's coal-only
+# nameplate would inflate their capacity factor 5-15x (Dolna Odra: 2,274 MW CT
+# vs 464 MW GEM operating coal). Reviewed 2026-09-15 (Opus cold review, D2).
+
+# ISO3 (CT's country_code) → GEM's country naming, which source_country and
+# the xw_guard/gate6c country checks compare against. Derived from prod by
+# geographic majority and verified: every value exists in gem_locations, every
+# CT coal ISO3 is present. Traps that bit during derivation: GEM spells
+# "Türkiye" (non-ASCII), "Czech Republic" (not Czechia), "Macao" (not Macau);
+# Kosovo is XKX here but KOS in GPPD (CT never touches GPPD).
+CT_ISO3_TO_GEM_COUNTRY = {
+    "ARE": "United Arab Emirates",
+    "ARG": "Argentina",
+    "AUS": "Australia",
+    "AUT": "Austria",
+    "BEL": "Belgium",
+    "BGD": "Bangladesh",
+    "BGR": "Bulgaria",
+    "BIH": "Bosnia and Herzegovina",
+    "BRA": "Brazil",
+    "BRN": "Brunei",
+    "BWA": "Botswana",
+    "CAN": "Canada",
+    "CHL": "Chile",
+    "CHN": "China",
+    "COL": "Colombia",
+    "CZE": "Czech Republic",
+    "DEU": "Germany",
+    "DNK": "Denmark",
+    "DOM": "Dominican Republic",
+    "ESP": "Spain",
+    "FIN": "Finland",
+    "FRA": "France",
+    "GBR": "United Kingdom",
+    "GLP": "Guadeloupe",
+    "GRC": "Greece",
+    "GTM": "Guatemala",
+    "HKG": "Hong Kong",
+    "HND": "Honduras",
+    "HRV": "Croatia",
+    "HUN": "Hungary",
+    "IDN": "Indonesia",
+    "IND": "India",
+    "IRL": "Ireland",
+    "ISR": "Israel",
+    "ITA": "Italy",
+    "JPN": "Japan",
+    "KAZ": "Kazakhstan",
+    "KGZ": "Kyrgyzstan",
+    "KHM": "Cambodia",
+    "KOR": "South Korea",
+    "LAO": "Laos",
+    "LKA": "Sri Lanka",
+    "MAC": "Macao",
+    "MAR": "Morocco",
+    "MDG": "Madagascar",
+    "MEX": "Mexico",
+    "MKD": "North Macedonia",
+    "MMR": "Myanmar",
+    "MNE": "Montenegro",
+    "MNG": "Mongolia",
+    "MUS": "Mauritius",
+    "MYS": "Malaysia",
+    "NAM": "Namibia",
+    "NCL": "New Caledonia",
+    "NER": "Niger",
+    "NGA": "Nigeria",
+    "NLD": "Netherlands",
+    "NZL": "New Zealand",
+    "PAK": "Pakistan",
+    "PAN": "Panama",
+    "PER": "Peru",
+    "PHL": "Philippines",
+    "POL": "Poland",
+    "PRI": "Puerto Rico",
+    "PRK": "North Korea",
+    "PRT": "Portugal",
+    "REU": "Réunion",
+    "ROU": "Romania",
+    "RUS": "Russia",
+    "SEN": "Senegal",
+    "SRB": "Serbia",
+    "SVK": "Slovakia",
+    "SVN": "Slovenia",
+    "SWE": "Sweden",
+    "THA": "Thailand",
+    "TJK": "Tajikistan",
+    "TUR": "Türkiye",
+    "TWN": "Taiwan",
+    "TZA": "Tanzania",
+    "UKR": "Ukraine",
+    "USA": "United States",
+    "UZB": "Uzbekistan",
+    "VNM": "Vietnam",
+    "XKX": "Kosovo",
+    "ZAF": "South Africa",
+    "ZMB": "Zambia",
+    "ZWE": "Zimbabwe",
+}
+
+CT_TIER_A_KM = 5.0  # exact-name links must also be geographically coincident
+CT_TIER_B_KM = 2.0  # geo-first links must be practically on top of the site
+CT_TIER_B_FUZZ = 80.0  # …and still name-plausible
+
+
+def _haversine_km(lat1, lon1, lat2, lon2) -> float:
+    import math
+
+    p = math.pi / 180
+    a = (
+        0.5
+        - math.cos((lat2 - lat1) * p) / 2
+        + math.cos(lat1 * p)
+        * math.cos(lat2 * p)
+        * (1 - math.cos((lon2 - lon1) * p))
+        / 2
+    )
+    return 2 * 6371 * math.asin(math.sqrt(a))
+
+
+def pull_ct_plants(engine) -> pd.DataFrame:
+    """One row per distinct CT coal plant, from the coal matview.
+
+    capacity is the LATEST non-zero month, not MAX: 572 CT ids vary over time
+    and 485 have at least one zero month — MAX would stamp a permanent
+    historical peak into the denominator.
+    """
+    sql_text = """
+        SELECT climatetrace_id::text AS plant_code,
+               MAX(plant_name)   AS plant_name,
+               MAX(country_code) AS iso3,
+               MAX(latitude)     AS latitude,
+               MAX(longitude)    AS longitude,
+               MAX(fuel_type)    AS ct_fuel,
+               (array_agg(capacity_mw ORDER BY timestamp_ms DESC)
+                  FILTER (WHERE capacity_mw > 0))[1] AS capacity_mw
+        FROM mv_climatetrace_coal_monthly
+        WHERE climatetrace_id IS NOT NULL
+        GROUP BY climatetrace_id
+    """
+    with engine.connect() as conn:
+        conn.execute(text("SET LOCAL statement_timeout = '120s'"))
+        df = pd.read_sql(text(sql_text), conn)
+    # A lost ::text turns plant_code int64 → to_sql would rebuild the column
+    # as bigint for EVERY source. Fail here, not in prod.
+    if df["plant_code"].dtype != object:
+        raise TypeError(f"CT plant_code must be text, got {df['plant_code'].dtype}")
+    logger.info(f"CT: {len(df):,} distinct coal plants pulled")
+    return df
+
+
+def _ct_country_index(country: str) -> tuple[dict, list]:
+    """(name index, location list) for one GEM country.
+
+    The name index maps normalized name/alias → SET of location ids — unlike
+    gem_reference.name_index it keeps collisions visible: 53 CT names are
+    ambiguous in-country and must go to review, not to whichever location wins
+    a dict race. The location list is [(loc_id, lat, lon, is_coal, names)]
+    for the proximity tier.
+    """
+    t = gemref.load_tables()
+    locs = t["locations"]
+    sub = locs[locs["country"] == country]
+    name_idx: dict[str, set] = {}
+    loc_list = []
+    for r in sub.itertuples():
+        names = [r.name]
+        for extra in (r.name_other, r.name_local):
+            if isinstance(extra, str) and extra.strip():
+                names.extend(p.strip() for p in extra.split(",") if p.strip())
+        for nm in names:
+            key = normalize_for_comparison(nm)
+            if key:
+                name_idx.setdefault(key, set()).add(r.gem_location_id)
+        is_coal = gemref._site_attrs(r.gem_location_id)["_is_coal"]
+        if pd.notna(r.latitude) and pd.notna(r.longitude):
+            loc_list.append(
+                (
+                    r.gem_location_id,
+                    float(r.latitude),
+                    float(r.longitude),
+                    is_coal,
+                    names,
+                )
+            )
+    return name_idx, loc_list
+
+
+def match_ct(ct_df: pd.DataFrame) -> pd.DataFrame:
+    """Fully-formed crosswalk rows for every CT coal plant.
+
+    Tier CT-A ('ct-name-geo', high): normalized exact name resolves to exactly
+    ONE in-country GEM location, that location has GCPT (coal) units, and it
+    lies within CT_TIER_A_KM of CT's coordinates.
+    Tier CT-B ('ct-geo-fuzzy', medium): nearest in-country COAL location within
+    CT_TIER_B_KM whose name/alias fuzzes >= CT_TIER_B_FUZZ.
+    Everything else stays unlinked with top-3 candidates and keeps CT's own
+    coordinates and capacity, so no plant leaves the map.
+    """
+    unmapped = sorted(set(ct_df["iso3"]) - set(CT_ISO3_TO_GEM_COUNTRY))
+    if unmapped:
+        raise ValueError(
+            f"CT country codes missing from CT_ISO3_TO_GEM_COUNTRY: {unmapped} — "
+            "map them (GEM spelling!) before rebuilding"
+        )
+    rows = []
+    n_a = n_b = n_open = 0
+    for country, sub in ct_df.groupby(ct_df["iso3"].map(CT_ISO3_TO_GEM_COUNTRY)):
+        name_idx, loc_list = _ct_country_index(country)
+        for r in sub.itertuples():
+            base = {c: None for c in OUTPUT_COLUMNS}
+            base.update(
+                plant_name=r.plant_name,
+                plant_code=r.plant_code,
+                source_system="CT",
+                source_country=country,
+                latitude=r.latitude,
+                longitude=r.longitude,
+                capacity_mw=float(r.capacity_mw) if pd.notna(r.capacity_mw) else None,
+                capacity_source="CT",
+                not_in_gem=False,
+            )
+            q = normalize_for_comparison(str(r.plant_name))
+            linked = None
+            hits = name_idx.get(q, set())
+            if len(hits) == 1:
+                loc = gemref.location(next(iter(hits)))
+                if (
+                    loc
+                    and loc["_is_coal"]
+                    and pd.notna(r.latitude)
+                    and pd.notna(loc["lat"])
+                    and _haversine_km(r.latitude, r.longitude, loc["lat"], loc["lon"])
+                    < CT_TIER_A_KM
+                ):
+                    linked = (loc, "ct-name-geo", "high")
+            if linked is None and pd.notna(r.latitude):
+                best = None
+                for loc_id, glat, glon, is_coal, names in loc_list:
+                    if not is_coal:
+                        continue
+                    d = _haversine_km(r.latitude, r.longitude, glat, glon)
+                    if d < CT_TIER_B_KM and (best is None or d < best[1]):
+                        best = (loc_id, d, names)
+                if best is not None:
+                    # max over normalized AND raw forms: the normalizer strips
+                    # 'power station', which leaves short stems whose ratios
+                    # are brittle ('Alfa' vs 'Alpha' = 67 normalized, 92 raw).
+                    # Geography is the primary gate here; the name check only
+                    # confirms plausibility.
+                    raw_q = str(r.plant_name).casefold()
+                    score = max(
+                        max(
+                            fuzz.token_sort_ratio(q, normalize_for_comparison(nm)),
+                            fuzz.token_sort_ratio(raw_q, str(nm).casefold()),
+                        )
+                        for nm in best[2]
+                    )
+                    if score >= CT_TIER_B_FUZZ:
+                        loc = gemref.location(best[0])
+                        if loc and loc["_is_coal"]:
+                            linked = (loc, "ct-geo-fuzzy", "medium")
+            if linked is not None:
+                loc, method, conf = linked
+                base.update(
+                    gem_location_id=loc["gem_location_id"],
+                    ref_source="GEM",
+                    ref_matched_name=loc["name"],
+                    matching_method=method,
+                    confidence=conf,
+                    latitude=loc["lat"],
+                    longitude=loc["lon"],
+                    coal_type=loc["coal_type"],
+                    combustion_tech=loc["combustion_tech"],
+                    # capacity stays CT's — see the lane comment above
+                )
+                if method == "ct-name-geo":
+                    n_a += 1
+                else:
+                    n_b += 1
+            else:
+                n_open += 1
+                seen: dict[str, tuple[str, float]] = {}
+                for key, score, _ in process.extract(
+                    q,
+                    list(name_idx.keys()),
+                    scorer=fuzz.token_sort_ratio,
+                    limit=10,
+                    score_cutoff=CANDIDATE_CUTOFF,
+                ):
+                    for loc_id in name_idx[key]:
+                        info = gemref.location(loc_id)
+                        if info and (loc_id not in seen or seen[loc_id][1] < score):
+                            seen[loc_id] = (info["name"], float(score))
+                top = sorted(seen.items(), key=lambda kv: -kv[1][1])[:3]
+                for i, (loc_id, (nm, score)) in enumerate(top, 1):
+                    base[f"candidate_{i}_id"] = loc_id
+                    base[f"candidate_{i}_name"] = nm
+                    base[f"candidate_{i}_score"] = round(score, 1)
+            rows.append(base)
+    out = pd.DataFrame(rows, columns=OUTPUT_COLUMNS)
+    logger.info(
+        f"CT matching: {n_a:,} ct-name-geo + {n_b:,} ct-geo-fuzzy linked, "
+        f"{n_open:,} open for review (of {len(out):,})"
+    )
+    return out
 
 
 def build_unified_crosswalk(
@@ -2003,6 +2340,13 @@ def build_unified_crosswalk(
     # expansion); derivation stamps SITE capacity, which the ENTSO-E division
     # then apportions per unit; and both must run on new_rows only — rows
     # carried over from the existing parquet are already divided.
+    # Climate TRACE: parallel lane (see the CT section). Rows arrive fully
+    # formed (coords, capacity_source='CT', source_country, candidates) and
+    # only pass through the tier-0 decision re-apply below.
+    if sources is None or "CT" in sources:
+        ct_rows = match_ct(pull_ct_plants(engine))
+        new_rows = pd.concat([new_rows, ct_rows], ignore_index=True)
+
     new_rows["not_in_gem"] = new_rows["not_in_gem"].fillna(False).astype(bool)
     new_rows = _stamp_source_country(new_rows, plants_df)
     new_rows = apply_decisions(new_rows, load_existing_decisions(engine))

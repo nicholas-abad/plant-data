@@ -449,6 +449,51 @@ def main() -> int:
     else:
         ok("gate6f: baseline predates decisions (nothing to preserve)")
 
+    # ── CT gates (Climate TRACE lane, 2026-09) ───────────────────────────────
+    ct = xw[xw["source_system"] == "CT"]
+    if len(ct):
+        # G-CT1: exactly one row per distinct CT coal plant in the matview
+        from sqlalchemy import text as _sql_text
+
+        with _make_engine().connect() as conn:
+            mv_n = conn.execute(
+                _sql_text(
+                    "SELECT COUNT(DISTINCT climatetrace_id) FROM mv_climatetrace_coal_monthly"
+                )
+            ).scalar()
+        if len(ct) != mv_n:
+            fail(
+                f"G-CT1: {len(ct):,} CT rows vs {mv_n:,} distinct CT coal plants in the matview"
+            )
+        else:
+            ok(f"G-CT1: CT row count matches the matview ({mv_n:,})")
+
+        # G-CT2: the mechanical name+geo tier must not silently collapse
+        n_a = int((ct["matching_method"] == "ct-name-geo").sum())
+        if n_a < 2300:
+            fail(
+                f"G-CT2: only {n_a:,} ct-name-geo links (floor 2,300 — measured 2,498 at design time)"
+            )
+        else:
+            ok(f"G-CT2: {n_a:,} ct-name-geo links (floor 2,300)")
+
+        # G-CT4: source_country must be 100% present, or gate6c and the
+        # xw_guard country check both go silently vacuous for CT
+        n_null = int(ct["source_country"].isna().sum())
+        if n_null:
+            fail(
+                f"G-CT4: {n_null} CT rows with NULL source_country — gate6c cannot see them"
+            )
+        else:
+            ok(f"G-CT4: all {len(ct):,} CT rows carry source_country")
+
+        # G-CT6: capacity always CT's own (never GEM's — co-fired plants)
+        bad_cap = ct[ct["capacity_mw"].notna() & (ct["capacity_source"] != "CT")]
+        if len(bad_cap):
+            fail(f"G-CT6: {len(bad_cap)} CT rows with capacity_source != 'CT'")
+        else:
+            ok("G-CT6: all CT capacities are CT-sourced")
+
     print(
         f"\n{'ALL GATES PASSED' if fail.count == 0 else f'{fail.count} GATE(S) FAILED'}"
     )
