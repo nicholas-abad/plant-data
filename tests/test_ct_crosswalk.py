@@ -188,6 +188,25 @@ class TestTierB:
         assert pd.isna(out.iloc[0].gem_location_id)
 
 
+class TestDeadSites:
+    def test_paper_project_never_autolinks(self, gem, monkeypatch):
+        # a cancelled-only location with an EXACT name match must go to review
+        t = gemref.load_tables()
+        locs = t["locations"]
+        locs.loc["LDEAD"] = ["LDEAD", "Ghost power station", None, None, "United States", 12.0, -12.0]
+        units = pd.concat([t["units"], pd.DataFrame([{
+            "gem_unit_id": "GD", "gem_location_id": "LDEAD", "tracker": "GCPT",
+            "status": "cancelled", "capacity_mw": 1000.0, "coal_type": "bituminous",
+            "combustion_tech": "subcritical", "is_coal": True, "is_operating": False,
+        }])], ignore_index=True)
+        monkeypatch.setattr(gemref, "_TABLES", {"locations": locs, "units": units})
+        gemref._site_attrs.cache_clear()
+        out = bc.match_ct(pd.DataFrame([_ct_row(plant_name="Ghost power station", latitude=12.0, longitude=-12.0)]))
+        r = out.iloc[0]
+        assert pd.isna(r.gem_location_id), "cancelled-only site must not auto-link"
+        assert r.candidate_1_id == "LDEAD"  # still visible to the reviewer
+
+
 class TestPlumbing:
     def test_unknown_iso3_fails_loudly(self, gem):
         with pytest.raises(ValueError, match="missing from CT_ISO3_TO_GEM_COUNTRY"):

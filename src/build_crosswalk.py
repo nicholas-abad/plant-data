@@ -1573,6 +1573,134 @@ def _same_values(new_row, live_row, compare_capacity: bool) -> bool:
     return all(checks)
 
 
+GPPD_MIGRATION_KM = 1.0  # both databases agree on the site to ~a plant footprint
+GPPD_MIGRATION_FUZZ = 80.0
+
+
+def migrate_gppd_to_gem(rows: pd.DataFrame, live: pd.DataFrame) -> pd.DataFrame:
+    """One-off purge of GPPD (2026-09-15, user decision: GEM is the ONLY reference).
+
+    For every LIVE row that still cites GPPD, try the geography-first link the
+    CT lane validated: the row's (GPPD) coordinates anchor a search for a coal
+    GEM site in-country within GPPD_MIGRATION_KM, confirmed by a name fuzz
+    (raw or normalized, best of plant_name and the GPPD-matched name)
+    >= GPPD_MIGRATION_FUZZ. Hits become DURABLE tier-0 decisions
+    (decided_by='gppd-migration-2026-09'): the GPPD anchor is gone after this
+    pass, so a weekly rebuild could never re-derive these links.
+
+    Misses: a legacy-frozen GPPD row loses its frozen values and goes back to
+    open (the freeze was GPPD data under another name); fresh GPPD matches no
+    longer exist because the matching stage is removed. Human-decided rows are
+    never touched.
+    """
+    from datetime import date
+
+    if live.empty:
+        return rows
+    gppd_live = live[live["ref_source"] == "GPPD"].copy()
+    if gppd_live.empty:
+        return rows
+    gppd_live["_k"] = _row_key(gppd_live)
+    gppd_live = gppd_live.drop_duplicates("_k").set_index("_k")
+    keys = _row_key(rows)
+    today = date.today().isoformat()
+    idx_cache: dict[str, tuple[dict, list]] = {}
+    n_link = n_open = n_skip_human = 0
+    for idx, k in keys.items():
+        if k not in gppd_live.index:
+            continue
+        dec = rows.at[idx, "decided_by"]
+        if pd.notna(dec) and str(dec) not in ("", "legacy-pipeline"):
+            n_skip_human += 1
+            continue
+        lv = gppd_live.loc[k]
+        country = rows.at[idx, "source_country"] or lv.get("source_country")
+        lat, lon = lv.get("latitude"), lv.get("longitude")
+        linked = None
+        if country and pd.notna(lat) and pd.notna(lon):
+            if country not in idx_cache:
+                idx_cache[country] = _ct_country_index(country)
+            _, loc_list = idx_cache[country]
+            best = None
+            for loc_id, glat, glon, is_coal, names in loc_list:
+                if not is_coal:
+                    continue
+                d = _haversine_km(float(lat), float(lon), glat, glon)
+                if d < GPPD_MIGRATION_KM and (best is None or d < best[1]):
+                    best = (loc_id, d, names)
+            if best is not None:
+                probes = [str(lv.get("plant_name") or "")]
+                if isinstance(lv.get("ref_matched_name"), str):
+                    probes.append(lv["ref_matched_name"])
+                # token_set_ratio handles subset names ('Rawhide' vs 'Rawhide
+                # Energy Station' = 100 where token_sort scores ~50). Safe as a
+                # sanity veto only because the hard gates already ran: coal
+                # site, same country, < 1 km of the GPPD coordinates.
+                score = max(
+                    max(
+                        fuzz.token_sort_ratio(
+                            normalize_for_comparison(q), normalize_for_comparison(nm)
+                        ),
+                        fuzz.token_sort_ratio(q.casefold(), str(nm).casefold()),
+                        fuzz.token_set_ratio(q.casefold(), str(nm).casefold()),
+                    )
+                    for q in probes
+                    for nm in best[2]
+                )
+                if score >= GPPD_MIGRATION_FUZZ:
+                    linked = gemref.location(best[0])
+        if linked is not None:
+            rows.at[idx, "gem_location_id"] = linked["gem_location_id"]
+            rows.at[idx, "ref_source"] = "GEM"
+            rows.at[idx, "ref_matched_name"] = linked["name"]
+            rows.at[idx, "matching_method"] = "gppd-geo"
+            rows.at[idx, "confidence"] = "medium"
+            rows.at[idx, "decided_by"] = "gppd-migration-2026-09"
+            rows.at[idx, "decided_on"] = today
+            rows.at[idx, "note"] = (
+                f"GPPD purge: geo-linked at {GPPD_MIGRATION_KM} km to GEM "
+                f"(was GPPD '{lv.get('ref_matched_name')}')"
+            )
+            rows.at[idx, "latitude"] = linked["lat"]
+            rows.at[idx, "longitude"] = linked["lon"]
+            rows.at[idx, "coal_type"] = linked["coal_type"]
+            rows.at[idx, "combustion_tech"] = linked["combustion_tech"]
+            # Capacity: GEM SITE sum; capacity_source stays NULL so the
+            # ENTSO-E division apportions unit rows (a unit row keeping the
+            # full site figure is the Walsum double-count bug). Non-ENTSOE
+            # sources use site capacity directly, same as any GEM-ref row.
+            rows.at[idx, "capacity_mw"] = linked["capacity_mw"]
+            rows.at[idx, "capacity_source"] = None
+            n_link += 1
+        else:
+            # cannot confirm a GEM identity: the row goes back to OPEN and the
+            # GPPD-derived values go with it — no reference, no counterfeit
+            # provenance. It stays in the review queue (with candidates).
+            for col in (
+                "latitude",
+                "longitude",
+                "ref_source",
+                "ref_matched_name",
+                "coal_type",
+                "combustion_tech",
+                "capacity_mw",
+                "capacity_source",
+                "gem_location_id",
+                "confidence",
+            ):
+                rows.at[idx, col] = None
+            rows.at[idx, "matching_method"] = None
+            rows.at[idx, "decided_by"] = None
+            rows.at[idx, "decided_on"] = None
+            rows.at[idx, "note"] = "GPPD purge 2026-09: no confirmable GEM site — needs review"
+            n_open += 1
+    logger.info(
+        f"GPPD migration: {n_link:,} geo-linked to GEM, {n_open:,} opened for review, "
+        f"{n_skip_human:,} human-decided rows untouched"
+    )
+    return rows
+
+
 def grandfather_legacy(rows: pd.DataFrame, live: pd.DataFrame) -> pd.DataFrame:
     """One-off cutover: today's matches become `legacy` decisions, values frozen.
 
@@ -1959,6 +2087,24 @@ def pull_ct_plants(engine) -> pd.DataFrame:
     return df
 
 
+def _is_live_coal_site(loc_id: str) -> bool:
+    """At least one GCPT unit that is not cancelled/shelved.
+
+    A cancelled paper project can share coordinates (and even an exact name)
+    with a real plant: the GPPD-purge verification caught 'Porto do Itaqui'
+    linked to the never-built Maranhão São Luís proposal, 6 Jänschwalde units
+    linked to the cancelled Vattenfall expansion instead of the operating
+    3,000 MW plant next door, and 8 CT plants linked to cancelled proposals.
+    Pipeline auto-links must never point at a site that only exists on paper —
+    those cases go to review, where a human (or an explicit decision) can
+    still link them deliberately.
+    """
+    t = gemref.load_tables()
+    u = t["units"]
+    mine = u[(u["gem_location_id"] == loc_id) & u["is_coal"]]
+    return bool((~mine["status"].astype(str).str.lower().isin(["cancelled", "shelved"])).any())
+
+
 def _ct_country_index(country: str) -> tuple[dict, list]:
     """(name index, location list) for one GEM country.
 
@@ -1982,7 +2128,9 @@ def _ct_country_index(country: str) -> tuple[dict, list]:
             key = normalize_for_comparison(nm)
             if key:
                 name_idx.setdefault(key, set()).add(r.gem_location_id)
-        is_coal = gemref._site_attrs(r.gem_location_id)["_is_coal"]
+        is_coal = gemref._site_attrs(r.gem_location_id)["_is_coal"] and _is_live_coal_site(
+            r.gem_location_id
+        )
         if pd.notna(r.latitude) and pd.notna(r.longitude):
             loc_list.append(
                 (
@@ -2038,6 +2186,7 @@ def match_ct(ct_df: pd.DataFrame) -> pd.DataFrame:
                 if (
                     loc
                     and loc["_is_coal"]
+                    and _is_live_coal_site(loc["gem_location_id"])
                     and pd.notna(r.latitude)
                     and pd.notna(loc["lat"])
                     and _haversine_km(r.latitude, r.longitude, loc["lat"], loc["lon"])
@@ -2068,7 +2217,7 @@ def match_ct(ct_df: pd.DataFrame) -> pd.DataFrame:
                     )
                     if score >= CT_TIER_B_FUZZ:
                         loc = gemref.location(best[0])
-                        if loc and loc["_is_coal"]:
+                        if loc and loc["_is_coal"] and _is_live_coal_site(best[0]):
                             linked = (loc, "ct-geo-fuzzy", "medium")
             if linked is not None:
                 loc, method, conf = linked
@@ -2121,6 +2270,7 @@ def build_unified_crosswalk(
     sources: list[str] | None = None,
     yes: bool = False,
     grandfather: bool = False,
+    migrate_gppd: bool = False,
 ) -> pd.DataFrame:
     """Run the full pipeline and return the unified crosswalk DataFrame.
 
@@ -2222,26 +2372,13 @@ def build_unified_crosswalk(
     ]
     logger.info(f"Unmatched after GEM: {len(unmatched_after_gem):,}")
 
-    # Step 5: Rapidfuzz matching (GPPD)
-    logger.info("=" * 60)
-    logger.info("Step 5: Rapidfuzz matching (GPPD)...")
-    gppd_df = match_rapidfuzz(unmatched_after_gem, ref_sources=["GPPD"])
-    logger.info(f"GPPD matches: {len(gppd_df):,}")
-    _log_per_source(gppd_df, unmatched_after_gem, "GPPD rapidfuzz")
-
-    # Update unmatched after GPPD
-    gppd_keys = (
-        set(zip(gppd_df["plant_name"], gppd_df["source_system"]))
-        if not gppd_df.empty
-        else set()
-    )
-    all_matched = all_matched_gem | gppd_keys
-    unmatched_2 = plants_df[
-        ~plants_df.apply(
-            lambda r: (r["plant_name"], r["source_system"]) in all_matched, axis=1
-        )
-    ]
-    logger.info(f"Unmatched after GEM+GPPD: {len(unmatched_2):,}")
+    # Step 5: GPPD matching REMOVED (2026-09-15, user decision): GEM is the
+    # sole reference. Existing GPPD-referenced rows were converted (or opened
+    # for review) by the one-off migrate_gppd_to_gem pass — see --migrate-gppd.
+    gppd_df = pd.DataFrame(columns=OUTPUT_COLUMNS)
+    all_matched = all_matched_gem
+    unmatched_2 = unmatched_after_gem
+    logger.info(f"Unmatched after GEM (GPPD stage removed): {len(unmatched_2):,}")
 
     # Step 6: LLM matching
     llm_df = pd.DataFrame(columns=OUTPUT_COLUMNS)
@@ -2354,6 +2491,15 @@ def build_unified_crosswalk(
         with engine.connect() as conn:
             live = pd.read_sql("SELECT * FROM plant_crosswalk", conn)
         new_rows = grandfather_legacy(new_rows, live)
+    if migrate_gppd:
+        # One-off GPPD purge (see migrate_gppd_to_gem). Runs AFTER tier-0 so
+        # legacy-frozen GPPD rows are visible to it, BEFORE derivation and the
+        # ENTSO-E division so migrated capacities are apportioned normally.
+        with engine.connect() as conn:
+            live_gppd = pd.read_sql(
+                "SELECT * FROM plant_crosswalk WHERE ref_source = 'GPPD'", conn
+            )
+        new_rows = migrate_gppd_to_gem(new_rows, live_gppd)
     npp_fuel_by_name = (
         plants_df[plants_df["source_system"] == "NPP"]
         .set_index("plant_name")["npp_fuel"]
@@ -2381,6 +2527,23 @@ def build_unified_crosswalk(
         unified["source_system"] == "OCCTO"
     ).any():
         unified = _apply_hjks_occto_capacity(unified, _pull_occto_plant_codes(engine))
+
+    # Central paper-project veto: any PIPELINE link (human decisions exempt)
+    # to a location whose GCPT units are all cancelled/shelved is nulled and
+    # sent to review — the Itaqui/Jänschwalde/Bansagar name-collision class.
+    # Mirrors verify gate G-LIVE, applied to every past and future stage.
+    _pipe = unified["gem_location_id"].notna() & ~unified["matching_method"].isin(
+        HUMAN_METHODS
+    ) & unified["decided_by"].isna()
+    _dead = unified.loc[_pipe, "gem_location_id"].map(
+        lambda L: not _is_live_coal_site(L) and gemref._site_attrs(L)["_is_coal"]
+    )
+    _kill = _dead[_dead].index
+    if len(_kill):
+        unified.loc[_kill, ["gem_location_id", "gem_unit_id", "ref_source", "ref_matched_name", "confidence"]] = None
+        unified.loc[_kill, "matching_method"] = None
+        unified.loc[_kill, "note"] = "auto-link vetoed: GEM site is a cancelled/shelved paper project — needs review"
+        logger.info(f"paper-project veto: {len(_kill)} pipeline links nulled for review")
 
     unified = _stamp_capacity_source(unified)
     unified["not_in_gem"] = unified["not_in_gem"].fillna(False).astype(bool)
@@ -2439,6 +2602,11 @@ def main():
         help="One-off cutover: keep today's name-based GEM matches as `legacy` GEM-ID links",
     )
     parser.add_argument(
+        "--migrate-gppd",
+        action="store_true",
+        help="One-off GPPD purge: geo-link live GPPD rows to GEM as durable decisions; unconfirmable rows go back to open",
+    )
+    parser.add_argument(
         "--force", action="store_true", help="Overwrite existing output file"
     )
     parser.add_argument(
@@ -2462,6 +2630,7 @@ def main():
 
     build_unified_crosswalk(
         skip_llm=not args.llm,
+        migrate_gppd=args.migrate_gppd,
         sources=args.sources,
         yes=args.yes,
         grandfather=args.grandfather,
