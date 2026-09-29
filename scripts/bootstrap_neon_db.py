@@ -3,10 +3,11 @@
 Bootstrap a Neon (PostgreSQL) database with generation schema and unified crosswalk.
 
 Usage:
-    uv run --extra db python scripts/bootstrap_neon_db.py            # Full bootstrap
-    uv run --extra db python scripts/bootstrap_neon_db.py --schema-only  # Schema only
-    uv run --extra db python scripts/bootstrap_neon_db.py --data-only    # Crosswalk data only
-    uv run --extra db python scripts/bootstrap_neon_db.py --test-only    # NPP LLM test data only
+    uv run python scripts/bootstrap_neon_db.py            # Full bootstrap
+    uv run python scripts/bootstrap_neon_db.py --schema-only  # Schema only
+    uv run python scripts/bootstrap_neon_db.py --data-only    # Crosswalk data only
+    uv run python scripts/bootstrap_neon_db.py --test-only    # NPP LLM test data only
+    uv run python scripts/bootstrap_neon_db.py --ct-gem-only  # Climate TRACE → GEM links only
 
 IMPORTANT: Run build_crosswalk.py BEFORE this script to produce
 unified_plant_crosswalk.parquet (while GPPD/reference tables still exist in Neon).
@@ -508,6 +509,81 @@ def load_gcpt_coal_metadata(engine):
     )
 
 
+def load_ct_gem_crosswalk(engine):
+    """Load Climate TRACE's published CT → GEM links into Neon as ct_gem_crosswalk.
+
+    Loaded on demand (--ct-gem-only) when the committed CSV changes, not by
+    the weekly rebuild. Ownership goes to etl_writer when that role exists, so
+    either role can reload it (neondb_owner holds etl_writer's rights; the
+    reverse is the trap migration 015 fixed for plant_crosswalk). The
+    dashboard_ro grant comes from power-generation-etl migration 016 and
+    survives reloads. No view joins gem_units here: fetch_gem.py swaps
+    gem_units with DROP … CASCADE, which would silently drop it.
+
+    After the swap it reports how the links resolve against the current GEM
+    mirror — links naming IDs GEM no longer carries are dropped by every
+    reader's join, so the count is worth seeing on each load.
+    """
+    if str(SCRIPT_DIR.parent) not in sys.path:
+        sys.path.insert(0, str(SCRIPT_DIR.parent))
+    from src.ct_gem_crosswalk import CT_PLANT_UNITS_SQL, ct_gem_links_frame
+
+    path = DATA_DIR / "crosswalks" / "ct_gem_crosswalk.csv"
+    if not path.exists():
+        print(f"  SKIP  {path.name} not found — run extract_ct_gem_crosswalk.py first")
+        return
+
+    df = ct_gem_links_frame(
+        pd.read_csv(path, dtype=str, keep_default_na=False, na_values=[""])
+    )
+
+    _atomic_replace_table(
+        engine,
+        df,
+        "ct_gem_crosswalk",
+        [
+            "ALTER TABLE ct_gem_crosswalk ADD PRIMARY KEY (climatetrace_id, gem_id)",
+            "CREATE INDEX idx_ct_gem_crosswalk_gem_id ON ct_gem_crosswalk (gem_id)",
+            "ALTER TABLE ct_gem_crosswalk ADD CONSTRAINT ct_gem_kind "
+            "CHECK ((gem_id_kind = 'unit' AND gem_id LIKE 'G%') "
+            "OR (gem_id_kind = 'location' AND gem_id LIKE 'L%'))",
+            """
+            DO $$ BEGIN
+              IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'etl_writer') THEN
+                ALTER TABLE ct_gem_crosswalk OWNER TO etl_writer;
+              END IF;
+            END $$
+            """,
+        ],
+    )
+
+    print(
+        f"  OK  ct_gem_crosswalk: {len(df):,} links for "
+        f"{df['climatetrace_id'].nunique():,} Climate TRACE plants"
+    )
+    with engine.connect() as conn:
+        r = conn.execute(
+            text(
+                f"""
+                SELECT
+                  (SELECT count(*) FROM ct_gem_crosswalk x WHERE x.gem_id_kind = 'unit'
+                     AND NOT EXISTS (SELECT 1 FROM gem_units u WHERE u.gem_unit_id = x.gem_id)),
+                  (SELECT count(*) FROM ct_gem_crosswalk x WHERE x.gem_id_kind = 'location'
+                     AND NOT EXISTS (SELECT 1 FROM gem_units u WHERE u.gem_location_id = x.gem_id)),
+                  (SELECT count(*) FROM (SELECT gem_unit_id FROM ({CT_PLANT_UNITS_SQL}) c
+                     GROUP BY gem_unit_id HAVING count(DISTINCT climatetrace_id) > 1) s),
+                  (SELECT count(DISTINCT climatetrace_id) FROM ({CT_PLANT_UNITS_SQL}) c)
+                """
+            )
+        ).one()
+    print(
+        f"  INFO  {r[0]:,} unit links not in gem_units, {r[1]:,} location links with no "
+        f"GEM unit; {r[3]:,} of {df['climatetrace_id'].nunique():,} CT plants have an "
+        f"operating GEM unit (the rest keep their coal-location capacity); "
+        f"{r[2]:,} operating units sit in more than one CT plant's station"
+    )
+
+
 def load_all_reference_data(engine):
     """Load the unified crosswalk table, EIA generator info, and GCPT coal metadata."""
     load_unified_crosswalk(engine)
@@ -549,6 +625,11 @@ def main():
         action="store_true",
         help="Only load GCPT coal metadata (gcpt_coal_metadata table)",
     )
+    parser.add_argument(
+        "--ct-gem-only",
+        action="store_true",
+        help="Only load Climate TRACE's CT → GEM links (ct_gem_crosswalk table)",
+    )
     args = parser.parse_args()
 
     mutually_exclusive = sum(
@@ -558,11 +639,12 @@ def main():
             args.test_only,
             args.generator_info_only,
             args.gcpt_only,
+            args.ct_gem_only,
         ]
     )
     if mutually_exclusive > 1:
         print(
-            "ERROR: --schema-only, --data-only, --test-only, --generator-info-only, and --gcpt-only are mutually exclusive"
+            "ERROR: --schema-only, --data-only, --test-only, --generator-info-only, --gcpt-only and --ct-gem-only are mutually exclusive"
         )
         sys.exit(1)
 
@@ -577,7 +659,11 @@ def main():
         print(f"ERROR: Could not connect to database: {e}")
         sys.exit(1)
 
-    if args.gcpt_only:
+    if args.ct_gem_only:
+        print("Loading Climate TRACE CT → GEM links...")
+        load_ct_gem_crosswalk(engine)
+        print()
+    elif args.gcpt_only:
         print("Loading GCPT coal metadata...")
         load_gcpt_coal_metadata(engine)
         print()

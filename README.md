@@ -14,6 +14,7 @@ Everything below lives in **`data/crosswalks/`**. The large ones are gitignored 
 | NPP–GIPT crosswalk | India plant → GEM unit mapping | `NPP_GIPT_crosswalk (1).csv` | Curated by hand; note the literal `" (1)"` in the filename |
 | EIA Form 860 | US generator metadata (`--generator-info-only`) | `3_1_Generator_Y2024.xlsx` | EIA Form 860 annual release |
 | EIA plant lookup | plant_code → plant name | `eia_plant_lookup.csv` | Derived; see `notebooks/eia_plant_names.ipynb` |
+| Climate TRACE → GEM links | Each CT power plant's GEM units (`G…`) and locations (`L…`), all fuels | `ct_gem_crosswalk.csv` | **Committed** — extracted from Climate TRACE's "download links" workbook (`gem_ct_crosswalk` tab) with `scripts/extract_ct_gem_crosswalk.py`; loaded with `bootstrap_neon_db.py --ct-gem-only` |
 
 > **Prerequisite:** the crosswalk build reads plant names **from the Neon database**, so the ETL must have loaded generation data first. Building against an empty database silently produces an empty crosswalk.
 
@@ -119,6 +120,16 @@ It compares against the git-committed previous parquet (`--baseline PATH` to ove
 - **The build reads plant names from Neon**, so the ETL must have loaded generation data first — against an empty database you get an empty crosswalk with no error.
 - **`--force` is ignored when `--sources` is given**; the incremental path merges into the existing parquet by design.
 - **`--yes` is needed for non-interactive runs**, or the LLM cost prompt blocks. `--no-llm` skips Gemini entirely (no API key needed, lower coverage).
+
+### Climate TRACE's own GEM links: `ct_gem_crosswalk` (2026-09-29)
+
+`plant_crosswalk` links each Climate TRACE plant to **one** GEM location, but Climate TRACE models the whole station: every fuel, and often several GEM locations (Anpara A/B/C, Paiton). Dividing that output by one location's coal capacity is what pushed ~68 CT plants over 100 % capacity factor (tracker issue #5). `ct_gem_crosswalk` holds Climate TRACE's published links (workbook tab dated November 2025) as-is — one row per (`climatetrace_id`, `gem_id`), `gem_id_kind` = `unit` or `location`.
+
+**Station capacity = every *operating* GEM unit at every location the plant touches, counted once** — the locations it names plus the locations of the units it names (that is how complexes split across GEM locations come in, e.g. Datong + Datong-2). `CT_PLANT_UNITS_SQL` in `src/ct_gem_crosswalk.py` is the reference query (tested as written); sum `capacity_mw` over its rows. Three ways to get it wrong: summing unit rows and location rows separately (~2× double count, 8.4 TW vs 4.4 TW across the sheet), trusting only the named units (the sheet often names a subset — 166 plants would drop below today's coal capacity), and counting every status (cancelled/planned/retired phases: 6.3 TW).
+
+A plant with no operating unit behind its links gets no rows (616 of 7,335; among the 2,158 CT plants with 12-month generation, 124 = 5.7%) and keeps today's coal-location capacity. With that fallback, 68 plants over 100 % becomes 26 (small captive/industrial plants where GEM records less capacity than CT models) and none newly exceed it.
+
+Caveats: stations overlap — after the site expansion 222 operating units at 74 locations (~54 GW) belong to two CT plants' stations, so per-plant station capacity must not be summed into country totals. Links to IDs missing from the current GEM mirror drop out of the join; the loader prints both counts on every load. `ct_native_source_id` is informational. `dashboard_ro` reads the table through power-generation-etl migration 016. It is not rebuilt weekly: re-run `scripts/extract_ct_gem_crosswalk.py` and `bootstrap_neon_db.py --ct-gem-only` when Climate TRACE publishes a new workbook.
 
 ### GEM identity on `plant_crosswalk` (2026-08-30)
 

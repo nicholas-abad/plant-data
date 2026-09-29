@@ -60,6 +60,9 @@ data/crosswalks/*.csv
 # (CROSSWALK_REF_DATA_URL secret retired).
 !data/crosswalks/global_power_plant_database.csv
 !data/crosswalks/eia_plant_lookup.csv
+# Climate TRACE's own CT → GEM links (1 MB), extracted from its workbook by
+# scripts/extract_ct_gem_crosswalk.py — the workbook is not committed.
+!data/crosswalks/ct_gem_crosswalk.csv
 data/crosswalks/*.xlsx
 
 # Crosswalk test/scratch artifacts (not the real unified_plant_crosswalk.parquet)
