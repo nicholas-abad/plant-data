@@ -3,11 +3,11 @@
 Bootstrap a Neon (PostgreSQL) database with generation schema and unified crosswalk.
 
 Usage:
-    uv run --extra db python scripts/bootstrap_neon_db.py            # Full bootstrap
-    uv run --extra db python scripts/bootstrap_neon_db.py --schema-only  # Schema only
-    uv run --extra db python scripts/bootstrap_neon_db.py --data-only    # Crosswalk data only
-    uv run --extra db python scripts/bootstrap_neon_db.py --test-only    # NPP LLM test data only
-    uv run --extra db python scripts/bootstrap_neon_db.py --ct-gem-only  # Climate TRACE → GEM links only
+    uv run python scripts/bootstrap_neon_db.py            # Full bootstrap
+    uv run python scripts/bootstrap_neon_db.py --schema-only  # Schema only
+    uv run python scripts/bootstrap_neon_db.py --data-only    # Crosswalk data only
+    uv run python scripts/bootstrap_neon_db.py --test-only    # NPP LLM test data only
+    uv run python scripts/bootstrap_neon_db.py --ct-gem-only  # Climate TRACE → GEM links only
 
 IMPORTANT: Run build_crosswalk.py BEFORE this script to produce
 unified_plant_crosswalk.parquet (while GPPD/reference tables still exist in Neon).
