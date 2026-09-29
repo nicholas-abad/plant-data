@@ -472,13 +472,19 @@ def load_ct_gem_crosswalk(engine):
 
     Loaded on demand (--ct-gem-only) when the committed CSV changes, not by
     the weekly rebuild. Ownership goes to etl_writer when that role exists, so
-    a later CI reload can swap it (the trap migration 015 fixed for
-    plant_crosswalk). No view joins gem_units here: fetch_gem.py swaps
+    either role can reload it (neondb_owner holds etl_writer's rights; the
+    reverse is the trap migration 015 fixed for plant_crosswalk). The
+    dashboard_ro grant comes from power-generation-etl migration 016 and
+    survives reloads. No view joins gem_units here: fetch_gem.py swaps
     gem_units with DROP … CASCADE, which would silently drop it.
+
+    After the swap it reports how the links resolve against the current GEM
+    mirror — links naming IDs GEM no longer carries are dropped by every
+    reader's join, so the count is worth seeing on each load.
     """
     if str(SCRIPT_DIR.parent) not in sys.path:
         sys.path.insert(0, str(SCRIPT_DIR.parent))
-    from src.ct_gem_crosswalk import ct_gem_links_frame
+    from src.ct_gem_crosswalk import CT_PLANT_UNITS_SQL, ct_gem_links_frame
 
     path = DATA_DIR / "crosswalks" / "ct_gem_crosswalk.csv"
     if not path.exists():
@@ -512,6 +518,26 @@ def load_ct_gem_crosswalk(engine):
     print(
         f"  OK  ct_gem_crosswalk: {len(df):,} links for "
         f"{df['climatetrace_id'].nunique():,} Climate TRACE plants"
+    )
+    with engine.connect() as conn:
+        r = conn.execute(
+            text(
+                f"""
+                SELECT
+                  (SELECT count(*) FROM ct_gem_crosswalk x WHERE x.gem_id_kind = 'unit'
+                     AND NOT EXISTS (SELECT 1 FROM gem_units u WHERE u.gem_unit_id = x.gem_id)),
+                  (SELECT count(*) FROM ct_gem_crosswalk x WHERE x.gem_id_kind = 'location'
+                     AND NOT EXISTS (SELECT 1 FROM gem_units u WHERE u.gem_location_id = x.gem_id)),
+                  (SELECT count(*) FROM (SELECT gem_id FROM ct_gem_crosswalk
+                     GROUP BY gem_id HAVING count(*) > 1) s),
+                  (SELECT count(DISTINCT climatetrace_id) FROM ({CT_PLANT_UNITS_SQL}) c)
+                """
+            )
+        ).one()
+    print(
+        f"  INFO  unresolved against gem_units: {r[0]:,} unit links, {r[1]:,} location "
+        f"links; {r[2]:,} GEM IDs shared by two CT plants; "
+        f"{r[3]:,} CT plants resolve to at least one GEM unit"
     )
 
 

@@ -1,9 +1,11 @@
 """Extract Climate TRACE's power-plant → GEM links into the committed CSV.
 
 Reads the `gem_ct_crosswalk` tab of Climate TRACE's "download links" workbook
-(shared by Christine for issue #5; the workbook itself is not committed — it
-is mostly raster links for other sectors) and writes the electricity-generation
-rows to data/crosswalks/ct_gem_crosswalk.csv. Load that into Neon with
+("Climate TRACE download links.xlsx"; its readme dates the tab "November
+2025"; received from the client on 2026-09-29 for tracker issue #5). The
+workbook itself is not committed — it is mostly raster links for other
+sectors. Writes the electricity-generation rows to
+data/crosswalks/ct_gem_crosswalk.csv; load that into Neon with
 `bootstrap_neon_db.py --ct-gem-only`.
 
 Usage:
