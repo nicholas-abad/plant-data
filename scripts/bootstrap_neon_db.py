@@ -297,6 +297,48 @@ def load_unified_crosswalk(engine):
     print(f"  OK  plant_crosswalk: {len(df):,} rows")
 
 
+NPP_GEM_UNIT_VIEW = """
+CREATE VIEW npp_gem_unit_monthly AS
+SELECT m.gem_location_id, u.month, u.plant, u.unit, u.fuel_type,
+       u.generation_mwh, m.gem_unit_id, m.map_source
+FROM mv_npp_unit_monthly u
+JOIN npp_unit_gem_map m ON m.plant = u.plant AND m.unit = u.unit
+"""
+
+
+def load_npp_unit_map(engine):
+    """Load npp_unit_gem_map and (re)create npp_gem_unit_monthly on it.
+
+    India's GEM identity at unit grain: the tracker reads a GEM site's India
+    generation from npp_gem_unit_monthly (WHERE gem_location_id = …), which
+    places units of a DGR plant split across GEM sites (BARH STPS → Barh I /
+    Barh II) correctly. The swap drops the view with the old table (CASCADE),
+    so it is re-created here every load.
+    """
+    path = DATA_DIR / "crosswalks" / "npp_unit_gem_map.parquet"
+    if not path.exists():
+        print(f"  SKIP  {path.name} not found — run build_crosswalk.py first")
+        return
+
+    df = pd.read_parquet(path)
+
+    _atomic_replace_table(
+        engine,
+        df,
+        "npp_unit_gem_map",
+        [
+            "CREATE UNIQUE INDEX ux_npp_unit_gem_map ON npp_unit_gem_map (plant, unit)",
+            "CREATE INDEX ix_npp_unit_gem_map_location ON npp_unit_gem_map (gem_location_id)",
+            NPP_GEM_UNIT_VIEW,
+            "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dashboard_ro') "
+            "THEN GRANT SELECT ON npp_unit_gem_map, npp_gem_unit_monthly TO dashboard_ro; "
+            "END IF; END $$",
+        ],
+    )
+
+    print(f"  OK  npp_unit_gem_map: {len(df):,} rows (+ view npp_gem_unit_monthly)")
+
+
 def load_npp_llm_test(engine):
     """Load the NPP LLM test parquet into Neon as npp_llm_test."""
     path = DATA_DIR / "crosswalks" / "npp_llm_test.parquet"
