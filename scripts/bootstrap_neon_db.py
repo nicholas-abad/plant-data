@@ -362,39 +362,22 @@ def load_npp_llm_test(engine):
 
 
 def load_eia_generator_info(engine):
-    """Load EIA Form 860 generator-level reference data (Technology, etc.)."""
+    """Load EIA Form 860 generator reference data: operable + retired generators.
+
+    Retired generators are included so coal history from units retired before
+    the file's year still counts as coal (see src/eia_generator_info.py);
+    `status` = 'RE' marks them.
+    """
     path = DATA_DIR / "crosswalks" / "3_1_Generator_Y2024.xlsx"
     if not path.exists():
         print(f"  SKIP  {path.name} not found")
         return
 
-    df = pd.read_excel(
-        path,
-        skiprows=1,
-        usecols=[
-            "Plant Code",
-            "Generator ID",
-            "Technology",
-            "Prime Mover",
-            "Energy Source 1",
-            "Nameplate Capacity (MW)",
-        ],
-    )
-    df = df.rename(
-        columns={
-            "Plant Code": "plant_code",
-            "Generator ID": "generator_id",
-            "Technology": "technology",
-            "Prime Mover": "prime_mover",
-            "Energy Source 1": "energy_source_1",
-            "Nameplate Capacity (MW)": "nameplate_capacity_mw",
-        }
-    )
-    # Drop rows with null keys (trailing empty rows in the xlsx)
-    df = df.dropna(subset=["plant_code", "generator_id"])
-    # Ensure join-key types match eia_generation_data (VARCHAR)
-    df["plant_code"] = df["plant_code"].astype(int).astype(str)
-    df["generator_id"] = df["generator_id"].astype(str)
+    if str(SCRIPT_DIR.parent) not in sys.path:
+        sys.path.insert(0, str(SCRIPT_DIR.parent))
+    from src.eia_generator_info import RETIRED_STATUS, eia_generator_info_frame
+
+    df = eia_generator_info_frame(path)
 
     _atomic_replace_table(
         engine,
@@ -406,7 +389,11 @@ def load_eia_generator_info(engine):
         ],
     )
 
-    print(f"  OK  eia_generator_info: {len(df):,} rows")
+    n_retired = int((df["status"] == RETIRED_STATUS).sum())
+    print(
+        f"  OK  eia_generator_info: {len(df):,} rows "
+        f"({len(df) - n_retired:,} operable, {n_retired:,} retired)"
+    )
 
 
 def load_gcpt_coal_metadata(engine):
