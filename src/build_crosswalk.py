@@ -2155,6 +2155,9 @@ def _ct_country_index(country: str) -> tuple[dict, list]:
     return name_idx, loc_list
 
 
+_UNIT_GROUP_SUFFIX = _re_npp.compile(r"\s+[A-Z]{1,2}$")
+
+
 def _link_coal_site(
     name, lat, lon, name_idx: dict, loc_list: list, prefer_operating: bool = False
 ):
@@ -2169,8 +2172,18 @@ def _link_coal_site(
     if pd.isna(lat) or pd.isna(lon):
         return None
     q = normalize_for_comparison(str(name))
-    hits = name_idx.get(q, set())
-    if len(hits) == 1:
+    keys = [q]
+    if prefer_operating:
+        # OE names unit groups as a letter suffix ('Muja CD', 'Muja AB'), which
+        # GEM files under the station name ('Muja power station'); the exact
+        # name is still tried first, so 'Loy Yang A' keeps its own site.
+        stem = _UNIT_GROUP_SUFFIX.sub("", q)
+        if stem and stem != q:
+            keys.append(stem)
+    for key in keys:
+        hits = name_idx.get(key, set())
+        if len(hits) != 1:
+            continue
         loc = gemref.location(next(iter(hits)))
         if (
             loc

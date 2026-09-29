@@ -93,7 +93,7 @@ def test_unit_suffixed_name_links_to_live_station_not_dead_project(gem):
     out = bc.link_oe_to_gem(pd.DataFrame([_oe("Callide B", -24.346, 150.6186)]), COAL)
     r = out.iloc[0]
     assert r.gem_location_id == "LCAL"
-    assert r.matching_method == "oe-geo-fuzzy"
+    assert r.matching_method in {"oe-name-geo", "oe-geo-fuzzy"}
 
 
 def test_non_coal_site_is_never_linked(gem):
@@ -186,3 +186,39 @@ def test_non_coal_feed_pipeline_link_to_coal_site_is_vetoed(gem):
     assert pd.isna(out.loc["gas unit 2", "capacity_mw"])
     assert out.loc["coal unit", "gem_location_id"] == "LBAY"
     assert out.loc["gas unit decided", "gem_location_id"] == "LBAY"
+
+
+def test_unit_group_suffix_links_to_the_station(gem, monkeypatch):
+    # 'Muja CD' / 'Muja AB': OE's unit-group names for GEM's 'Muja power station'
+    locs = gemref._TABLES["locations"].copy()
+    locs.loc["LMUJA"] = {
+        "gem_location_id": "LMUJA",
+        "name": "Muja power station",
+        "name_other": None,
+        "name_local": None,
+        "country": "Australia",
+        "latitude": -33.4459,
+        "longitude": 116.3075,
+    }
+    units = gemref._TABLES["units"].copy()
+    units.loc[len(units)] = {
+        "gem_unit_id": "GM7",
+        "gem_location_id": "LMUJA",
+        "tracker": "GCPT",
+        "status": "operating",
+        "capacity_mw": 227.0,
+        "coal_type": "subbituminous",
+        "combustion_tech": "subcritical",
+        "is_coal": True,
+        "is_operating": True,
+    }
+    monkeypatch.setattr(gemref, "_TABLES", {"locations": locs, "units": units})
+    gemref._site_attrs.cache_clear()
+    out = bc.link_oe_to_gem(
+        pd.DataFrame(
+            [_oe("Muja CD", -33.4502, 116.3048), _oe("Muja AB", -33.4502, 116.3048)]
+        ),
+        {"Muja CD", "Muja AB"},
+    )
+    assert list(out["gem_location_id"]) == ["LMUJA", "LMUJA"]
+    assert set(out["matching_method"]) == {"oe-name-geo"}
