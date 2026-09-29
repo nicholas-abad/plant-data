@@ -14,6 +14,7 @@ Everything below lives in **`data/crosswalks/`**. The large ones are gitignored 
 | NPP–GIPT crosswalk | India plant → GEM unit mapping | `NPP_GIPT_crosswalk (1).csv` | Curated by hand; note the literal `" (1)"` in the filename |
 | EIA Form 860 | US generator metadata (`--generator-info-only`) | `3_1_Generator_Y2024.xlsx` | EIA Form 860 annual release |
 | EIA plant lookup | plant_code → plant name | `eia_plant_lookup.csv` | Derived; see `notebooks/eia_plant_names.ipynb` |
+| Climate TRACE → GEM links | Each CT power plant's GEM units (`G…`) and locations (`L…`), all fuels | `ct_gem_crosswalk.csv` | **Committed** — extracted from Climate TRACE's "download links" workbook (`gem_ct_crosswalk` tab) with `scripts/extract_ct_gem_crosswalk.py`; loaded with `bootstrap_neon_db.py --ct-gem-only` |
 
 > **Prerequisite:** the crosswalk build reads plant names **from the Neon database**, so the ETL must have loaded generation data first. Building against an empty database silently produces an empty crosswalk.
 
@@ -119,6 +120,10 @@ It compares against the git-committed previous parquet (`--baseline PATH` to ove
 - **The build reads plant names from Neon**, so the ETL must have loaded generation data first — against an empty database you get an empty crosswalk with no error.
 - **`--force` is ignored when `--sources` is given**; the incremental path merges into the existing parquet by design.
 - **`--yes` is needed for non-interactive runs**, or the LLM cost prompt blocks. `--no-llm` skips Gemini entirely (no API key needed, lower coverage).
+
+### Climate TRACE's own GEM links: `ct_gem_crosswalk` (2026-09-29)
+
+`plant_crosswalk` links each Climate TRACE plant to **one** GEM location, but Climate TRACE models the whole station: every fuel, and often several GEM locations (Anpara A/B/C, Paiton). Dividing that output by one location's coal capacity is what pushed ~68 CT plants over 100 % capacity factor (tracker issue #5). `ct_gem_crosswalk` holds Climate TRACE's published links as-is — one row per (`climatetrace_id`, `gem_id`), `gem_id_kind` = `unit` or `location` — so a reader can sum the operating capacity of every GEM unit a CT plant covers. Resolve `unit` rows to their location through `gem_units` at query time. The table is not rebuilt weekly: re-run the extract script and `--ct-gem-only` when Climate TRACE publishes a new workbook.
 
 ### GEM identity on `plant_crosswalk` (2026-08-30)
 
