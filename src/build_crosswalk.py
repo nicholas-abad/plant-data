@@ -255,6 +255,9 @@ OUTPUT_COLUMNS = [
 # matching_method values a human (or the one-off cutover) writes; the rebuild
 # re-emits such rows' link columns untouched.
 HUMAN_METHODS = {"manual", "legacy"}
+# Decisions whose displayed values are re-derived from GEM on every rebuild
+# (legacy rows instead carry frozen values).
+DERIVED_METHODS = {"manual", "gppd-geo"}
 # Values a frozen (legacy) row carries verbatim across rebuilds — the whole
 # point of grandfathering: the pipeline cannot reproduce them (they came from
 # Gemini or an older GEM release), so tier 0 must carry them, not just the link.
@@ -535,7 +538,9 @@ def pull_plant_names(engine, sources: list[str] | None = None) -> pd.DataFrame:
         "EIA": "SELECT DISTINCT plant_code AS plant_name FROM eia_generation_data WHERE plant_code IS NOT NULL",
         "ONS": "SELECT DISTINCT plant AS plant_name FROM ons_generation_data WHERE plant IS NOT NULL",
         "OE": "SELECT DISTINCT facility_name AS plant_name, latitude, longitude FROM oe_facility_generation_data WHERE facility_name IS NOT NULL",
-        "OCCTO": "SELECT DISTINCT plant AS plant_name FROM occto_generation_data WHERE plant IS NOT NULL",
+        # occto_has_coal: whether the plant ever reports coal — feeds the
+        # non-coal veto (a gas unit fuzzing onto a coal site's alias).
+        "OCCTO": "SELECT plant AS plant_name, bool_or(fuel_type = 'coal') AS occto_has_coal FROM occto_generation_data WHERE plant IS NOT NULL GROUP BY 1",
         "CHILE": "SELECT DISTINCT plant AS plant_name FROM chile_generation_data WHERE plant IS NOT NULL",
     }
 
@@ -1822,7 +1827,12 @@ def derive_from_gem(
     capacity is the sum of OPERATING coal units and is apportioned per ENTSO-E
     unit afterwards, so this must run before _divide_entsoe_site_capacity.
     """
-    decided = (rows["matching_method"] == "manual") & rows["gem_location_id"].notna()
+    # gppd-geo rows are durable decisions too: tier 0 restores only their
+    # link columns, so without re-deriving they rebuild with no coordinates
+    # or capacity (the 271 GPPD-purge links).
+    decided = rows["matching_method"].isin(DERIVED_METHODS) & rows[
+        "gem_location_id"
+    ].notna()
     n = 0
     for idx in rows.index[decided]:
         info = gemref.location(rows.at[idx, "gem_location_id"])
@@ -2144,6 +2154,155 @@ def _ct_country_index(country: str) -> tuple[dict, list]:
     return name_idx, loc_list
 
 
+def _link_coal_site(
+    name, lat, lon, name_idx: dict, loc_list: list, prefer_operating: bool = False
+):
+    """(GEM location, tier) for a plant with its own coordinates, or None.
+
+    Tier 'name-geo': normalized exact name resolves to exactly ONE in-country
+    location, that location is a live coal site, and it lies within
+    CT_TIER_A_KM. Tier 'geo-fuzzy': nearest live in-country COAL location
+    within CT_TIER_B_KM whose name/alias fuzzes >= CT_TIER_B_FUZZ (with
+    prefer_operating, the best such site within the radius instead).
+    """
+    if pd.isna(lat) or pd.isna(lon):
+        return None
+    q = normalize_for_comparison(str(name))
+    hits = name_idx.get(q, set())
+    if len(hits) == 1:
+        loc = gemref.location(next(iter(hits)))
+        if (
+            loc
+            and loc["_is_coal"]
+            and _is_live_coal_site(loc["gem_location_id"])
+            and pd.notna(loc["lat"])
+            and _haversine_km(lat, lon, loc["lat"], loc["lon"]) < CT_TIER_A_KM
+        ):
+            return loc, "name-geo"
+    # max over normalized AND raw forms: the normalizer strips 'power
+    # station', which leaves short stems whose ratios are brittle ('Alfa' vs
+    # 'Alpha' = 67 normalized, 92 raw). Geography is the primary gate here;
+    # the name check only confirms plausibility.
+    raw_q = str(name).casefold()
+
+    def _score(names):
+        return max(
+            max(
+                fuzz.token_sort_ratio(q, normalize_for_comparison(nm)),
+                fuzz.token_sort_ratio(raw_q, str(nm).casefold()),
+            )
+            for nm in names
+        )
+
+    near = []
+    for loc_id, glat, glon, is_coal, names in loc_list:
+        if not is_coal:
+            continue
+        d = _haversine_km(lat, lon, glat, glon)
+        if d < CT_TIER_B_KM:
+            near.append((d, loc_id, names))
+    if not near:
+        return None
+    if prefer_operating:
+        # GEM stacks sibling sites on ONE coordinate (Callide power station
+        # and the retired Callide Oxyfuel demo, alias 'Callide A', share a
+        # point), so nearest is a list-order coin flip and unit letters make
+        # the name score favour the wrong sibling ('Callide B' ~ 'Callide A').
+        # Among name-plausible sites: operating coal, then name, then distance.
+        ranked = []
+        for d, loc_id, names in near:
+            score = _score(names)
+            if score >= CT_TIER_B_FUZZ:
+                operating = gemref._site_attrs(loc_id)["capacity_mw"] is not None
+                ranked.append(((not operating, -score, d), loc_id))
+        if not ranked:
+            return None
+        pick = min(ranked)[1]
+    else:
+        d, pick, names = min(near, key=lambda t: t[0])
+        if _score(names) < CT_TIER_B_FUZZ:
+            return None
+    loc = gemref.location(pick)
+    if loc and loc["_is_coal"] and _is_live_coal_site(pick):
+        return loc, "geo-fuzzy"
+    return None
+
+
+_CT_TIER_METHOD = {
+    "name-geo": ("ct-name-geo", "high"),
+    "geo-fuzzy": ("ct-geo-fuzzy", "medium"),
+}
+_OE_TIER_METHOD = {
+    "name-geo": ("oe-name-geo", "high"),
+    "geo-fuzzy": ("oe-geo-fuzzy", "medium"),
+}
+
+
+def _pull_oe_coal_facilities(engine) -> set[str]:
+    """OE facilities with any coal fueltech (the tracker reads OE coal only)."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT DISTINCT facility_name FROM oe_facility_generation_data "
+                "WHERE fueltech IN ('coal_black', 'coal_brown')"
+            )
+        ).fetchall()
+    return {r[0] for r in rows}
+
+
+def link_oe_to_gem(oe_rows: pd.DataFrame, coal_facilities: set[str]) -> pd.DataFrame:
+    """Give OE's coordinate-matched COAL rows a GEM identity where one is certain.
+
+    OE plants arrive with their own coordinates, so match_direct places them
+    and the fuzzy GEM stage never sees them — without this every Australian
+    plant stays unlinked and the tracker falls back to Climate TRACE for all
+    of them. Same gates as the CT lane; a linked row takes GEM coords, coal
+    attributes and site capacity like any GEM-matched row. Gas/distillate
+    facilities are never linked: the tracker reads OE coal fueltechs only,
+    so a gas unit on a retired coal site (Swanbank E) would blank the site
+    by displacing its CT fallback. Unlinked rows keep OE's coordinates and
+    get review candidates later.
+    """
+    if oe_rows.empty:
+        return oe_rows
+    out = oe_rows.copy()
+    for col in ("gem_location_id", "coal_type", "combustion_tech", "capacity_mw"):
+        out[col] = out[col].astype(object)
+    name_idx, loc_list = _ct_country_index("Australia")
+    n = {"name-geo": 0, "geo-fuzzy": 0}
+    for idx, r in out.iterrows():
+        if r["plant_name"] not in coal_facilities:
+            continue
+        linked = _link_coal_site(
+            r["plant_name"],
+            r["latitude"],
+            r["longitude"],
+            name_idx,
+            loc_list,
+            prefer_operating=True,
+        )
+        if linked is None:
+            continue
+        loc, tier = linked
+        method, conf = _OE_TIER_METHOD[tier]
+        out.loc[idx, "gem_location_id"] = loc["gem_location_id"]
+        out.loc[idx, "ref_source"] = "GEM"
+        out.loc[idx, "ref_matched_name"] = loc["name"]
+        out.loc[idx, "matching_method"] = method
+        out.loc[idx, "confidence"] = conf
+        out.loc[idx, "latitude"] = loc["lat"]
+        out.loc[idx, "longitude"] = loc["lon"]
+        out.loc[idx, "coal_type"] = loc["coal_type"]
+        out.loc[idx, "combustion_tech"] = loc["combustion_tech"]
+        out.loc[idx, "capacity_mw"] = loc["capacity_mw"]
+        n[tier] += 1
+    logger.info(
+        f"  OE → GEM: {n['name-geo']} oe-name-geo + {n['geo-fuzzy']} oe-geo-fuzzy "
+        f"linked, {len(out) - sum(n.values())} left for review (of {len(out)})"
+    )
+    return out
+
+
 def match_ct(ct_df: pd.DataFrame) -> pd.DataFrame:
     """Fully-formed crosswalk rows for every CT coal plant.
 
@@ -2179,46 +2338,12 @@ def match_ct(ct_df: pd.DataFrame) -> pd.DataFrame:
                 not_in_gem=False,
             )
             q = normalize_for_comparison(str(r.plant_name))
-            linked = None
-            hits = name_idx.get(q, set())
-            if len(hits) == 1:
-                loc = gemref.location(next(iter(hits)))
-                if (
-                    loc
-                    and loc["_is_coal"]
-                    and _is_live_coal_site(loc["gem_location_id"])
-                    and pd.notna(r.latitude)
-                    and pd.notna(loc["lat"])
-                    and _haversine_km(r.latitude, r.longitude, loc["lat"], loc["lon"])
-                    < CT_TIER_A_KM
-                ):
-                    linked = (loc, "ct-name-geo", "high")
-            if linked is None and pd.notna(r.latitude):
-                best = None
-                for loc_id, glat, glon, is_coal, names in loc_list:
-                    if not is_coal:
-                        continue
-                    d = _haversine_km(r.latitude, r.longitude, glat, glon)
-                    if d < CT_TIER_B_KM and (best is None or d < best[1]):
-                        best = (loc_id, d, names)
-                if best is not None:
-                    # max over normalized AND raw forms: the normalizer strips
-                    # 'power station', which leaves short stems whose ratios
-                    # are brittle ('Alfa' vs 'Alpha' = 67 normalized, 92 raw).
-                    # Geography is the primary gate here; the name check only
-                    # confirms plausibility.
-                    raw_q = str(r.plant_name).casefold()
-                    score = max(
-                        max(
-                            fuzz.token_sort_ratio(q, normalize_for_comparison(nm)),
-                            fuzz.token_sort_ratio(raw_q, str(nm).casefold()),
-                        )
-                        for nm in best[2]
-                    )
-                    if score >= CT_TIER_B_FUZZ:
-                        loc = gemref.location(best[0])
-                        if loc and loc["_is_coal"] and _is_live_coal_site(best[0]):
-                            linked = (loc, "ct-geo-fuzzy", "medium")
+            linked = _link_coal_site(
+                r.plant_name, r.latitude, r.longitude, name_idx, loc_list
+            )
+            if linked is not None:
+                loc, tier = linked
+                linked = (loc, *_CT_TIER_METHOD[tier])
             if linked is not None:
                 loc, method, conf = linked
                 base.update(
@@ -2263,6 +2388,52 @@ def match_ct(ct_df: pd.DataFrame) -> pd.DataFrame:
         f"{n_open:,} open for review (of {len(out):,})"
     )
     return out
+
+
+def veto_non_coal_feeds(rows: pd.DataFrame, plants_df: pd.DataFrame) -> pd.DataFrame:
+    """Null pipeline links from plants whose own feed reports no coal to coal sites.
+
+    Covers the feeds that carry a per-plant fuel: OCCTO (never reports coal)
+    and NPP (DGR fuel section other than THERMAL). Such a link is a name
+    collision — four gas/oil '2号機' units fuzzed onto Tosoh Nanyo's
+    '第2発電所' alias, BHADRA HPS (hydro, Karnataka) onto the Bhadrak coal
+    plant — and it blanks the site in the tracker, which reads these feeds
+    for coal only yet drops the site's CT fallback once any feed is linked.
+    Human decisions are exempt.
+    """
+    non_coal: set[tuple[str, str]] = set()
+    if "occto_has_coal" in plants_df.columns:
+        o = plants_df[plants_df["source_system"] == "OCCTO"]
+        non_coal |= {
+            (n, "OCCTO")
+            for n, v in zip(o["plant_name"], o["occto_has_coal"])
+            if pd.notna(v) and not bool(v)
+        }
+    if "npp_fuel" in plants_df.columns:
+        p = plants_df[plants_df["source_system"] == "NPP"]
+        non_coal |= {
+            (n, "NPP")
+            for n, f in zip(p["plant_name"], p["npp_fuel"])
+            if pd.notna(f) and f != "THERMAL"
+        }
+    if not non_coal:
+        return rows
+    pipe = (
+        pd.Series(list(zip(rows["plant_name"], rows["source_system"])), index=rows.index).isin(non_coal)
+        & rows["gem_location_id"].notna()
+        & ~rows["matching_method"].isin(HUMAN_METHODS)
+        & rows["decided_by"].isna()
+    )
+    kill = [
+        i for i in rows.index[pipe]
+        if gemref._site_attrs(rows.at[i, "gem_location_id"])["_is_coal"]
+    ]
+    if kill:
+        rows.loc[kill, ["gem_location_id", "gem_unit_id", "ref_source", "ref_matched_name", "confidence", "matching_method"]] = None
+        rows.loc[kill, ["latitude", "longitude", "coal_type", "combustion_tech", "capacity_mw"]] = None
+        rows.loc[kill, "note"] = "auto-link vetoed: non-coal plant fuzzed onto a coal site — needs review"
+        logger.info(f"non-coal veto: {len(kill)} OCCTO/NPP pipeline links nulled for review")
+    return rows
 
 
 def build_unified_crosswalk(
@@ -2329,6 +2500,8 @@ def build_unified_crosswalk(
     logger.info("=" * 60)
     logger.info("Step 3: Direct matching (OE embedded coords + NPP-GIPT)...")
     exact_oe = match_direct(plants_df)
+    if not exact_oe.empty:
+        exact_oe = link_oe_to_gem(exact_oe, _pull_oe_coal_facilities(engine))
     exact_npp = match_npp_via_gipt(plants_df)
     exact_df = (
         pd.concat([exact_oe, exact_npp], ignore_index=True)
@@ -2544,6 +2717,8 @@ def build_unified_crosswalk(
         unified.loc[_kill, "matching_method"] = None
         unified.loc[_kill, "note"] = "auto-link vetoed: GEM site is a cancelled/shelved paper project — needs review"
         logger.info(f"paper-project veto: {len(_kill)} pipeline links nulled for review")
+
+    unified = veto_non_coal_feeds(unified, plants_df)
 
     unified = _stamp_capacity_source(unified)
     unified["not_in_gem"] = unified["not_in_gem"].fillna(False).astype(bool)
