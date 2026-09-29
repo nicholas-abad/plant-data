@@ -528,16 +528,17 @@ def load_ct_gem_crosswalk(engine):
                      AND NOT EXISTS (SELECT 1 FROM gem_units u WHERE u.gem_unit_id = x.gem_id)),
                   (SELECT count(*) FROM ct_gem_crosswalk x WHERE x.gem_id_kind = 'location'
                      AND NOT EXISTS (SELECT 1 FROM gem_units u WHERE u.gem_location_id = x.gem_id)),
-                  (SELECT count(*) FROM (SELECT gem_id FROM ct_gem_crosswalk
-                     GROUP BY gem_id HAVING count(*) > 1) s),
+                  (SELECT count(*) FROM (SELECT gem_unit_id FROM ({CT_PLANT_UNITS_SQL}) c
+                     GROUP BY gem_unit_id HAVING count(DISTINCT climatetrace_id) > 1) s),
                   (SELECT count(DISTINCT climatetrace_id) FROM ({CT_PLANT_UNITS_SQL}) c)
                 """
             )
         ).one()
     print(
-        f"  INFO  unresolved against gem_units: {r[0]:,} unit links, {r[1]:,} location "
-        f"links; {r[2]:,} GEM IDs shared by two CT plants; "
-        f"{r[3]:,} CT plants resolve to at least one GEM unit"
+        f"  INFO  {r[0]:,} unit links not in gem_units, {r[1]:,} location links with no "
+        f"GEM unit; {r[3]:,} of {df['climatetrace_id'].nunique():,} CT plants have an "
+        f"operating GEM unit (the rest keep their coal-location capacity); "
+        f"{r[2]:,} operating units sit in more than one CT plant's station"
     )
 
 

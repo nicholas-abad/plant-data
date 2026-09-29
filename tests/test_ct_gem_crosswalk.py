@@ -84,9 +84,12 @@ def _plant_units(links, units):
     db.execute(
         "CREATE TABLE ct_gem_crosswalk (climatetrace_id, ct_native_source_id, gem_id, gem_id_kind)"
     )
-    db.execute("CREATE TABLE gem_units (gem_unit_id, gem_location_id)")
+    db.execute("CREATE TABLE gem_units (gem_unit_id, gem_location_id, status)")
     db.executemany("INSERT INTO ct_gem_crosswalk VALUES (?, ?, ?, ?)", links)
-    db.executemany("INSERT INTO gem_units VALUES (?, ?)", units)
+    db.executemany(
+        "INSERT INTO gem_units VALUES (?, ?, ?)",
+        [u if len(u) == 3 else (*u, "operating") for u in units],
+    )
     return sorted(db.execute(CT_PLANT_UNITS_SQL).fetchall())
 
 
@@ -98,6 +101,9 @@ UNITS = [
     ("G4", "L2"),  # a second phase of the complex
     ("G5", "L3"),
     ("G6", "L3"),  # a site shared with another plant
+    ("GRET", "L4", "retired"),
+    ("GCAN", "L4", "cancelled"),
+    ("G7", "L4"),  # a site with dead phases beside a live unit
 ]
 
 
@@ -145,3 +151,30 @@ def test_a_shared_location_counts_for_each_plant():
 def test_ids_gem_does_not_carry_are_dropped():
     links = [("1", "A", "G999", "unit"), ("1", "A", "L999", "location")]
     assert _plant_units(links, UNITS) == []
+
+
+def test_only_operating_units_count():
+    # Retired and cancelled phases are not station capacity.
+    assert _plant_units([("1", "A", "L4", "location")], UNITS) == [("1", "G7")]
+
+
+def test_a_plant_with_no_operating_unit_gets_no_rows():
+    # So readers fall back to their existing capacity instead of dividing by 0.
+    units = [("GRET", "L9", "retired")]
+    assert _plant_units([("1", "A", "L9", "location")], units) == []
+
+
+def test_unresolved_links_do_not_cost_the_resolved_ones():
+    links = [("1", "A", "G999", "unit"), ("1", "A", "G3", "unit")]
+    assert _plant_units(links, UNITS) == [("1", "G3"), ("1", "G4")]
+
+
+def test_two_plants_naming_different_units_of_one_site_share_it():
+    # The overlap the site expansion creates: both stations get G5 and G6.
+    links = [("1", "A", "G5", "unit"), ("2", "B", "G6", "unit")]
+    assert _plant_units(links, UNITS) == [
+        ("1", "G5"),
+        ("1", "G6"),
+        ("2", "G5"),
+        ("2", "G6"),
+    ]

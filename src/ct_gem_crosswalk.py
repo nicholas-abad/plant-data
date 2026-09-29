@@ -18,23 +18,31 @@ location through `gem_units` at query time, so a GEM re-fetch never leaves a
 stale resolution behind.
 
 **Which GEM units a Climate TRACE plant covers** (`CT_PLANT_UNITS_SQL`):
-every unit at every GEM location the plant touches — the locations it names,
-plus the locations of the units it names — counted once. That is the whole
-station, which is what Climate TRACE's generation covers. Two tempting
-alternatives are wrong on this data: summing unit rows and location rows
-separately double-counts (most plants carry both, the location rows repeating
-the units' locations: ≈ 8.4 TW instead of ≈ 4.4 TW across the sheet), and
-trusting only the units a plant names undercounts, because the sheet
-(November 2025) often names only some of a site's units — 166 of the plants
-with 12-month Climate TRACE generation would get less than their current
-coal capacity. A plant none of whose links resolve gets no rows; readers
-should keep their existing (coal-location) capacity for it.
+every OPERATING unit at every GEM location the plant touches — the locations
+it names, plus the locations of the units it names — counted once. That is
+the whole station, which is what Climate TRACE's generation covers; its sum of
+`capacity_mw` is the station capacity. Operating only: counting every status
+would add cancelled, planned and retired phases (≈ 6.3 TW instead of ≈ 4.4 TW
+across the sheet). A named unit's own location counts even when the plant
+names other locations too — that is how complexes split across GEM locations
+come in (Datong + Datong-2, Jaworzno, Afşin-Elbistan).
 
-Two caveats for anyone summing beyond one plant: 75 GEM IDs (63 locations,
-12 units) are linked to two Climate TRACE plants each, so per-plant totals
-must not simply be added into country totals; and some links name IDs GEM's
-current release does not carry (the loader reports how many), which the
-joins below drop.
+Two tempting alternatives are wrong on this data: summing unit rows and
+location rows separately double-counts (most plants carry both, the location
+rows repeating the units' locations: ≈ 8.4 TW), and trusting only the units a
+plant names undercounts, because the sheet (November 2025) often names only
+some of a site's units — 166 of the plants with 12-month Climate TRACE
+generation would get less than their current coal capacity.
+
+A plant with no operating unit behind its links gets no rows (616 of the
+sheet's 7,335 plants against the current mirror); readers keep their existing
+coal-location capacity for it rather than dividing by zero.
+
+Caveat for anyone summing beyond one plant: stations overlap. After the site
+expansion, 222 operating units at 74 locations (≈ 54 GW) belong to two
+Climate TRACE plants' stations, so per-plant station capacity must not be
+added into country totals. `ct_native_source_id` is informational (Climate
+TRACE's native id, one per plant in this sheet) and not validated.
 """
 
 from __future__ import annotations
@@ -49,9 +57,10 @@ COLUMNS = ["climatetrace_id", "ct_native_source_id", "gem_id", "gem_id_kind"]
 
 _KIND = {"G": "unit", "L": "location"}
 
-# The GEM units each Climate TRACE plant covers, one row per (plant, unit):
-# all units at every location the plant names or whose units it names.
-# Portable SQL (Postgres and SQLite) so the tests run it as written.
+# The operating GEM units each Climate TRACE plant covers, one row per (plant,
+# unit): operating units at every location the plant names or whose units it
+# names. Links naming IDs the mirror lacks drop out. Portable SQL (Postgres
+# and SQLite) so the tests run it as written.
 CT_PLANT_UNITS_SQL = """
 WITH site AS (
   SELECT x.climatetrace_id,
@@ -63,6 +72,7 @@ WITH site AS (
 SELECT DISTINCT s.climatetrace_id, u.gem_unit_id
 FROM site s
 JOIN gem_units u ON u.gem_location_id = s.gem_location_id
+WHERE u.status = 'operating'
 """
 
 
