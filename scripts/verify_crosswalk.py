@@ -40,6 +40,7 @@ from src.build_crosswalk import (  # noqa: E402
     ENTSOE_AREA_COUNTRIES,
     GPPD_CSV,
     HUMAN_METHODS,
+    NPP_UNIT_MAP_FILE,
     OUTPUT_FILE,
     _make_engine,
 )
@@ -564,6 +565,47 @@ def main() -> int:
             fail(f"G-CT6: {len(bad_cap)} CT rows with capacity_source != 'CT'")
         else:
             ok("G-CT6: all CT capacities are CT-sourced")
+
+    # G-NPPMAP: India's unit-grain GEM identity (npp_unit_gem_map)
+    if NPP_UNIT_MAP_FILE.exists():
+        umap = pd.read_parquet(NPP_UNIT_MAP_FILE)
+        before = fail.count
+        dups = int(umap.duplicated(["plant", "unit"]).sum())
+        if dups:
+            fail(f"G-NPPMAP: {dups} duplicate (plant, unit) rows")
+        bad = sorted(set(umap["gem_location_id"]) - set(gem_locs.index))
+        if bad:
+            fail(f"G-NPPMAP: {len(bad)} GEM ids not in gem_locations: {bad[:5]}")
+        # the DGR plants the crosswalk cannot link: split across GEM sites
+        # (BARH STPS since the 2022 rename, ANPARA TPS incl. Anpara-D), and
+        # DURGAPUR STEEL TPS, whose reported units all sit on one site while
+        # the GIPT file also lists a stray unit 4 at Durgapur DVC
+        expected_sites = {"BARH STPS": 2, "ANPARA TPS": 2, "DURGAPUR STEEL TPS": 1}
+        for plant, n in expected_sites.items():
+            got = umap.loc[umap["plant"] == plant, "gem_location_id"].nunique()
+            if got != n:
+                fail(f"G-NPPMAP: {plant} maps to {got} GEM site(s), expected {n}")
+        from sqlalchemy import text as _sql_text
+
+        with _make_engine().connect() as conn:
+            gen = pd.read_sql(
+                _sql_text(
+                    "SELECT plant, unit, SUM(generation_mwh) AS g FROM mv_npp_unit_monthly "
+                    "WHERE fuel_type = 'THERMAL' AND month >= CURRENT_DATE - INTERVAL '24 months' "
+                    "GROUP BY 1, 2"
+                ),
+                conn,
+            )
+        share = gen.merge(umap, on=["plant", "unit"], how="inner")["g"].sum() / gen["g"].sum()
+        if share < 0.97:
+            fail(f"G-NPPMAP: only {share:.1%} of India THERMAL generation (24 months) is mapped to GEM")
+        elif fail.count == before:
+            ok(
+                f"G-NPPMAP: {len(umap):,} unit rows, {share:.1%} of India THERMAL generation mapped; "
+                "Barh/Anpara/Durgapur Steel placed on their GEM sites"
+            )
+    else:
+        fail(f"G-NPPMAP: {NPP_UNIT_MAP_FILE.name} missing — the build did not write it")
 
     print(
         f"\n{'ALL GATES PASSED' if fail.count == 0 else f'{fail.count} GATE(S) FAILED'}"

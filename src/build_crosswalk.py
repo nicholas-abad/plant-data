@@ -49,6 +49,7 @@ from .utils import get_crosswalk_dir, validate_coordinates
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = get_crosswalk_dir()
 OUTPUT_FILE = OUTPUT_DIR / "unified_plant_crosswalk.parquet"
+NPP_UNIT_MAP_FILE = OUTPUT_DIR / "npp_unit_gem_map.parquet"
 
 GPPD_CSV = get_crosswalk_dir() / "global_power_plant_database.csv"
 EIA_LOOKUP_CSV = get_crosswalk_dir() / "eia_plant_lookup.csv"
@@ -2436,6 +2437,60 @@ def veto_non_coal_feeds(rows: pd.DataFrame, plants_df: pd.DataFrame) -> pd.DataF
     return rows
 
 
+def build_npp_unit_map(units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataFrame:
+    """One GEM location per India (plant, unit): npp_unit_gem_map.
+
+    The crosswalk is plant-grained, so a DGR plant whose units GEM files under
+    two sites (BARH STPS -> Barh I + Barh II after the 2022 rename, ANPARA TPS
+    -> Anpara + Anpara-D, DURGAPUR STEEL TPS) cannot be linked at all there.
+    The curated GIPT file maps every DGR unit to a GEM unit, so units are
+    placed from it ('gipt-unit'); units it does not cover inherit their
+    plant's crosswalk link ('crosswalk-plant'); the rest stay unmapped.
+    `units` holds the distinct (plant, unit) pairs of mv_npp_unit_monthly.
+    """
+    u2l = dict(
+        zip(gemref.load_tables()["units"]["gem_unit_id"], gemref.load_tables()["units"]["gem_location_id"])
+    )
+    gipt = pd.read_csv(NPP_GIPT_CSV)
+    gipt = gipt[gipt["Type"].astype(str).str.lower() == "coal"]
+    by_norm = {_norm_npp_name(n): n for n in sorted(units["plant"].dropna().unique())}
+    gipt = gipt.assign(
+        plant=gipt["DGR plant name"].map(lambda n: by_norm.get(_norm_npp_name(n))),
+        unit=gipt["DGR unit"].astype(str).str.strip(),
+        gem_unit_id=gipt["GEM unit/phase ID"],
+        gem_location_id=gipt["GEM unit/phase ID"].map(u2l),
+    ).dropna(subset=["plant", "gem_location_id"])
+    clash = gipt.groupby(["plant", "unit"])["gem_location_id"].nunique()
+    if (clash > 1).any():
+        raise ValueError(
+            f"GIPT maps a DGR unit to more than one GEM location: {clash[clash > 1].index.tolist()[:5]}"
+        )
+    gipt = gipt.drop_duplicates(["plant", "unit"])[["plant", "unit", "gem_location_id", "gem_unit_id"]]
+    plant_link = (
+        crosswalk[(crosswalk["source_system"] == "NPP") & crosswalk["gem_location_id"].notna()]
+        .set_index("plant_name")["gem_location_id"]
+        .to_dict()
+    )
+    out = units[["plant", "unit"]].drop_duplicates().merge(gipt, on=["plant", "unit"], how="left")
+    out["map_source"] = out["gem_location_id"].notna().map({True: "gipt-unit", False: None})
+    fallback = out["gem_location_id"].isna()
+    out.loc[fallback, "gem_location_id"] = out.loc[fallback, "plant"].map(plant_link)
+    out.loc[fallback & out["gem_location_id"].notna(), "map_source"] = "crosswalk-plant"
+    out = out[out["gem_location_id"].notna()].reset_index(drop=True)
+    logger.info(
+        f"npp_unit_gem_map: {len(out):,} (plant, unit) rows — "
+        f"{(out['map_source'] == 'gipt-unit').sum():,} gipt-unit, "
+        f"{(out['map_source'] == 'crosswalk-plant').sum():,} crosswalk-plant; "
+        f"{len(units[['plant', 'unit']].drop_duplicates()) - len(out):,} unmapped"
+    )
+    return out
+
+
+def _pull_npp_units(engine) -> pd.DataFrame:
+    with engine.connect() as conn:
+        return pd.read_sql(text("SELECT DISTINCT plant, unit FROM mv_npp_unit_monthly"), conn)
+
+
 def build_unified_crosswalk(
     skip_llm: bool = True,
     sources: list[str] | None = None,
@@ -2729,6 +2784,10 @@ def build_unified_crosswalk(
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     unified.to_parquet(OUTPUT_FILE, index=False)
     logger.info(f"Saved {len(unified):,} rows to {OUTPUT_FILE}")
+    if sources is None or "NPP" in sources:
+        unit_map = build_npp_unit_map(_pull_npp_units(engine), unified)
+        unit_map.to_parquet(NPP_UNIT_MAP_FILE, index=False)
+        logger.info(f"Saved {len(unit_map):,} rows to {NPP_UNIT_MAP_FILE}")
 
     # Summary
     logger.info("=" * 60)
