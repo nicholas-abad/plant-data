@@ -168,6 +168,19 @@ class TestDecisions:
             alpha.capacity_mw
         )  # pipeline row not re-derived
 
+    def test_derive_fills_gppd_migration_rows_on_rebuild(self, gem):
+        # tier 0 restores only link columns for the GPPD-purge decisions; the
+        # rebuild must re-derive their coordinates and capacity from GEM
+        rows = _rows()
+        rows.loc[
+            rows.plant_name == "Beta",
+            ["gem_location_id", "decided_by", "matching_method"],
+        ] = ["L2", "gppd-migration-2026-09", "gppd-geo"]
+        rows = bc.derive_from_gem(rows, {})
+        beta = rows.set_index("plant_name").loc["Beta"]
+        assert (beta.latitude, beta.longitude) == (20.0, -20.0)
+        assert beta.capacity_mw == 700.0 and beta.ref_source == "GEM"
+
 
 class TestGrandfather:
     def _live(self, **kw):
