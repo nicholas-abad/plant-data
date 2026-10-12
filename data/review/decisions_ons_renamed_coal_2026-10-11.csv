@@ -1,0 +1,4 @@
+source_system,plant_code,plant_name,source_country,gem_location_id,not_in_gem,decided_by,decision_note
+ONS,,U.JLACERDA A,Brazil,L100000100134,f,N. Abad,"ONS renamed 'Jorge Lacerda A' to 'U.JLACERDA A' in its 2026 files (same ONS ID SCUTLA); same GEM plant as the old name"
+ONS,,U.JLACERDA B,Brazil,L100000100134,f,N. Abad,"ONS renamed 'Jorge Lacerda B' to 'U.JLACERDA B' in its 2026 files (same ONS ID SCUTLB); same GEM plant as the old name"
+ONS,,U.JLACERDA C,Brazil,L100000100134,f,N. Abad,"ONS renamed 'Jorge Lacerda C' to 'U.JLACERDA C' in its 2026 files (same ONS ID SCUTLC); same GEM plant as the old name"
