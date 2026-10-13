@@ -35,7 +35,9 @@ import pandas as pd
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
+from src import eia_gem_ids  # noqa: E402
 from src import gem_reference as gemref  # noqa: E402
+from src.gem_external_ids import eia_plant_locations, load_snapshot  # noqa: E402
 from src.build_crosswalk import (  # noqa: E402
     ENTSOE_AREA_COUNTRIES,
     GPPD_CSV,
@@ -96,6 +98,98 @@ fail.count = 0
 
 def ok(msg: str) -> None:
     print(f"ok    {msg}")
+
+
+def _migrated_decisions(bdec: pd.DataFrame, now: pd.DataFrame, changed: list[str]) -> set[str]:
+    """Changed decisions that match a reviewed manifest row exactly (old → new)."""
+    def s(v) -> str:
+        return v if isinstance(v, str) else ""
+
+    out = set()
+    for path in sorted(eia_gem_ids.MIGRATIONS_DIR.glob("*.csv")):
+        m = pd.read_csv(path, dtype=str, keep_default_na=False)
+        for r in m.to_dict("records"):
+            k = f"{r['source_system']}|{r['key']}"
+            if k not in changed:
+                continue
+            was = (s(bdec.at[k, "gem_location_id"]), s(bdec.at[k, "decided_by"]))
+            is_ = (s(now.at[k, "gem_location_id"]), s(now.at[k, "decided_by"]))
+            if was == (r["old_gem_location_id"], r["old_decided_by"]) and is_ == (
+                r["gem_location_id"],
+                r["decided_by"],
+            ):
+                out.add(k)
+    return out
+
+
+def eia_id_gates(xw: pd.DataFrame) -> None:
+    """G-EIAID and G-USSTATE: EIA links against the EIA plant code GEM records."""
+    try:
+        with _make_engine().connect() as conn:
+            st = pd.read_sql(
+                "SELECT plant_code, string_agg(DISTINCT state, '|' ORDER BY state) AS eia_state "
+                "FROM eia_generation_data WHERE plant_code IS NOT NULL GROUP BY 1",
+                conn,
+            )
+    except Exception as e:  # noqa: BLE001 — offline verification of a parquet
+        print(f"  (G-EIAID / G-USSTATE skipped: no database for EIA states: {e})")
+        return
+    states = dict(zip(st["plant_code"].astype(str), st["eia_state"]))
+    code_locs = eia_plant_locations(load_snapshot())
+    review = eia_gem_ids.load_review()
+    eia = xw[xw["source_system"] == "EIA"]
+
+    def person(decided_by) -> bool:
+        return isinstance(decided_by, str) and decided_by not in eia_gem_ids.PIPELINE_DECIDERS
+
+    wrong, open_ = [], []
+    for r in eia.itertuples(index=False):
+        code = str(r.plant_code)
+        locs = code_locs.get(code, set())
+        t = eia_gem_ids.target(code, locs, states.get(code), review)
+        link = r.gem_location_id if isinstance(r.gem_location_id, str) else None
+        if t.gem_location_id is not None:
+            if link != t.gem_location_id and not person(r.decided_by):
+                wrong.append((code, r.plant_name, link, t.gem_location_id))
+        elif locs and link not in locs and not person(r.decided_by):
+            open_.append((code, r.plant_name, t.reason))
+    if wrong:
+        fail(
+            f"G-EIAID: {len(wrong)} EIA rows link somewhere other than the location GEM "
+            f"gives their plant code (code, name, link, GEM): {wrong[:5]}"
+        )
+    else:
+        ok(f"G-EIAID: every EIA link agrees with GEM's confirmed plant codes ({len(eia):,} rows)")
+    if open_:
+        print(
+            f"warn  G-EIAID: {len(open_)} EIA rows disagree with GEM's code but await review "
+            f"({eia_gem_ids.REVIEW_FILE.name}), e.g. {open_[:3]}"
+        )
+
+    # G-USSTATE (warning for now): a name-made US link must stay in its state.
+    named = eia[
+        eia["gem_location_id"].notna()
+        & eia["matching_method"].isin(["rapidfuzz", "gppd-geo", "legacy"])
+    ]
+    crossing, decided = [], []
+    for r in named.itertuples(index=False):
+        a = eia_gem_ids.eia_state_name(states.get(str(r.plant_code)))
+        b = eia_gem_ids.gem_state(r.gem_location_id)
+        if a and b and a != b:
+            item = (str(r.plant_code), r.plant_name, a, b)
+            (decided if isinstance(r.decided_by, str) else crossing).append(item)
+    if crossing:
+        fail(
+            f"G-USSTATE: {len(crossing)} pipeline name matches put a US plant in another state "
+            f"(code, name, EIA state, GEM state): {crossing[:5]}"
+        )
+    else:
+        ok(f"G-USSTATE: no pipeline name match crosses a US state line ({len(named):,} checked)")
+    if decided:
+        print(
+            f"warn  G-USSTATE: {len(decided)} DECIDED US links cross a state line — review "
+            f"(code, name, EIA state, GEM state): {decided}"
+        )
 
 
 def main() -> int:
@@ -324,6 +418,17 @@ def main() -> int:
         # Plants that left the SOURCE (e.g. mojibake identities merged away) are
         # not losses of ours.
         lost -= set(bsub["plant_name"]) - set(nsub["plant_name"])
+        # Wrong name matches the state veto removed lose their (wrong) coordinates.
+        vetoed = set(
+            nsub.loc[
+                nsub["note"].astype(str).str.contains("GEM site in another state"),
+                "plant_name",
+            ]
+        ) & lost
+        if vetoed:
+            ok(f"gate5: {src}: {len(vetoed)} cross-state name matches vetoed (back to review)")
+        lost -= vetoed
+        b_n -= len(vetoed)
         if n_n < b_n or lost:
             if args.expect_gppd_migration:
                 ok(
@@ -361,6 +466,24 @@ def main() -> int:
     )
     nn = xw.assign(_k=nk).drop_duplicates("_k").set_index("_k")
     common = bb.index.intersection(nn.index)
+    # Rows GEM's EIA plant code moved to another location (or linked for the
+    # first time) change coordinates, capacity and coal type by design; G-EIAID
+    # checks where they went. The tolerances below apply to every other row.
+    def _s(v) -> str:
+        return v if isinstance(v, str) else ""
+
+    relinked = {
+        k
+        for k in common
+        if _s(bb.at[k, "gem_location_id"]) != _s(nn.at[k, "gem_location_id"])
+        and (
+            nn.at[k, "matching_method"] == eia_gem_ids.METHOD
+            or _s(nn.at[k, "decided_by"]).startswith("gem-eia-id")
+        )
+    }
+    if relinked:
+        ok(f"gate7: {len(relinked)} rows relinked by GEM's EIA plant code are checked by G-EIAID instead")
+    common = common.difference(relinked)
     for src in sorted(set(base["source_system"]) & set(xw["source_system"])):
         idx = [k for k in common if k.startswith(f"{src}|")]
         if not idx:
@@ -501,6 +624,10 @@ def main() -> int:
                     f"gate6f: {len(allowed)} legacy rows superseded by the GPPD migration (null → link)"
                 )
             changed = [k for k in changed if k not in set(allowed)]
+        migrated = _migrated_decisions(bdec, now, changed)
+        if migrated:
+            ok(f"gate6f: {len(migrated)} decisions changed exactly as a reviewed manifest lists")
+        changed = [k for k in changed if k not in migrated]
         if lost or changed:
             fail(
                 f"gate6f: decisions not preserved — {len(lost)} rows gone, {len(changed)} links changed: {(lost + changed)[:5]}"
@@ -509,6 +636,8 @@ def main() -> int:
             ok(f"gate6f: all {len(bdec):,} prior decisions preserved")
     else:
         ok("gate6f: baseline predates decisions (nothing to preserve)")
+
+    eia_id_gates(xw)
 
     # G-LIVE: no PIPELINE link may point at a location whose GCPT units are all
     # cancelled/shelved (paper projects sharing coords/names with real plants —
@@ -525,8 +654,11 @@ def main() -> int:
             "gem_location_id"
         ]
     )
+    # GEM-code links are exempt, like human ones: GEM itself places the plant
+    # (a gas plant beside a cancelled coal unit, e.g. Lansing REO Town).
     pipe_linked = xw[
-        xw["gem_location_id"].notna() & ~xw["matching_method"].isin(HUMAN_METHODS)
+        xw["gem_location_id"].notna()
+        & ~xw["matching_method"].isin(HUMAN_METHODS | {eia_gem_ids.METHOD})
     ]
     dead_linked = pipe_linked[pipe_linked["gem_location_id"].isin(dead_locs)]
     if len(dead_linked):

@@ -340,6 +340,38 @@ def load_npp_unit_map(engine):
     print(f"  OK  npp_unit_gem_map: {len(df):,} rows (+ view npp_gem_unit_monthly)")
 
 
+def load_gem_external_ids(engine):
+    """Load GEM's external IDs (EIA codes, AEMO DUIDs, …) into gem_external_ids.
+
+    From the dated snapshot parsed out of a GEM export (src/gem_external_ids.py);
+    GEM's API does not carry these IDs yet. Same columns fetch_gem.py creates
+    the table with, so its consumers (the dashboard role, the crosswalk's
+    EIA-code tier) do not change when the API starts filling it.
+    """
+    path = DATA_DIR / "crosswalks" / "gem_external_ids.parquet"
+    if not path.exists():
+        print(f"  SKIP  {path.name} not found — run scripts/build_gem_external_ids.py first")
+        return
+
+    df = pd.read_parquet(path)
+
+    _atomic_replace_table(
+        engine,
+        df,
+        "gem_external_ids",
+        [
+            "CREATE INDEX ix_gem_external_ids_lookup ON gem_external_ids (namespace, external_id)",
+            "CREATE INDEX ix_gem_external_ids_unit ON gem_external_ids (gem_unit_id) WHERE gem_unit_id IS NOT NULL",
+            "CREATE INDEX ix_gem_external_ids_location ON gem_external_ids (gem_location_id)",
+            "COMMENT ON TABLE gem_external_ids IS 'Other systems'' IDs for GEM locations (gem_unit_id NULL) "
+            "and units: EIA plant code / generator ID, AEMO DUID, … From a dated GEM export until the "
+            "GEM API exposes them (plant-data src/gem_external_ids.py).'",
+        ],
+    )
+
+    print(f"  OK  gem_external_ids: {len(df):,} rows")
+
+
 def load_npp_llm_test(engine):
     """Load the NPP LLM test parquet into Neon as npp_llm_test."""
     path = DATA_DIR / "crosswalks" / "npp_llm_test.parquet"
@@ -613,6 +645,11 @@ def main():
         help="Only load GCPT coal metadata (gcpt_coal_metadata table)",
     )
     parser.add_argument(
+        "--gem-ids-only",
+        action="store_true",
+        help="Only load GEM's external IDs (gem_external_ids table)",
+    )
+    parser.add_argument(
         "--ct-gem-only",
         action="store_true",
         help="Only load Climate TRACE's CT → GEM links (ct_gem_crosswalk table)",
@@ -627,11 +664,12 @@ def main():
             args.generator_info_only,
             args.gcpt_only,
             args.ct_gem_only,
+            args.gem_ids_only,
         ]
     )
     if mutually_exclusive > 1:
         print(
-            "ERROR: --schema-only, --data-only, --test-only, --generator-info-only, --gcpt-only and --ct-gem-only are mutually exclusive"
+            "ERROR: --schema-only, --data-only, --test-only, --generator-info-only, --gcpt-only, --ct-gem-only and --gem-ids-only are mutually exclusive"
         )
         sys.exit(1)
 
@@ -646,7 +684,11 @@ def main():
         print(f"ERROR: Could not connect to database: {e}")
         sys.exit(1)
 
-    if args.ct_gem_only:
+    if args.gem_ids_only:
+        print("Loading GEM external IDs...")
+        load_gem_external_ids(engine)
+        print()
+    elif args.ct_gem_only:
         print("Loading Climate TRACE CT → GEM links...")
         load_ct_gem_crosswalk(engine)
         print()

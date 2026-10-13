@@ -42,6 +42,8 @@ from .plant_name_matchers import (
     validate_match,
 )
 from . import gem_reference as gemref
+from . import eia_gem_ids
+from .gem_external_ids import eia_plant_locations, load_snapshot
 from .utils import get_crosswalk_dir, validate_coordinates
 
 # ---------------------------------------------------------------------------
@@ -258,7 +260,8 @@ OUTPUT_COLUMNS = [
 HUMAN_METHODS = {"manual", "legacy"}
 # Decisions whose displayed values are re-derived from GEM on every rebuild
 # (legacy rows instead carry frozen values).
-DERIVED_METHODS = {"manual", "gppd-geo"}
+# gem-eia-id: linked by the EIA plant code GEM records (src/eia_gem_ids.py).
+DERIVED_METHODS = {"manual", "gppd-geo", eia_gem_ids.METHOD}
 # Values a frozen (legacy) row carries verbatim across rebuilds — the whole
 # point of grandfathering: the pipeline cannot reproduce them (they came from
 # Gemini or an older GEM release), so tier 0 must carry them, not just the link.
@@ -536,7 +539,9 @@ def pull_plant_names(engine, sources: list[str] | None = None) -> pd.DataFrame:
         # units) — lifetime weights hand retired units a share of capacity
         # they no longer have and push the active units past 100% CF.
         "ENTSOE": "SELECT plant_name, MAX(country_code) AS entsoe_area, COALESCE(SUM(generation_mwh) FILTER (WHERE fuel_type IN ('Fossil Hard coal','Fossil Brown coal/Lignite') AND month >= CURRENT_DATE - INTERVAL '24 months'), 0) AS entsoe_gen_mwh FROM mv_entsoe_plant_monthly WHERE plant_name IS NOT NULL GROUP BY 1",
-        "EIA": "SELECT DISTINCT plant_code AS plant_name FROM eia_generation_data WHERE plant_code IS NOT NULL",
+        # eia_state: the state(s) EIA reports for the plant, for the GEM-ID
+        # tier's state cross-check ('TX', or 'TX|OK' if EIA ever disagrees).
+        "EIA": "SELECT plant_code AS plant_name, string_agg(DISTINCT state, '|' ORDER BY state) AS eia_state FROM eia_generation_data WHERE plant_code IS NOT NULL GROUP BY 1",
         "ONS": "SELECT DISTINCT plant AS plant_name FROM ons_generation_data WHERE plant IS NOT NULL",
         "OE": "SELECT DISTINCT facility_name AS plant_name, latitude, longitude FROM oe_facility_generation_data WHERE facility_name IS NOT NULL",
         # occto_has_coal: whether the plant ever reports coal — feeds the
@@ -2550,6 +2555,28 @@ def build_unified_crosswalk(
     plants_df = pull_plant_names(engine, sources=sources)
     logger.info(f"Total distinct plant entries: {len(plants_df):,}")
 
+    # Step 2: EIA plants GEM codes (src/eia_gem_ids.py). Per plant_code and
+    # BEFORE the name de-duplication below: name matching hands every code
+    # sharing a name one link, which is how Coal Creek (ND) landed on Coleto
+    # Creek (TX). Matched codes leave plants_df, so no later stage (or the
+    # name expansion) can emit them a second time.
+    id_rows = pd.DataFrame(columns=OUTPUT_COLUMNS)
+    is_eia = plants_df["source_system"] == "EIA"
+    eia_states = (
+        dict(zip(plants_df.loc[is_eia, "plant_code"].astype(str), plants_df.loc[is_eia, "eia_state"]))
+        if "eia_state" in plants_df.columns
+        else {}
+    )
+    if is_eia.any():
+        id_rows = eia_gem_ids.match_eia_by_gem_id(
+            plants_df[is_eia],
+            eia_plant_locations(load_snapshot()),
+            eia_gem_ids.load_review(),
+            OUTPUT_COLUMNS,
+        )
+        plants_df = plants_df[~(is_eia & plants_df["plant_code"].isin(id_rows["plant_code"]))]
+        logger.info(f"EIA linked by GEM's plant code: {len(id_rows):,} plants")
+
     # Save full EIA plant_code→plant_name mapping before dedup
     # (multiple plant_codes can share the same name; we expand back after matching)
     eia_code_map = plants_df.loc[
@@ -2712,6 +2739,14 @@ def build_unified_crosswalk(
             logger.info(
                 f"Expanded {n_added} additional EIA rows for duplicate plant names"
             )
+    new_rows = eia_gem_ids.veto_cross_state(new_rows, eia_states)
+    new_rows = pd.concat([new_rows, id_rows], ignore_index=True)
+    eia_keys = new_rows.loc[new_rows["source_system"] == "EIA", "plant_code"]
+    if eia_keys.duplicated().any() or eia_keys.isna().any():
+        raise ValueError(
+            f"EIA rows must be one per plant_code: duplicated {eia_keys[eia_keys.duplicated()].tolist()[:5]}, "
+            f"{int(eia_keys.isna().sum())} without a code"
+        )
 
     # --- GEM identity ------------------------------------------------------
     # Order matters: decisions are keyed on plant_code for EIA (hence after the
@@ -2773,9 +2808,14 @@ def build_unified_crosswalk(
     # to a location whose GCPT units are all cancelled/shelved is nulled and
     # sent to review — the Itaqui/Jänschwalde/Bansagar name-collision class.
     # Mirrors verify gate G-LIVE, applied to every past and future stage.
-    _pipe = unified["gem_location_id"].notna() & ~unified["matching_method"].isin(
-        HUMAN_METHODS
-    ) & unified["decided_by"].isna()
+    # GEM-code links are exempt: GEM itself puts the plant there, and a gas
+    # plant on a site whose only coal unit was cancelled is real (Lansing
+    # REO Town, EIA 58427), not a name collision.
+    _pipe = (
+        unified["gem_location_id"].notna()
+        & ~unified["matching_method"].isin(HUMAN_METHODS | {eia_gem_ids.METHOD})
+        & unified["decided_by"].isna()
+    )
     _dead = unified.loc[_pipe, "gem_location_id"].map(
         lambda L: not _is_live_coal_site(L) and gemref._site_attrs(L)["_is_coal"]
     )
