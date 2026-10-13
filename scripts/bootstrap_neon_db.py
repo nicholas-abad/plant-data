@@ -393,6 +393,29 @@ def load_npp_llm_test(engine):
     print(f"  OK  npp_llm_test: {len(df):,} rows")
 
 
+# EIA spells some generator IDs differently in Form 923 (generation) and Form
+# 860 (this register): Dry Fork "1" vs "01", Rockport "MB1" vs "1". ETL
+# migration 023 adds eia_generator_key(), keys the generation rows with it and
+# keeps EIA's spelling; these statements key the register and GEM's EIA unit
+# IDs the same way so the coal join matches. On a database without 023 they
+# leave the IDs as loaded, which is exactly how the generation rows are kept.
+def _eia_key_sql(table: str, set_clause: str, where: str = "TRUE") -> str:
+    return (
+        "DO $$ BEGIN IF to_regproc('public.eia_generator_key') IS NOT NULL THEN "
+        f"UPDATE {table} SET {set_clause} WHERE {where}; END IF; END $$"
+    )
+
+
+EIA_REGISTER_KEY_SQL = [
+    "ALTER TABLE eia_generator_info ADD COLUMN id_as_registered TEXT",
+    "UPDATE eia_generator_info SET id_as_registered = generator_id",
+    _eia_key_sql(
+        "eia_generator_info",
+        "generator_id = public.eia_generator_key(plant_code, id_as_registered)",
+    ),
+]
+
+
 def load_eia_generator_info(engine):
     """Load EIA Form 860 generator reference data: operable + retired generators.
 
@@ -416,6 +439,9 @@ def load_eia_generator_info(engine):
         df,
         "eia_generator_info",
         [
+            # Keyed before the primary key: two Form 860 rows that one key
+            # would merge fail the swap, and the old table stays.
+            *EIA_REGISTER_KEY_SQL,
             "ALTER TABLE eia_generator_info ADD PRIMARY KEY (plant_code, generator_id)",
             "CREATE INDEX idx_eia_gen_info_technology ON eia_generator_info (technology)",
         ],
@@ -517,6 +543,12 @@ def load_gcpt_coal_metadata(engine):
         "gcpt_coal_metadata",
         [
             "ALTER TABLE gcpt_coal_metadata ADD PRIMARY KEY (gcpt_unit_id)",
+            _eia_key_sql(
+                "gcpt_coal_metadata",
+                "eia_unit_id = split_part(eia_unit_id, '|', 1) || '|' || "
+                "public.eia_generator_key(split_part(eia_unit_id, '|', 1), split_part(eia_unit_id, '|', 2))",
+                "eia_unit_id IS NOT NULL",
+            ),
             "CREATE INDEX idx_gcpt_coal_eia_unit "
             "ON gcpt_coal_metadata (eia_unit_id) WHERE eia_unit_id IS NOT NULL",
         ],
