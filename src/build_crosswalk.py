@@ -43,6 +43,7 @@ from .plant_name_matchers import (
 )
 from . import gem_reference as gemref
 from . import eia_gem_ids, eia_unit_map
+from .unit_gem_map import MAP_FILE as UNIT_MAP_FILE
 from .gem_external_ids import eia_plant_locations, load_snapshot
 from .utils import get_crosswalk_dir, validate_coordinates
 
@@ -52,7 +53,6 @@ from .utils import get_crosswalk_dir, validate_coordinates
 OUTPUT_DIR = get_crosswalk_dir()
 OUTPUT_FILE = OUTPUT_DIR / "unified_plant_crosswalk.parquet"
 NPP_UNIT_MAP_FILE = OUTPUT_DIR / "npp_unit_gem_map.parquet"
-EIA_UNIT_MAP_FILE = OUTPUT_DIR / "eia_unit_gem_map.parquet"
 
 GPPD_CSV = get_crosswalk_dir() / "global_power_plant_database.csv"
 EIA_LOOKUP_CSV = get_crosswalk_dir() / "eia_plant_lookup.csv"
@@ -2843,10 +2843,10 @@ def build_unified_crosswalk(
         unit_map.to_parquet(NPP_UNIT_MAP_FILE, index=False)
         logger.info(f"Saved {len(unit_map):,} rows to {NPP_UNIT_MAP_FILE}")
     if sources is None or "EIA" in sources:
-        built = eia_unit_map.build_from_db(engine, gemref.load_tables()["units"])
+        built = eia_unit_map.build_from_db(engine, gemref.load_tables()["units"], unified)
         if built is not None:
-            built[0].to_parquet(EIA_UNIT_MAP_FILE, index=False)
-            logger.info(f"Saved {len(built[0]):,} rows to {EIA_UNIT_MAP_FILE}")
+            built[0].to_parquet(UNIT_MAP_FILE, index=False)
+            logger.info(f"Saved {len(built[0]):,} rows to {UNIT_MAP_FILE}")
 
     # Summary
     logger.info("=" * 60)

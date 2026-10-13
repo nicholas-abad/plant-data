@@ -1,4 +1,4 @@
-"""One GEM unit per EIA generator: eia_unit_gem_map (the US twin of npp_unit_gem_map).
+"""The US rows of unit_gem_map: each EIA generator's GEM unit (see src/unit_gem_map.py).
 
 GEM records, for each US unit, the EIA generator ID (``gem_external_ids``,
 unit-level namespace ``EIA``) and, for its location, the EIA plant code. A
@@ -13,7 +13,10 @@ A generator with several candidate units:
 * a coal unit wins over another tracker's unit for the same generator (coal
   units converted to gas are listed twice by GEM, once per tracker); the other
   is kept in ``other_gem_unit_ids``;
-* anything still ambiguous is left unmapped and reported, never guessed.
+* anything still ambiguous is left unmatched and reported, never guessed.
+
+Generators no GEM unit claims get a fallback row at their plant's crosswalk
+link, so the tracker still shows their generation on the right plant.
 """
 
 from __future__ import annotations
@@ -23,17 +26,11 @@ from loguru import logger
 from sqlalchemy import text
 
 from .gem_external_ids import SNAPSHOT_FILE
+from .unit_gem_map import COLUMNS, with_fallback
 
 METHOD = "gem-eia-id"
 NEVER_RAN = {"planned", "cancelled"}
-COLUMNS = [
-    "plant_code",
-    "generator_id",
-    "gem_location_id",
-    "gem_unit_id",
-    "map_source",
-    "other_gem_unit_ids",
-]
+COAL_TECHNOLOGIES = {"Conventional Steam Coal", "Coal Integrated Gasification Combined Cycle"}
 
 
 def gem_candidates(ids: pd.DataFrame) -> pd.DataFrame:
@@ -98,7 +95,7 @@ def build_eia_unit_map(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """(map, unmapped) for every generator in ``generators`` that GEM's IDs reach.
 
-    ``generators``: plant_code, generator_id (keyed) of mv_eia_unit_monthly.
+    ``generators``: plant_code, generator_id (keyed), technology of mv_eia_unit_monthly.
     ``candidates``: plant_code, generator_id (keyed), gem_unit_id, gem_location_id.
     ``units``: gem_units with gem_unit_id, tracker, status.
     """
@@ -107,10 +104,13 @@ def build_eia_unit_map(
     c = candidates.merge(units[["gem_unit_id", "tracker", "status"]], on="gem_unit_id")
     if len(c) < len(candidates):
         logger.info(
-            f"eia_unit_gem_map: {candidates['gem_unit_id'].nunique() - c['gem_unit_id'].nunique():,} "
+            f"unit_gem_map EIA: {candidates['gem_unit_id'].nunique() - c['gem_unit_id'].nunique():,} "
             "GEM units in the ID snapshot are not in gem_units yet; skipped"
         )
-    c = c.merge(generators[["plant_code", "generator_id"]].drop_duplicates(), on=["plant_code", "generator_id"])
+    c = c.merge(
+        generators[["plant_code", "generator_id", "technology"]].drop_duplicates(["plant_code", "generator_id"]),
+        on=["plant_code", "generator_id"],
+    )
     rows, unmapped = [], []
     for (plant, gen), grp in c.groupby(["plant_code", "generator_id"], sort=True):
         pick, why = choose(grp)
@@ -120,39 +120,66 @@ def build_eia_unit_map(
         others = sorted(set(grp["gem_unit_id"]) - {pick["gem_unit_id"]})
         rows.append(
             {
-                "plant_code": plant,
-                "generator_id": gen,
+                "source_system": "EIA",
+                "plant_key": plant,
+                "unit_key": gen,
                 "gem_location_id": pick["gem_location_id"],
                 "gem_unit_id": pick["gem_unit_id"],
                 "map_source": METHOD,
+                "fuel": pick["technology"] if isinstance(pick["technology"], str) else None,
+                "is_coal": pick["technology"] in COAL_TECHNOLOGIES,
                 "other_gem_unit_ids": ", ".join(others) or None,
             }
         )
     out = pd.DataFrame(rows, columns=COLUMNS)
     miss = pd.DataFrame(unmapped, columns=["plant_code", "generator_id", "reason"])
     logger.info(
-        f"eia_unit_gem_map: {len(out):,} generators mapped to a GEM unit "
+        f"unit_gem_map EIA: {len(out):,} generators matched to a GEM unit "
         f"({out['other_gem_unit_ids'].notna().sum():,} with a second GEM unit kept aside); "
-        f"{len(miss):,} left unmapped as ambiguous"
+        f"{len(miss):,} left unmatched as ambiguous"
     )
     return out, miss
 
 
 def pull_generators(engine) -> pd.DataFrame:
+    """Every generator with generation, and its Form 860 technology (keyed join)."""
     with engine.connect() as conn:
         return pd.read_sql(
-            text("SELECT DISTINCT plant_code::text AS plant_code, generator_id FROM mv_eia_unit_monthly"),
+            text(
+                "SELECT DISTINCT e.plant_code::text AS plant_code, e.generator_id, i.technology "
+                "FROM mv_eia_unit_monthly e LEFT JOIN eia_generator_info i "
+                "ON i.plant_code = e.plant_code AND i.generator_id = e.generator_id"
+            ),
             conn,
         )
 
 
-def build_from_db(engine, units: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame] | None:
-    """The map from the committed GEM ID snapshot and the database; None without migration 023."""
+def build_from_db(
+    engine, units: pd.DataFrame, crosswalk: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame] | None:
+    """The US rows (matched + fallback) and the ambiguous generators; None without migration 023."""
     if not has_key_function(engine):
         logger.warning(
-            "eia_unit_gem_map not built: the database lacks eia_generator_key() (ETL migration 023)"
+            "unit_gem_map EIA rows not built: the database lacks eia_generator_key() (ETL migration 023)"
         )
         return None
     cands = gem_candidates(pd.read_parquet(SNAPSHOT_FILE))
     cands["generator_id"] = key_with_db(engine, cands)
-    return build_eia_unit_map(pull_generators(engine), cands, units)
+    gens = pull_generators(engine)
+    matched, miss = build_eia_unit_map(gens, cands, units)
+    every = pd.DataFrame(
+        {
+            "source_system": "EIA",
+            "plant_key": gens["plant_code"],
+            "unit_key": gens["generator_id"],
+            "fuel": gens["technology"],
+            "is_coal": gens["technology"].isin(COAL_TECHNOLOGIES),
+        }
+    ).drop_duplicates(["plant_key", "unit_key"])
+    eia = crosswalk[(crosswalk["source_system"] == "EIA") & crosswalk["gem_location_id"].notna()]
+    out = with_fallback(matched, every, dict(zip(eia["plant_code"].astype(str), eia["gem_location_id"])))
+    logger.info(
+        f"unit_gem_map EIA: {(out['map_source'] == METHOD).sum():,} matched + "
+        f"{(out['map_source'] != METHOD).sum():,} fallback rows at their plant's GEM plant"
+    )
+    return out, miss

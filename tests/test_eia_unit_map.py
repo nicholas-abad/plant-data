@@ -1,8 +1,9 @@
-"""eia_unit_gem_map: each EIA generator's GEM unit (no database)."""
+"""unit_gem_map, US rows: each EIA generator's GEM unit (no database)."""
 
 import pandas as pd
 
 from src.eia_unit_map import build_eia_unit_map, gem_candidates
+from src.unit_gem_map import COLUMNS, with_fallback
 
 UNITS = pd.DataFrame(
     [
@@ -25,7 +26,8 @@ def cands(rows):
 
 
 def gens(*keys):
-    return pd.DataFrame(keys, columns=["plant_code", "generator_id"])
+    df = pd.DataFrame(keys, columns=["plant_code", "generator_id"])
+    return df.assign(technology="Conventional Steam Coal")
 
 
 def test_one_unit_per_generator_maps_directly():
@@ -34,12 +36,14 @@ def test_one_unit_per_generator_maps_directly():
         cands([("6166", "1", "G_RP1", "L_RP"), ("6166", "2", "G_RP2", "L_RP"), ("9", "GT1", "G_GAS", "L_9")]),
         UNITS,
     )
-    assert dict(zip(out["generator_id"] + "@" + out["plant_code"], out["gem_unit_id"])) == {
+    assert dict(zip(out["unit_key"] + "@" + out["plant_key"], out["gem_unit_id"])) == {
         "1@6166": "G_RP1",
         "2@6166": "G_RP2",
         "GT1@9": "G_GAS",  # other trackers' units map too (multi-fuel sites)
     }
     assert miss.empty and set(out["map_source"]) == {"gem-eia-id"}
+    assert list(out.columns) == COLUMNS and set(out["source_system"]) == {"EIA"}
+    assert out["is_coal"].all() and set(out["fuel"]) == {"Conventional Steam Coal"}
 
 
 def test_never_built_unit_gives_way():
@@ -102,3 +106,25 @@ def test_units_missing_from_the_mirror_wait():
         gens(("6166", "1")), cands([("6166", "1", "G_NOT_MIRRORED", "L_RP")]), UNITS
     )
     assert out.empty and miss.empty
+
+
+def test_unmatched_generators_fall_back_to_their_plants_gem_plant():
+    matched, _ = build_eia_unit_map(
+        gens(("6166", "1")), cands([("6166", "1", "G_RP1", "L_RP")]), UNITS
+    )
+    every = pd.DataFrame(
+        {
+            "source_system": "EIA",
+            "plant_key": ["6166", "6166", "99", "8"],
+            "unit_key": ["1", "GT9", "1", "1"],
+            "fuel": ["Conventional Steam Coal", "Natural Gas Fired Combustion Turbine", None, None],
+            "is_coal": [True, False, False, False],
+        }
+    )
+    out = with_fallback(matched, every, {"6166": "L_RP", "8": "L_8"})
+    rows = {(r.plant_key, r.unit_key): (r.gem_location_id, r.gem_unit_id, r.map_source) for r in out.itertuples()}
+    assert rows == {
+        ("6166", "1"): ("L_RP", "G_RP1", "gem-eia-id"),
+        ("6166", "GT9"): ("L_RP", None, "crosswalk-plant"),
+        ("8", "1"): ("L_8", None, "crosswalk-plant"),  # e.g. a tie: on its plant, no unit
+    }  # plant 99 is linked to no GEM plant, so it is on no page

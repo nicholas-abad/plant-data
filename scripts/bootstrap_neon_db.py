@@ -372,25 +372,29 @@ def load_gem_external_ids(engine):
     print(f"  OK  gem_external_ids: {len(df):,} rows")
 
 
-EIA_GEM_UNIT_VIEW = """
-CREATE VIEW eia_gem_unit_monthly AS
-SELECT m.gem_location_id, u.month, u.timestamp_ms, u.plant_code, u.generator_id,
-       u.prime_mover, u.net_generation_mwh, m.gem_unit_id, m.map_source
+GEM_UNIT_VIEW = """
+CREATE VIEW gem_unit_monthly AS
+SELECT m.source_system, m.gem_location_id, m.gem_unit_id, m.plant_key, m.unit_key,
+       u.month, u.timestamp_ms, u.net_generation_mwh AS generation_mwh,
+       m.fuel, m.is_coal, m.map_source
 FROM mv_eia_unit_monthly u
-JOIN eia_unit_gem_map m ON m.plant_code = u.plant_code AND m.generator_id = u.generator_id
+JOIN unit_gem_map m
+  ON m.source_system = 'EIA' AND m.plant_key = u.plant_code AND m.unit_key = u.generator_id
 """
 
 
-def load_eia_unit_map(engine):
-    """Load eia_unit_gem_map and (re)create eia_gem_unit_monthly on it.
+def load_unit_gem_map(engine):
+    """Load unit_gem_map and (re)create gem_unit_monthly on it.
 
-    The US twin of npp_unit_gem_map: each EIA generator's GEM unit, matched by
-    the EIA plant code and generator ID GEM records (src/eia_unit_map.py). The
-    tracker reads a GEM site's US generation per unit from
-    eia_gem_unit_monthly (WHERE gem_location_id = …). The swap drops the view
-    with the old table (CASCADE), so it is re-created here every load.
+    Every source's units placed at GEM in one shape (src/unit_gem_map.py);
+    India keeps npp_unit_gem_map. The tracker reads a GEM site's units from
+    gem_unit_monthly (WHERE gem_location_id = …): a unit GEM identifies
+    carries its gem_unit_id, the rest sit at their plant's GEM plant. Each
+    source joins its own monthly view here (UNION ALL as sources are added).
+    The swap drops the view with the old table (CASCADE), so it is
+    re-created here every load.
     """
-    path = DATA_DIR / "crosswalks" / "eia_unit_gem_map.parquet"
+    path = DATA_DIR / "crosswalks" / "unit_gem_map.parquet"
     if not path.exists():
         print(f"  SKIP  {path.name} not found — build_crosswalk.py writes it once ETL migration 023 is applied")
         return
@@ -400,18 +404,18 @@ def load_eia_unit_map(engine):
     _atomic_replace_table(
         engine,
         df,
-        "eia_unit_gem_map",
+        "unit_gem_map",
         [
-            "CREATE UNIQUE INDEX ux_eia_unit_gem_map ON eia_unit_gem_map (plant_code, generator_id)",
-            "CREATE INDEX ix_eia_unit_gem_map_location ON eia_unit_gem_map (gem_location_id)",
-            EIA_GEM_UNIT_VIEW,
+            "CREATE UNIQUE INDEX ux_unit_gem_map ON unit_gem_map (source_system, plant_key, unit_key)",
+            "CREATE INDEX ix_unit_gem_map_location ON unit_gem_map (gem_location_id)",
+            GEM_UNIT_VIEW,
             "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dashboard_ro') "
-            "THEN GRANT SELECT ON eia_unit_gem_map, eia_gem_unit_monthly TO dashboard_ro; "
+            "THEN GRANT SELECT ON unit_gem_map, gem_unit_monthly TO dashboard_ro; "
             "END IF; END $$",
         ],
     )
 
-    print(f"  OK  eia_unit_gem_map: {len(df):,} rows (+ view eia_gem_unit_monthly)")
+    print(f"  OK  unit_gem_map: {len(df):,} rows (+ view gem_unit_monthly)")
 
 
 def load_npp_llm_test(engine):
@@ -719,9 +723,9 @@ def main():
         help="Only load GCPT coal metadata (gcpt_coal_metadata table)",
     )
     parser.add_argument(
-        "--eia-units-only",
+        "--unit-map-only",
         action="store_true",
-        help="Only load the US unit map (eia_unit_gem_map + view eia_gem_unit_monthly)",
+        help="Only load the unit map (unit_gem_map + view gem_unit_monthly)",
     )
     parser.add_argument(
         "--gem-ids-only",
@@ -744,12 +748,12 @@ def main():
             args.gcpt_only,
             args.ct_gem_only,
             args.gem_ids_only,
-            args.eia_units_only,
+            args.unit_map_only,
         ]
     )
     if mutually_exclusive > 1:
         print(
-            "ERROR: --schema-only, --data-only, --test-only, --generator-info-only, --gcpt-only, --ct-gem-only, --gem-ids-only and --eia-units-only are mutually exclusive"
+            "ERROR: --schema-only, --data-only, --test-only, --generator-info-only, --gcpt-only, --ct-gem-only, --gem-ids-only and --unit-map-only are mutually exclusive"
         )
         sys.exit(1)
 
@@ -764,9 +768,9 @@ def main():
         print(f"ERROR: Could not connect to database: {e}")
         sys.exit(1)
 
-    if args.eia_units_only:
-        print("Loading the US unit map...")
-        load_eia_unit_map(engine)
+    if args.unit_map_only:
+        print("Loading the unit map...")
+        load_unit_gem_map(engine)
         print()
     elif args.gem_ids_only:
         print("Loading GEM external IDs...")
