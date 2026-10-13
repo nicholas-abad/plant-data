@@ -372,6 +372,48 @@ def load_gem_external_ids(engine):
     print(f"  OK  gem_external_ids: {len(df):,} rows")
 
 
+EIA_GEM_UNIT_VIEW = """
+CREATE VIEW eia_gem_unit_monthly AS
+SELECT m.gem_location_id, u.month, u.timestamp_ms, u.plant_code, u.generator_id,
+       u.prime_mover, u.net_generation_mwh, m.gem_unit_id, m.map_source
+FROM mv_eia_unit_monthly u
+JOIN eia_unit_gem_map m ON m.plant_code = u.plant_code AND m.generator_id = u.generator_id
+"""
+
+
+def load_eia_unit_map(engine):
+    """Load eia_unit_gem_map and (re)create eia_gem_unit_monthly on it.
+
+    The US twin of npp_unit_gem_map: each EIA generator's GEM unit, matched by
+    the EIA plant code and generator ID GEM records (src/eia_unit_map.py). The
+    tracker reads a GEM site's US generation per unit from
+    eia_gem_unit_monthly (WHERE gem_location_id = …). The swap drops the view
+    with the old table (CASCADE), so it is re-created here every load.
+    """
+    path = DATA_DIR / "crosswalks" / "eia_unit_gem_map.parquet"
+    if not path.exists():
+        print(f"  SKIP  {path.name} not found — build_crosswalk.py writes it once ETL migration 023 is applied")
+        return
+
+    df = pd.read_parquet(path)
+
+    _atomic_replace_table(
+        engine,
+        df,
+        "eia_unit_gem_map",
+        [
+            "CREATE UNIQUE INDEX ux_eia_unit_gem_map ON eia_unit_gem_map (plant_code, generator_id)",
+            "CREATE INDEX ix_eia_unit_gem_map_location ON eia_unit_gem_map (gem_location_id)",
+            EIA_GEM_UNIT_VIEW,
+            "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dashboard_ro') "
+            "THEN GRANT SELECT ON eia_unit_gem_map, eia_gem_unit_monthly TO dashboard_ro; "
+            "END IF; END $$",
+        ],
+    )
+
+    print(f"  OK  eia_unit_gem_map: {len(df):,} rows (+ view eia_gem_unit_monthly)")
+
+
 def load_npp_llm_test(engine):
     """Load the NPP LLM test parquet into Neon as npp_llm_test."""
     path = DATA_DIR / "crosswalks" / "npp_llm_test.parquet"
@@ -677,6 +719,11 @@ def main():
         help="Only load GCPT coal metadata (gcpt_coal_metadata table)",
     )
     parser.add_argument(
+        "--eia-units-only",
+        action="store_true",
+        help="Only load the US unit map (eia_unit_gem_map + view eia_gem_unit_monthly)",
+    )
+    parser.add_argument(
         "--gem-ids-only",
         action="store_true",
         help="Only load GEM's external IDs (gem_external_ids table)",
@@ -697,11 +744,12 @@ def main():
             args.gcpt_only,
             args.ct_gem_only,
             args.gem_ids_only,
+            args.eia_units_only,
         ]
     )
     if mutually_exclusive > 1:
         print(
-            "ERROR: --schema-only, --data-only, --test-only, --generator-info-only, --gcpt-only, --ct-gem-only and --gem-ids-only are mutually exclusive"
+            "ERROR: --schema-only, --data-only, --test-only, --generator-info-only, --gcpt-only, --ct-gem-only, --gem-ids-only and --eia-units-only are mutually exclusive"
         )
         sys.exit(1)
 
@@ -716,7 +764,11 @@ def main():
         print(f"ERROR: Could not connect to database: {e}")
         sys.exit(1)
 
-    if args.gem_ids_only:
+    if args.eia_units_only:
+        print("Loading the US unit map...")
+        load_eia_unit_map(engine)
+        print()
+    elif args.gem_ids_only:
         print("Loading GEM external IDs...")
         load_gem_external_ids(engine)
         print()

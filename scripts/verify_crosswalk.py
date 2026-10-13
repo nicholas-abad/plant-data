@@ -42,6 +42,7 @@ from src.build_crosswalk import (  # noqa: E402
     ENTSOE_AREA_COUNTRIES,
     GPPD_CSV,
     HUMAN_METHODS,
+    EIA_UNIT_MAP_FILE,
     NPP_UNIT_MAP_FILE,
     OUTPUT_FILE,
     _make_engine,
@@ -190,6 +191,52 @@ def eia_id_gates(xw: pd.DataFrame) -> None:
             f"warn  G-USSTATE: {len(decided)} DECIDED US links cross a state line — review "
             f"(code, name, EIA state, GEM state): {decided}"
         )
+
+
+def eia_unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
+    """G-EIAMAP: the US unit map (eia_unit_gem_map), when the build wrote one."""
+    if not EIA_UNIT_MAP_FILE.exists():
+        print(
+            f"warn  G-EIAMAP: {EIA_UNIT_MAP_FILE.name} not built (database without ETL migration 023?)"
+        )
+        return
+    umap = pd.read_parquet(EIA_UNIT_MAP_FILE)
+    before = fail.count
+    dups = int(umap.duplicated(["plant_code", "generator_id"]).sum())
+    if dups:
+        fail(f"G-EIAMAP: {dups} generators mapped twice")
+    where = dict(zip(units["gem_unit_id"], units["gem_location_id"]))
+    unknown = umap[~umap["gem_unit_id"].isin(where)]
+    if len(unknown):
+        fail(f"G-EIAMAP: {len(unknown)} GEM units not in gem_units: {unknown['gem_unit_id'].head(5).tolist()}")
+    moved = umap[umap["gem_unit_id"].map(where).fillna(umap["gem_location_id"]) != umap["gem_location_id"]]
+    if len(moved):
+        fail(f"G-EIAMAP: {len(moved)} units sit at another GEM location than gem_units says")
+    from sqlalchemy import text as _sql_text
+
+    with _make_engine().connect() as conn:
+        gen = pd.read_sql(
+            _sql_text(
+                "SELECT e.plant_code::text AS plant_code, e.generator_id, SUM(e.net_generation_mwh) AS g "
+                "FROM mv_eia_unit_monthly e JOIN eia_generator_info i "
+                "ON i.plant_code = e.plant_code AND i.generator_id = e.generator_id "
+                "WHERE i.technology IN ('Conventional Steam Coal', 'Coal Integrated Gasification Combined Cycle') "
+                "AND e.month >= CURRENT_DATE - INTERVAL '24 months' GROUP BY 1, 2"
+            ),
+            conn,
+        )
+    share = gen.merge(umap, on=["plant_code", "generator_id"])["g"].sum() / gen["g"].sum()
+    link = xw[xw["source_system"] == "EIA"].set_index("plant_code")["gem_location_id"]
+    apart = umap[umap["plant_code"].map(link).notna() & (umap["plant_code"].map(link) != umap["gem_location_id"])]
+    if len(apart):
+        print(
+            f"warn  G-EIAMAP: {len(apart)} generators sit at another GEM site than their plant's "
+            f"crosswalk link (review): {sorted(set(apart['plant_code']))[:10]}"
+        )
+    if share < 0.99:
+        fail(f"G-EIAMAP: only {share:.1%} of US coal generation (24 months) is mapped to a GEM unit")
+    elif fail.count == before:
+        ok(f"G-EIAMAP: {len(umap):,} generators, {share:.1%} of US coal generation (24 months) mapped to GEM units")
 
 
 def main() -> int:
@@ -764,6 +811,8 @@ def main() -> int:
             )
     else:
         fail(f"G-NPPMAP: {NPP_UNIT_MAP_FILE.name} missing — the build did not write it")
+
+    eia_unit_map_gate(xw, gem_tables["units"])
 
     print(
         f"\n{'ALL GATES PASSED' if fail.count == 0 else f'{fail.count} GATE(S) FAILED'}"
