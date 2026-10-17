@@ -17,7 +17,7 @@ from sqlalchemy import text
 
 from .eia_unit_map import NEVER_RAN
 from .gem_external_ids import SNAPSHOT_FILE
-from .unit_gem_map import COLUMNS, with_fallback
+from .unit_gem_map import COLUMNS, check_reviewed, with_fallback
 from .utils import get_crosswalk_dir
 
 REVIEWED_FILE = get_crosswalk_dir() / "oe_unit_gem_map.csv"
@@ -120,11 +120,7 @@ def build_from_db(engine, gem_units: pd.DataFrame, crosswalk: pd.DataFrame) -> p
         logger.warning("unit_gem_map OE rows not built: no oe_unit_generation_all_fuels (ETL migration 022)")
         return None
     reviewed = pd.read_csv(REVIEWED_FILE, dtype=str, keep_default_na=False)
-    where = dict(zip(gem_units["gem_unit_id"], gem_units["gem_location_id"]))
-    for r in reviewed.itertuples(index=False):
-        for unit in r.gem_unit_ids.split():
-            if where.get(unit) != r.gem_location_id:
-                raise ValueError(f"{REVIEWED_FILE.name}: {r.unit_code} lists {unit}, not at {r.gem_location_id}")
+    check_reviewed(REVIEWED_FILE, reviewed, gem_units, ["unit_code"])
     oe = crosswalk[(crosswalk["source_system"] == "OE") & crosswalk["gem_location_id"].notna()]
     return build_oe_unit_map(
         pull_units(engine),

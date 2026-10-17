@@ -397,6 +397,13 @@ SELECT {_UNIT_COLS}, u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.ge
 FROM mv_chile_plant_monthly u
 JOIN unit_gem_map m ON m.source_system = 'CHILE' AND m.plant_key = u.plant AND m.unit_key = ''
 WHERE u.fuel_type = 'Carbón'""",
+    # Japan: OCCTO units under their plant names; coal rows only.
+    "mv_occto_unit_monthly": f"""
+SELECT {_UNIT_COLS}, u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.generation_mwh,
+       u.fuel_type, TRUE, m.map_source
+FROM mv_occto_unit_monthly u
+JOIN unit_gem_map m ON m.source_system = 'OCCTO' AND m.plant_key = u.plant AND m.unit_key = u.unit
+WHERE u.fuel_type = 'coal'""",
     # Australia: OE units (DUIDs), generation = injection, network-local months.
     "mv_oe_all_fuels_unit_monthly": f"""
 SELECT {_UNIT_COLS}, u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.energy_mwh,

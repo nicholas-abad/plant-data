@@ -193,3 +193,67 @@ def test_oe_units_match_by_duid_then_reviewed_then_fall_back():
     assert out.loc["LD01", ["gem_unit_id", "map_source"]].tolist() == ["G_LD1", "source-id-reviewed"]
     assert out.loc["XX9", "map_source"] == "crosswalk-plant" and not out.loc["XX9", "is_coal"]
     assert "ZZ1" not in out.index  # its facility is linked to no GEM plant
+
+
+def test_occto_numbers_read_like_gems():
+    from src.occto_unit_map import gem_number, occto_number
+
+    assert [occto_number(u) for u in ["１号機", "新地1号機", "6号", "常陸那珂２号", "単独"]] == ["1", "1", "6", "2", None]
+    assert [gem_number(n) for n in ["Unit 1", "Unit 3, timepoint1", "Phase B Unit 2", "--"]] == ["1", "3", "2", None]
+
+
+def test_occto_units_match_by_number_single_unit_or_review():
+    from src.occto_unit_map import build_occto_unit_map
+
+    units = pd.DataFrame(
+        [("Misumi", "１号機", "coal"), ("Misumi", "２号機", "coal"), ("Solo", "単独", "coal"),
+         ("Takehara", "1号機", "coal"), ("Gasplant", "１号機", "gas")],
+        columns=["plant", "unit", "fuel_type"],
+    )  # fmt: skip
+    gem = pd.DataFrame(
+        [("G_M1", "L_M", "GCPT", "Unit 1", "operating"), ("G_M2", "L_M", "GCPT", "Unit 2", "operating"),
+         ("G_S", "L_S", "GCPT", "--", "operating"), ("G_T1", "L_T", "GCPT", "Unit 1", "retired"),
+         ("G_TN", "L_T", "GCPT", "New Unit 1", "operating")],
+        columns=["gem_unit_id", "gem_location_id", "tracker", "unit_name", "status"],
+    )  # fmt: skip
+    links = {"Misumi": "L_M", "Solo": "L_S", "Takehara": "L_T", "Gasplant": "L_M"}
+    out = build_occto_unit_map(units, pd.DataFrame(columns=["plant", "unit", "gem_location_id", "gem_unit_ids"]), gem, links)
+    got = {(r.plant_key, r.unit_key): (r.gem_unit_id, r.map_source) for r in out.itertuples()}
+    assert got[("Misumi", "１号機")] == ("G_M1", "unit-number")
+    assert got[("Solo", "単独")] == ("G_S", "single-unit")
+    # 'Unit 1' and 'New Unit 1' both read as 1: not settled by number, waits for review
+    assert got[("Takehara", "1号機")] == (None, "crosswalk-plant")
+    assert got[("Gasplant", "１号機")] == (None, "crosswalk-plant")
+    reviewed = pd.DataFrame([("Takehara", "1号機", "L_T", "G_TN")], columns=["plant", "unit", "gem_location_id", "gem_unit_ids"])
+    out = build_occto_unit_map(units, reviewed, gem, links).set_index(["plant_key", "unit_key"])
+    assert out.loc[("Takehara", "1号機"), "gem_unit_id"] == "G_TN"
+
+
+def test_occto_automatic_match_never_shares_a_gem_unit_between_plants():
+    from src.occto_unit_map import build_occto_unit_map
+
+    units = pd.DataFrame([("Hibiki A", "単独", "coal"), ("Hibiki B", "1号機", "coal")], columns=["plant", "unit", "fuel_type"])
+    gem = pd.DataFrame([("G_H", "L_H", "GCPT", "1, timepoint 1", "retired")],
+                       columns=["gem_unit_id", "gem_location_id", "tracker", "unit_name", "status"])  # fmt: skip
+    out = build_occto_unit_map(
+        units, pd.DataFrame(columns=["plant", "unit", "gem_location_id", "gem_unit_ids"]), gem,
+        {"Hibiki A": "L_H", "Hibiki B": "L_H"},
+    )  # fmt: skip
+    assert out["gem_unit_ids"].isna().all() and set(out["map_source"]) == {"crosswalk-plant"}
+
+
+def test_occto_reviewed_unit_frees_the_number_match_for_the_other_plant():
+    # Kyushu's and J-POWER's Matsuura both linked to J-POWER's GEM plant; the
+    # reviewed rows move Kyushu's units, so J-POWER's match by number again.
+    from src.occto_unit_map import build_occto_unit_map
+
+    units = pd.DataFrame([("Kyushu", "１号機", "coal"), ("JPower", "1号機", "coal")], columns=["plant", "unit", "fuel_type"])
+    gem = pd.DataFrame([("G_K1", "L_K", "GCPT", "Unit 1", "operating"), ("G_J1", "L_J", "GCPT", "Unit 1", "operating")],
+                       columns=["gem_unit_id", "gem_location_id", "tracker", "unit_name", "status"])  # fmt: skip
+    links = {"Kyushu": "L_J", "JPower": "L_J"}
+    no_review = pd.DataFrame(columns=["plant", "unit", "gem_location_id", "gem_unit_ids"])
+    assert build_occto_unit_map(units, no_review, gem, links)["gem_unit_ids"].isna().all()
+    reviewed = pd.DataFrame([("Kyushu", "１号機", "L_K", "G_K1")], columns=no_review.columns)
+    out = build_occto_unit_map(units, reviewed, gem, links).set_index("plant_key")
+    assert out.loc["Kyushu", "gem_unit_ids"] == "G_K1" and out.loc["JPower", "gem_unit_ids"] == "G_J1"
+    assert out.loc["JPower", "map_source"] == "unit-number"

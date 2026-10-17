@@ -25,6 +25,8 @@ One row per source unit:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
 
 from .utils import get_crosswalk_dir
@@ -66,3 +68,16 @@ def with_fallback(
     ).dropna(subset=["gem_location_id"])
     out = pd.concat([matched, rest[COLUMNS]], ignore_index=True)[COLUMNS]
     return out.sort_values(key, ignore_index=True)
+
+
+def check_reviewed(file: Path, reviewed: pd.DataFrame, gem_units: pd.DataFrame, key: list[str]) -> None:
+    """Every GEM unit a reviewed file lists exists and sits at the GEM plant it lists."""
+    where = dict(zip(gem_units["gem_unit_id"], gem_units["gem_location_id"]))
+    for r in reviewed.to_dict("records"):
+        for unit in r["gem_unit_ids"].split():
+            if where.get(unit) != r["gem_location_id"]:
+                raise ValueError(
+                    f"{file.name}: {' '.join(r[k] for k in key)} lists {unit}, which is "
+                    f"{'not in gem_units' if unit not in where else 'at ' + where[unit]}, "
+                    f"not {r['gem_location_id']}"
+                )

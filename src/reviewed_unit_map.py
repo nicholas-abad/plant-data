@@ -19,7 +19,7 @@ import pandas as pd
 from loguru import logger
 from sqlalchemy import text
 
-from .unit_gem_map import COLUMNS, with_fallback
+from .unit_gem_map import COLUMNS, check_reviewed, with_fallback
 from .utils import get_crosswalk_dir
 
 METHOD = "source-id-reviewed"
@@ -59,19 +59,6 @@ def load_reviewed(source: Source) -> pd.DataFrame:
     if len(dup):
         raise ValueError(f"{source.file.name}: IDs listed twice: {dup.tolist()}")
     return df
-
-
-def check_reviewed(source: Source, reviewed: pd.DataFrame, units: pd.DataFrame) -> None:
-    """Every listed GEM unit exists and sits at the listed GEM plant."""
-    where = dict(zip(units["gem_unit_id"], units["gem_location_id"]))
-    for r in reviewed.itertuples(index=False):
-        for unit in r.gem_unit_ids.split():
-            if where.get(unit) != r.gem_location_id:
-                raise ValueError(
-                    f"{source.file.name}: {r.source_id} lists {unit}, which is "
-                    f"{'not in gem_units' if unit not in where else 'at ' + where[unit]}, "
-                    f"not {r.gem_location_id}"
-                )
 
 
 def build_rows(
@@ -118,7 +105,7 @@ def build_rows(
 
 def build_from_db(engine, source: Source, units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataFrame:
     reviewed = load_reviewed(source)
-    check_reviewed(source, reviewed, units)
+    check_reviewed(source.file, reviewed, units, ["source_id"])
     linked = crosswalk[(crosswalk["source_system"] == source.system) & crosswalk["gem_location_id"].notna()]
     return build_rows(
         source,
