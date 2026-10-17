@@ -404,6 +404,13 @@ SELECT {_UNIT_COLS}, u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.ge
 FROM mv_occto_unit_monthly u
 JOIN unit_gem_map m ON m.source_system = 'OCCTO' AND m.plant_key = u.plant AND m.unit_key = u.unit
 WHERE u.fuel_type = 'coal'""",
+    # Europe: ENTSO-E unit names (each its own crosswalk row, unit_key ''); coal rows only.
+    "mv_entsoe_plant_monthly": f"""
+SELECT {_UNIT_COLS}, u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.generation_mwh,
+       u.fuel_type, TRUE, m.map_source
+FROM mv_entsoe_plant_monthly u
+JOIN unit_gem_map m ON m.source_system = 'ENTSOE' AND m.plant_key = u.plant_name AND m.unit_key = ''
+WHERE u.fuel_type IN ('Fossil Hard coal', 'Fossil Brown coal/Lignite')""",
     # Australia: OE units (DUIDs), generation = injection, network-local months.
     "mv_oe_all_fuels_unit_monthly": f"""
 SELECT {_UNIT_COLS}, u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.energy_mwh,

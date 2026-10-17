@@ -194,7 +194,7 @@ def eia_id_gates(xw: pd.DataFrame) -> None:
 
 
 def unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
-    """G-UNITMAP: unit_gem_map (the US rows today), when the build wrote it."""
+    """G-UNITMAP: unit_gem_map (every source but India), when the build wrote it."""
     if not UNIT_MAP_FILE.exists():
         print(f"warn  G-UNITMAP: {UNIT_MAP_FILE.name} not built (database without ETL migration 023?)")
         return
@@ -216,12 +216,12 @@ def unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
     lone = matched[matched["gem_unit_id"].notna() & (matched["gem_unit_id"] != matched["gem_unit_ids"])]
     if len(lone):
         fail(f"G-UNITMAP: {len(lone)} rows whose gem_unit_id is not their only gem_unit_ids entry")
-    for system in ("ONS", "CHILE"):
-        rows = umap[umap["source_system"] == system]
+    for system in ("ONS", "CHILE", "OE", "OCCTO", "ENTSOE"):
+        rows = umap[(umap["source_system"] == system) & umap["is_coal"].astype(bool)]
         if len(rows):
             placed = rows[rows["map_source"] != "crosswalk-plant"]
             print(
-                f"ok    G-UNITMAP: {system} {len(placed)} coal names on reviewed GEM units, "
+                f"ok    G-UNITMAP: {system} {len(placed)} coal rows on GEM units, "
                 f"{len(rows) - len(placed)} at plant level"
             )
     eia = umap[umap["source_system"] == "EIA"]

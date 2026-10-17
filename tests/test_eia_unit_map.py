@@ -257,3 +257,42 @@ def test_occto_reviewed_unit_frees_the_number_match_for_the_other_plant():
     out = build_occto_unit_map(units, reviewed, gem, links).set_index("plant_key")
     assert out.loc["Kyushu", "gem_unit_ids"] == "G_K1" and out.loc["JPower", "gem_unit_ids"] == "G_J1"
     assert out.loc["JPower", "map_source"] == "unit-number"
+
+
+def test_entsoe_names_read_like_gems():
+    from src.entsoe_unit_map import entsoe_keys, gem_key
+
+    assert entsoe_keys("Neurath G") == [(None, "G")]
+    assert entsoe_keys("TE Kostolac A G1") == [("A", "1"), (None, "1")]
+    assert entsoe_keys("Kozienice 2 B11") == [("2", "11"), (None, "11")]
+    assert [entsoe_keys(n)[-1] for n in ["ELED_G6___", "PTOLEMAIDA5", "CTE_Rovinari_ROVI5_CA", "MÁ2_gép4", "LADA IV"]] == [
+        (None, "6"), (None, "5"), (None, "5"), (None, "4"), (None, "4")
+    ]  # fmt: skip
+    assert entsoe_keys("TPP_MI2") == []  # a plant code, not a unit
+    assert [gem_key(n) for n in ["Unit G", "Phase A Unit 1", "Unit I-3", "Unit 5, timepoint 1", "Phase B", "CHP 2", "--"]] == [
+        (None, "G"), ("A", "1"), ("1", "3"), (None, "5"), (None, "B"), (None, "2"), (None, None)
+    ]  # fmt: skip
+
+
+def test_entsoe_units_match_within_phase_and_never_share_a_generating_unit():
+    from src.entsoe_unit_map import build_entsoe_unit_map
+
+    gem = pd.DataFrame(
+        [("G_A1", "L_K", "GCPT", "Phase A Unit 1", "operating"), ("G_B1", "L_K", "GCPT", "Phase B Unit 1", "operating"),
+         ("G_II1", "L_P", "GCPT", "Unit II-1", "operating"), ("G_S", "L_S", "GCPT", "--", "operating")],
+        columns=["gem_unit_id", "gem_location_id", "tracker", "unit_name", "status"],
+    )  # fmt: skip
+    months = pd.DataFrame(
+        [("Kostolac A G1", "2025-01"), ("Kostolac B G1", "2025-01"), ("Patnow 1 B1", "2010-01"),
+         ("Two X", "2025-01"), ("Two X G1", "2025-01")],
+        columns=["plant_name", "month"],
+    )  # fmt: skip
+    links = {"Kostolac A G1": "L_K", "Kostolac B G1": "L_K", "Patnow 1 B1": "L_P", "Two X": "L_S", "Two X G1": "L_S"}
+    no_review = pd.DataFrame(columns=["plant_name", "gem_location_id", "gem_unit_ids"])
+    out = build_entsoe_unit_map(months, no_review, gem, links).set_index("plant_key")
+    assert out.loc["Kostolac A G1", "gem_unit_id"] == "G_A1" and out.loc["Kostolac B G1", "gem_unit_id"] == "G_B1"
+    assert pd.isna(out.loc["Patnow 1 B1", "gem_unit_ids"])  # phase I unit 1 is not Unit II-1
+    assert out.loc[["Two X", "Two X G1"], "map_source"].eq("crosswalk-plant").all()  # two names, one GEM unit
+    reviewed = pd.DataFrame([("Two X G1", "L_S", "G_S")], columns=no_review.columns)
+    out = build_entsoe_unit_map(months, reviewed, gem, links).set_index("plant_key")
+    assert out.loc["Two X G1", "gem_unit_id"] == "G_S" and out.loc["Two X", "map_source"] == "crosswalk-plant"

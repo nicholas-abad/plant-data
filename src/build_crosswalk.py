@@ -42,7 +42,7 @@ from .plant_name_matchers import (
     validate_match,
 )
 from . import gem_reference as gemref
-from . import eia_gem_ids, eia_unit_map, occto_unit_map, oe_unit_map, reviewed_unit_map
+from . import eia_gem_ids, eia_unit_map, entsoe_unit_map, occto_unit_map, oe_unit_map, reviewed_unit_map
 from .unit_gem_map import MAP_FILE as UNIT_MAP_FILE
 from .gem_external_ids import eia_plant_locations, load_snapshot
 from .utils import get_crosswalk_dir, validate_coordinates
@@ -2859,6 +2859,9 @@ def build_unified_crosswalk(
     if sources is None or "OCCTO" in sources:
         parts.append(occto_unit_map.build_from_db(engine, gem_units, unified))
         rebuilt.add("OCCTO")
+    if sources is None or "ENTSOE" in sources:
+        parts.append(entsoe_unit_map.build_from_db(engine, gem_units, unified))
+        rebuilt.add("ENTSOE")
     for reviewed in reviewed_unit_map.SOURCES:  # Brazil (ONS), Chile
         if sources is None or reviewed.system in sources:
             parts.append(reviewed_unit_map.build_from_db(engine, reviewed, gem_units, unified))
