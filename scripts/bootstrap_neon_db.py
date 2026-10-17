@@ -389,6 +389,15 @@ FROM mv_ons_plant_monthly u
 JOIN unit_gem_map m
   ON m.source_system = 'ONS' AND m.plant_key = u.plant AND m.unit_key = ''
 WHERE u.fuel_type = 'Carvão'
+UNION ALL
+-- Chile: plant or unit rows as the Coordinador reports them; coal rows only.
+SELECT m.source_system, m.gem_location_id, m.gem_unit_id, m.gem_unit_ids, m.plant_key, m.unit_key,
+       u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.generation_mwh,
+       u.fuel_type, TRUE, m.map_source
+FROM mv_chile_plant_monthly u
+JOIN unit_gem_map m
+  ON m.source_system = 'CHILE' AND m.plant_key = u.plant AND m.unit_key = ''
+WHERE u.fuel_type = 'Carbón'
 """
 
 

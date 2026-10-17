@@ -42,7 +42,7 @@ from .plant_name_matchers import (
     validate_match,
 )
 from . import gem_reference as gemref
-from . import eia_gem_ids, eia_unit_map, ons_unit_map
+from . import eia_gem_ids, eia_unit_map, reviewed_unit_map
 from .unit_gem_map import MAP_FILE as UNIT_MAP_FILE
 from .gem_external_ids import eia_plant_locations, load_snapshot
 from .utils import get_crosswalk_dir, validate_coordinates
@@ -2851,9 +2851,10 @@ def build_unified_crosswalk(
         if built is not None:
             parts.append(built[0])
             rebuilt.add("EIA")
-    if sources is None or "ONS" in sources:
-        parts.append(ons_unit_map.build_from_db(engine, gem_units, unified))
-        rebuilt.add("ONS")
+    for reviewed in reviewed_unit_map.SOURCES:  # Brazil (ONS), Chile
+        if sources is None or reviewed.system in sources:
+            parts.append(reviewed_unit_map.build_from_db(engine, reviewed, gem_units, unified))
+            rebuilt.add(reviewed.system)
     if parts:
         if sources is not None and UNIT_MAP_FILE.exists():
             kept = pd.read_parquet(UNIT_MAP_FILE)

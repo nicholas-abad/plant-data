@@ -216,13 +216,14 @@ def unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
     lone = matched[matched["gem_unit_id"].notna() & (matched["gem_unit_id"] != matched["gem_unit_ids"])]
     if len(lone):
         fail(f"G-UNITMAP: {len(lone)} rows whose gem_unit_id is not their only gem_unit_ids entry")
-    ons = umap[umap["source_system"] == "ONS"]
-    if len(ons):
-        placed = ons[ons["map_source"] != "crosswalk-plant"]
-        print(
-            f"ok    G-UNITMAP: Brazil {len(placed)} ONS coal names on reviewed GEM units, "
-            f"{len(ons) - len(placed)} at plant level"
-        )
+    for system in ("ONS", "CHILE"):
+        rows = umap[umap["source_system"] == system]
+        if len(rows):
+            placed = rows[rows["map_source"] != "crosswalk-plant"]
+            print(
+                f"ok    G-UNITMAP: {system} {len(placed)} coal names on reviewed GEM units, "
+                f"{len(rows) - len(placed)} at plant level"
+            )
     eia = umap[umap["source_system"] == "EIA"]
     from sqlalchemy import text as _sql_text
 

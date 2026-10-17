@@ -131,7 +131,7 @@ def test_unmatched_generators_fall_back_to_their_plants_gem_plant():
 
 
 def test_ons_ids_place_every_name_and_phases_keep_all_their_units():
-    from src.ons_unit_map import build_ons_unit_map
+    from src.reviewed_unit_map import SOURCES, build_rows
 
     names = pd.DataFrame(
         [
@@ -141,13 +141,14 @@ def test_ons_ids_place_every_name_and_phases_keep_all_their_units():
             ("Figueira", "PRUFRA"),
             ("São Jerônimo", "RSUSJE"),
         ],
-        columns=["plant", "ons_plant_id"],
+        columns=["plant", "source_id"],
     )
     reviewed = pd.DataFrame(
         [("SCUTLC", "L_JL", "G7"), ("CEUTPC", "L_PEC", "G1 G2")],
-        columns=["ons_plant_id", "gem_location_id", "gem_unit_ids"],
+        columns=["source_id", "gem_location_id", "gem_unit_ids"],
     )
-    out = build_ons_unit_map(names, reviewed, {"Figueira": "L_FIG"}).set_index("plant_key")
+    ons = next(src for src in SOURCES if src.system == "ONS")
+    out = build_rows(ons, names, reviewed, {"Figueira": "L_FIG"}).set_index("plant_key")
     # both names of one ONS ID -> one GEM unit (a rename is one series)
     assert out.loc["Jorge Lacerda IV", "gem_unit_id"] == out.loc["U.JLACERDA C", "gem_unit_id"] == "G7"
     # a phase: no single unit, both kept
@@ -157,3 +158,13 @@ def test_ons_ids_place_every_name_and_phases_keep_all_their_units():
     assert out.loc["Figueira", "map_source"] == "crosswalk-plant"
     assert "São Jerônimo" not in out.index
     assert out["is_coal"].all() and set(out["unit_key"]) == {""}
+
+
+def test_reviewed_files_name_real_units_at_their_plants():
+    """Every committed reviewed row is well formed (the build checks units against gem_units)."""
+    from src.reviewed_unit_map import SOURCES, load_reviewed
+
+    for source in SOURCES:
+        df = load_reviewed(source)
+        assert len(df) and df["gem_location_id"].str.startswith("L").all()
+        assert df["gem_unit_ids"].str.split().map(lambda ids: all(i.startswith("G") for i in ids)).all()
