@@ -205,13 +205,24 @@ def unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
     if dups:
         fail(f"G-UNITMAP: {dups} source units mapped twice")
     where = dict(zip(units["gem_unit_id"], units["gem_location_id"]))
-    matched = umap[umap["gem_unit_id"].notna()]
-    unknown = matched[~matched["gem_unit_id"].isin(where)]
+    matched = umap[umap["gem_unit_ids"].notna()]
+    each = matched.assign(unit=matched["gem_unit_ids"].str.split()).explode("unit")
+    unknown = each[~each["unit"].isin(where)]
     if len(unknown):
-        fail(f"G-UNITMAP: {len(unknown)} GEM units not in gem_units: {unknown['gem_unit_id'].head(5).tolist()}")
-    moved = matched[matched["gem_unit_id"].map(where).fillna(matched["gem_location_id"]) != matched["gem_location_id"]]
+        fail(f"G-UNITMAP: {len(unknown)} GEM units not in gem_units: {unknown['unit'].head(5).tolist()}")
+    moved = each[each["unit"].map(where).fillna(each["gem_location_id"]) != each["gem_location_id"]]
     if len(moved):
         fail(f"G-UNITMAP: {len(moved)} units sit at another GEM location than gem_units says")
+    lone = matched[matched["gem_unit_id"].notna() & (matched["gem_unit_id"] != matched["gem_unit_ids"])]
+    if len(lone):
+        fail(f"G-UNITMAP: {len(lone)} rows whose gem_unit_id is not their only gem_unit_ids entry")
+    ons = umap[umap["source_system"] == "ONS"]
+    if len(ons):
+        placed = ons[ons["map_source"] != "crosswalk-plant"]
+        print(
+            f"ok    G-UNITMAP: Brazil {len(placed)} ONS coal names on reviewed GEM units, "
+            f"{len(ons) - len(placed)} at plant level"
+        )
     eia = umap[umap["source_system"] == "EIA"]
     from sqlalchemy import text as _sql_text
 

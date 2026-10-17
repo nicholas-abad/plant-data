@@ -128,3 +128,32 @@ def test_unmatched_generators_fall_back_to_their_plants_gem_plant():
         ("6166", "GT9"): ("L_RP", None, "crosswalk-plant"),
         ("8", "1"): ("L_8", None, "crosswalk-plant"),  # e.g. a tie: on its plant, no unit
     }  # plant 99 is linked to no GEM plant, so it is on no page
+
+
+def test_ons_ids_place_every_name_and_phases_keep_all_their_units():
+    from src.ons_unit_map import build_ons_unit_map
+
+    names = pd.DataFrame(
+        [
+            ("Jorge Lacerda IV", "SCUTLC"),
+            ("U.JLACERDA C", "SCUTLC"),
+            ("Porto do Pecém I", "CEUTPC"),
+            ("Figueira", "PRUFRA"),
+            ("São Jerônimo", "RSUSJE"),
+        ],
+        columns=["plant", "ons_plant_id"],
+    )
+    reviewed = pd.DataFrame(
+        [("SCUTLC", "L_JL", "G7"), ("CEUTPC", "L_PEC", "G1 G2")],
+        columns=["ons_plant_id", "gem_location_id", "gem_unit_ids"],
+    )
+    out = build_ons_unit_map(names, reviewed, {"Figueira": "L_FIG"}).set_index("plant_key")
+    # both names of one ONS ID -> one GEM unit (a rename is one series)
+    assert out.loc["Jorge Lacerda IV", "gem_unit_id"] == out.loc["U.JLACERDA C", "gem_unit_id"] == "G7"
+    # a phase: no single unit, both kept
+    assert pd.isna(out.loc["Porto do Pecém I", "gem_unit_id"])
+    assert out.loc["Porto do Pecém I", "gem_unit_ids"] == "G1 G2"
+    # unreviewed but linked: plant level; neither: no row
+    assert out.loc["Figueira", "map_source"] == "crosswalk-plant"
+    assert "São Jerônimo" not in out.index
+    assert out["is_coal"].all() and set(out["unit_key"]) == {""}

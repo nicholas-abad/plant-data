@@ -125,6 +125,7 @@ def build_eia_unit_map(
                 "unit_key": gen,
                 "gem_location_id": pick["gem_location_id"],
                 "gem_unit_id": pick["gem_unit_id"],
+                "gem_unit_ids": pick["gem_unit_id"],
                 "map_source": METHOD,
                 "fuel": pick["technology"] if isinstance(pick["technology"], str) else None,
                 "is_coal": pick["technology"] in COAL_TECHNOLOGIES,

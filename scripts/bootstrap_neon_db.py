@@ -374,12 +374,21 @@ def load_gem_external_ids(engine):
 
 GEM_UNIT_VIEW = """
 CREATE VIEW gem_unit_monthly AS
-SELECT m.source_system, m.gem_location_id, m.gem_unit_id, m.plant_key, m.unit_key,
+SELECT m.source_system, m.gem_location_id, m.gem_unit_id, m.gem_unit_ids, m.plant_key, m.unit_key,
        u.month, u.timestamp_ms, u.net_generation_mwh AS generation_mwh,
        m.fuel, m.is_coal, m.map_source
 FROM mv_eia_unit_monthly u
 JOIN unit_gem_map m
   ON m.source_system = 'EIA' AND m.plant_key = u.plant_code AND m.unit_key = u.generator_id
+UNION ALL
+-- Brazil: ONS reports whole plants or phases (unit_key ''); coal rows only.
+SELECT m.source_system, m.gem_location_id, m.gem_unit_id, m.gem_unit_ids, m.plant_key, m.unit_key,
+       u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.generation_mwh,
+       u.fuel_type, TRUE, m.map_source
+FROM mv_ons_plant_monthly u
+JOIN unit_gem_map m
+  ON m.source_system = 'ONS' AND m.plant_key = u.plant AND m.unit_key = ''
+WHERE u.fuel_type = 'Carvão'
 """
 
 

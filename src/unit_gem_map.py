@@ -9,8 +9,11 @@ source's monthly generation so the tracker reads one view for all of them
 One row per source unit:
 * source_system, plant_key, unit_key: how the source names the unit (EIA:
   plant_code and the keyed generator_id);
-* gem_location_id: the GEM plant it belongs to; gem_unit_id: its GEM unit, or
-  NULL for a fallback row that only places the unit at its plant's
+* gem_location_id: the GEM plant it belongs to; gem_unit_id: its GEM unit when
+  the source row is exactly one unit; gem_unit_ids: every GEM unit the row
+  covers, space separated (a phase reporting several units as one total,
+  e.g. ONS's Porto do Pecém I = GEM Plant I Units 1 and 2); both NULL for a
+  fallback row that only places the unit at its plant's
   crosswalk link (map_source 'crosswalk-plant'), so no generation drops off a
   page while a unit waits for a match;
 * fuel / is_coal: the source's own fuel label for the unit and whether the
@@ -33,6 +36,7 @@ COLUMNS = [
     "unit_key",
     "gem_location_id",
     "gem_unit_id",
+    "gem_unit_ids",
     "map_source",
     "fuel",
     "is_coal",
@@ -56,6 +60,7 @@ def with_fallback(
     rest = rest.assign(
         gem_location_id=rest["plant_key"].map(plant_links),
         gem_unit_id=None,
+        gem_unit_ids=None,
         map_source=FALLBACK,
         other_gem_unit_ids=None,
     ).dropna(subset=["gem_location_id"])

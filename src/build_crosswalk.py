@@ -42,7 +42,7 @@ from .plant_name_matchers import (
     validate_match,
 )
 from . import gem_reference as gemref
-from . import eia_gem_ids, eia_unit_map
+from . import eia_gem_ids, eia_unit_map, ons_unit_map
 from .unit_gem_map import MAP_FILE as UNIT_MAP_FILE
 from .gem_external_ids import eia_plant_locations, load_snapshot
 from .utils import get_crosswalk_dir, validate_coordinates
@@ -2842,11 +2842,25 @@ def build_unified_crosswalk(
         unit_map = build_npp_unit_map(_pull_npp_units(engine), unified)
         unit_map.to_parquet(NPP_UNIT_MAP_FILE, index=False)
         logger.info(f"Saved {len(unit_map):,} rows to {NPP_UNIT_MAP_FILE}")
+    # unit_gem_map: one file for every source (src/unit_gem_map.py). A partial
+    # rebuild (--sources) replaces only the rebuilt sources' rows.
+    gem_units = gemref.load_tables()["units"]
+    parts, rebuilt = [], set()
     if sources is None or "EIA" in sources:
-        built = eia_unit_map.build_from_db(engine, gemref.load_tables()["units"], unified)
+        built = eia_unit_map.build_from_db(engine, gem_units, unified)
         if built is not None:
-            built[0].to_parquet(UNIT_MAP_FILE, index=False)
-            logger.info(f"Saved {len(built[0]):,} rows to {UNIT_MAP_FILE}")
+            parts.append(built[0])
+            rebuilt.add("EIA")
+    if sources is None or "ONS" in sources:
+        parts.append(ons_unit_map.build_from_db(engine, gem_units, unified))
+        rebuilt.add("ONS")
+    if parts:
+        if sources is not None and UNIT_MAP_FILE.exists():
+            kept = pd.read_parquet(UNIT_MAP_FILE)
+            parts.append(kept[~kept["source_system"].isin(rebuilt)])
+        unit_map = pd.concat(parts, ignore_index=True)
+        unit_map.to_parquet(UNIT_MAP_FILE, index=False)
+        logger.info(f"Saved {len(unit_map):,} rows to {UNIT_MAP_FILE}")
 
     # Summary
     logger.info("=" * 60)
