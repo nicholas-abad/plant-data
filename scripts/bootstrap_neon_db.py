@@ -372,33 +372,52 @@ def load_gem_external_ids(engine):
     print(f"  OK  gem_external_ids: {len(df):,} rows")
 
 
-GEM_UNIT_VIEW = """
-CREATE VIEW gem_unit_monthly AS
-SELECT m.source_system, m.gem_location_id, m.gem_unit_id, m.gem_unit_ids, m.plant_key, m.unit_key,
-       u.month, u.timestamp_ms, u.net_generation_mwh AS generation_mwh,
+# gem_unit_monthly: each source's monthly generation with the unit map attached.
+# One branch per source, built from the sources this database has (Australia's
+# unit-grain view exists only where ETL migration 022 is applied).
+_UNIT_COLS = "m.source_system, m.gem_location_id, m.gem_unit_id, m.gem_unit_ids, m.plant_key, m.unit_key"
+GEM_UNIT_BRANCHES = {
+    "mv_eia_unit_monthly": f"""
+SELECT {_UNIT_COLS}, u.month, u.timestamp_ms, u.net_generation_mwh AS generation_mwh,
        m.fuel, m.is_coal, m.map_source
 FROM mv_eia_unit_monthly u
 JOIN unit_gem_map m
-  ON m.source_system = 'EIA' AND m.plant_key = u.plant_code AND m.unit_key = u.generator_id
-UNION ALL
--- Brazil: ONS reports whole plants or phases (unit_key ''); coal rows only.
-SELECT m.source_system, m.gem_location_id, m.gem_unit_id, m.gem_unit_ids, m.plant_key, m.unit_key,
-       u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.generation_mwh,
+  ON m.source_system = 'EIA' AND m.plant_key = u.plant_code AND m.unit_key = u.generator_id""",
+    # Brazil: ONS reports whole plants or phases (unit_key ''); coal rows only.
+    "mv_ons_plant_monthly": f"""
+SELECT {_UNIT_COLS}, u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.generation_mwh,
        u.fuel_type, TRUE, m.map_source
 FROM mv_ons_plant_monthly u
-JOIN unit_gem_map m
-  ON m.source_system = 'ONS' AND m.plant_key = u.plant AND m.unit_key = ''
-WHERE u.fuel_type = 'Carvão'
-UNION ALL
--- Chile: plant or unit rows as the Coordinador reports them; coal rows only.
-SELECT m.source_system, m.gem_location_id, m.gem_unit_id, m.gem_unit_ids, m.plant_key, m.unit_key,
-       u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.generation_mwh,
+JOIN unit_gem_map m ON m.source_system = 'ONS' AND m.plant_key = u.plant AND m.unit_key = ''
+WHERE u.fuel_type = 'Carvão'""",
+    # Chile: plant or unit rows as the Coordinador reports them; coal rows only.
+    "mv_chile_plant_monthly": f"""
+SELECT {_UNIT_COLS}, u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.generation_mwh,
        u.fuel_type, TRUE, m.map_source
 FROM mv_chile_plant_monthly u
+JOIN unit_gem_map m ON m.source_system = 'CHILE' AND m.plant_key = u.plant AND m.unit_key = ''
+WHERE u.fuel_type = 'Carbón'""",
+    # Australia: OE units (DUIDs), generation = injection, network-local months.
+    "mv_oe_all_fuels_unit_monthly": f"""
+SELECT {_UNIT_COLS}, u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.energy_mwh,
+       u.fueltech, left(u.fueltech, 4) = 'coal', m.map_source
+FROM mv_oe_all_fuels_unit_monthly u
 JOIN unit_gem_map m
-  ON m.source_system = 'CHILE' AND m.plant_key = u.plant AND m.unit_key = ''
-WHERE u.fuel_type = 'Carbón'
-"""
+  ON m.source_system = 'OE' AND m.plant_key = u.facility_name AND m.unit_key = u.unit_code
+WHERE u.direction = 'injection'""",
+}
+
+
+def gem_unit_view_sql(engine) -> str:
+    with engine.connect() as conn:
+        present = [
+            name
+            for name in GEM_UNIT_BRANCHES
+            if conn.execute(text("SELECT to_regclass(:n) IS NOT NULL"), {"n": name}).scalar()
+        ]
+    return "CREATE VIEW gem_unit_monthly AS" + "\nUNION ALL".join(
+        GEM_UNIT_BRANCHES[name] for name in present
+    )
 
 
 def load_unit_gem_map(engine):
@@ -426,7 +445,7 @@ def load_unit_gem_map(engine):
         [
             "CREATE UNIQUE INDEX ux_unit_gem_map ON unit_gem_map (source_system, plant_key, unit_key)",
             "CREATE INDEX ix_unit_gem_map_location ON unit_gem_map (gem_location_id)",
-            GEM_UNIT_VIEW,
+            gem_unit_view_sql(engine),
             "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dashboard_ro') "
             "THEN GRANT SELECT ON unit_gem_map, gem_unit_monthly TO dashboard_ro; "
             "END IF; END $$",

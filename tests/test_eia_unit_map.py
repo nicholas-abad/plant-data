@@ -168,3 +168,28 @@ def test_reviewed_files_name_real_units_at_their_plants():
         df = load_reviewed(source)
         assert len(df) and df["gem_location_id"].str.startswith("L").all()
         assert df["gem_unit_ids"].str.split().map(lambda ids: all(i.startswith("G") for i in ids)).all()
+
+
+def test_oe_units_match_by_duid_then_reviewed_then_fall_back():
+    from src.oe_unit_map import build_oe_unit_map
+
+    units = pd.DataFrame(
+        [("BW01", "Bayswater", "coal_black"), ("LD01", "Liddell", "coal_black"),
+         ("XX9", "Bayswater", "gas_ocgt"), ("ZZ1", "Unlinked", "coal_black")],
+        columns=["unit_code", "facility_name", "fueltech"],
+    )  # fmt: skip
+    candidates = pd.DataFrame(
+        [("BW01", "G_BW1", "L_BW")], columns=["unit_code", "gem_unit_id", "gem_location_id"]
+    )
+    reviewed = pd.DataFrame(
+        [("LD01", "L_LD", "G_LD1")], columns=["unit_code", "gem_location_id", "gem_unit_ids"]
+    )
+    gem = pd.DataFrame(
+        [("G_BW1", "L_BW", "operating"), ("G_LD1", "L_LD", "retired")],
+        columns=["gem_unit_id", "gem_location_id", "status"],
+    )
+    out = build_oe_unit_map(units, candidates, reviewed, gem, {"Bayswater": "L_BW"}).set_index("unit_key")
+    assert out.loc["BW01", ["gem_unit_id", "map_source"]].tolist() == ["G_BW1", "gem-duid"]
+    assert out.loc["LD01", ["gem_unit_id", "map_source"]].tolist() == ["G_LD1", "source-id-reviewed"]
+    assert out.loc["XX9", "map_source"] == "crosswalk-plant" and not out.loc["XX9", "is_coal"]
+    assert "ZZ1" not in out.index  # its facility is linked to no GEM plant

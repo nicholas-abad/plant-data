@@ -68,6 +68,7 @@ data/crosswalks/*.csv
 # Reviewed ONS ID -> GEM unit(s) for Brazil (src/ons_unit_map.py): the build reads it.
 !data/crosswalks/ons_unit_gem_map.csv
 !data/crosswalks/chile_unit_gem_map.csv
+!data/crosswalks/oe_unit_gem_map.csv
 data/crosswalks/*.xlsx
 
 # Crosswalk test/scratch artifacts (not the real unified_plant_crosswalk.parquet)
