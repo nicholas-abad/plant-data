@@ -298,46 +298,13 @@ def load_unified_crosswalk(engine):
     print(f"  OK  plant_crosswalk: {len(df):,} rows")
 
 
-NPP_GEM_UNIT_VIEW = """
-CREATE VIEW npp_gem_unit_monthly AS
-SELECT m.gem_location_id, u.month, u.plant, u.unit, u.fuel_type,
-       u.generation_mwh, m.gem_unit_id, m.map_source
-FROM mv_npp_unit_monthly u
-JOIN npp_unit_gem_map m ON m.plant = u.plant AND m.unit = u.unit
-"""
-
-
 def load_npp_unit_map(engine):
-    """Load npp_unit_gem_map and (re)create npp_gem_unit_monthly on it.
+    """India's unit map is now the NPP rows of unit_gem_map (load_unit_gem_map).
 
-    India's GEM identity at unit grain: the tracker reads a GEM site's India
-    generation from npp_gem_unit_monthly (WHERE gem_location_id = …), which
-    places units of a DGR plant split across GEM sites (BARH STPS → Barh I /
-    Barh II) correctly. The swap drops the view with the old table (CASCADE),
-    so it is re-created here every load.
+    Kept so callers written before the merge still run; npp_unit_gem_map and
+    npp_gem_unit_monthly are views load_unit_gem_map creates.
     """
-    path = DATA_DIR / "crosswalks" / "npp_unit_gem_map.parquet"
-    if not path.exists():
-        print(f"  SKIP  {path.name} not found — run build_crosswalk.py first")
-        return
-
-    df = pd.read_parquet(path)
-
-    _atomic_replace_table(
-        engine,
-        df,
-        "npp_unit_gem_map",
-        [
-            "CREATE UNIQUE INDEX ux_npp_unit_gem_map ON npp_unit_gem_map (plant, unit)",
-            "CREATE INDEX ix_npp_unit_gem_map_location ON npp_unit_gem_map (gem_location_id)",
-            NPP_GEM_UNIT_VIEW,
-            "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dashboard_ro') "
-            "THEN GRANT SELECT ON npp_unit_gem_map, npp_gem_unit_monthly TO dashboard_ro; "
-            "END IF; END $$",
-        ],
-    )
-
-    print(f"  OK  npp_unit_gem_map: {len(df):,} rows (+ view npp_gem_unit_monthly)")
+    print("  SKIP  npp_unit_gem_map: now part of unit_gem_map (load_unit_gem_map)")
 
 
 def load_gem_external_ids(engine):
@@ -378,6 +345,12 @@ def load_gem_external_ids(engine):
 _UNIT_COLS = "m.source_system, m.gem_location_id, m.gem_unit_id, m.gem_unit_ids, m.plant_key, m.unit_key"
 _MONTH_COLS = "u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint AS timestamp_ms"
 GEM_UNIT_BRANCHES = {
+    # India: NPP units under their DGR plant names, all fuels (coal = THERMAL).
+    "mv_npp_unit_monthly": f"""
+SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
+       u.fuel_type AS fuel, u.fuel_type = 'THERMAL' AS is_coal, m.map_source
+FROM mv_npp_unit_monthly u
+JOIN unit_gem_map m ON m.source_system = 'NPP' AND m.plant_key = u.plant AND m.unit_key = u.unit""",
     "mv_eia_unit_monthly": f"""
 SELECT {_UNIT_COLS}, u.month, u.timestamp_ms, u.net_generation_mwh AS generation_mwh,
        m.fuel, m.is_coal, m.map_source
@@ -424,9 +397,35 @@ WHERE u.direction = 'injection'""",
 }
 
 
+# India's names from before the merge, as views over the shared map with their
+# original columns (the tracker reads both). A database loaded before the merge
+# still has npp_unit_gem_map as a table: it is dropped (with the old view) first.
+NPP_COMPAT_SQL = [
+    "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_class WHERE oid = to_regclass('public.npp_unit_gem_map') "
+    "AND relkind = 'r') THEN DROP TABLE public.npp_unit_gem_map CASCADE; END IF; END $$",
+    "CREATE VIEW npp_unit_gem_map AS SELECT plant_key AS plant, unit_key AS unit, gem_location_id, "
+    "gem_unit_id, map_source FROM unit_gem_map WHERE source_system = 'NPP'",
+    "CREATE VIEW npp_gem_unit_monthly AS SELECT gem_location_id, month, plant_key AS plant, "
+    "unit_key AS unit, fuel AS fuel_type, generation_mwh, gem_unit_id, map_source "
+    "FROM gem_unit_monthly WHERE source_system = 'NPP'",
+    "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dashboard_ro') "
+    "THEN GRANT SELECT ON npp_unit_gem_map, npp_gem_unit_monthly TO dashboard_ro; END IF; "
+    "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'etl_writer') "
+    "THEN ALTER VIEW npp_unit_gem_map OWNER TO etl_writer; ALTER VIEW npp_gem_unit_monthly OWNER TO etl_writer; "
+    "END IF; END $$",
+]
+
+
 def unit_overlap_sql(rows: str) -> str:
     """'SOURCE G…' for every GEM unit two source rows of ``rows`` (gem_unit_monthly's
-    shape) both generate on in one month, outside the US; NULL when none."""
+    shape) both generate on in one month, outside the US; NULL when none.
+
+    Used by verify_crosswalk.py as a warning, not a refusal: a plant renamed
+    mid-month legitimately reports one unit under both names that month
+    (India's BARH I / BARH STPS in 2022-07), while a source reporting the
+    same hours under two names (ONS in production, May-June 2026) counts
+    twice. Monthly totals cannot tell the two apart; the source's own rows
+    can, so duplicates are removed where the ETL loads them."""
     return f"""
 SELECT string_agg(DISTINCT source_system || ' ' || unit, ', ')
 FROM (
@@ -436,17 +435,6 @@ FROM (
   GROUP BY 1, 2, 3
   HAVING count(DISTINCT (r.plant_key, r.unit_key)) > 1
 ) x"""
-
-
-UNIT_MAP_OVERLAP_GUARD = f"""
-DO $$
-DECLARE clash text;
-BEGIN
-  {unit_overlap_sql("SELECT * FROM gem_unit_monthly")} INTO clash;
-  IF clash IS NOT NULL THEN
-    RAISE EXCEPTION 'unit_gem_map: rows sharing a GEM unit generate in the same month: %', left(clash, 500);
-  END IF;
-END $$"""
 
 
 def gem_unit_rows_sql(engine) -> str:
@@ -468,7 +456,8 @@ def load_unit_gem_map(engine):
     """Load unit_gem_map and (re)create gem_unit_monthly on it.
 
     Every source's units placed at GEM in one shape (src/unit_gem_map.py);
-    India keeps npp_unit_gem_map. The tracker reads a GEM site's units from
+    India included (its older names npp_unit_gem_map and npp_gem_unit_monthly
+    are re-created as views here). The tracker reads a GEM site's units from
     gem_unit_monthly (WHERE gem_location_id = …): a unit GEM identifies
     carries its gem_unit_id, the rest sit at their plant's GEM plant. Each
     source joins its own monthly view here (UNION ALL as sources are added).
@@ -476,11 +465,7 @@ def load_unit_gem_map(engine):
     re-created here every load.
 
     Ownership goes to etl_writer when that role exists, so the weekly job can
-    replace a map first loaded by hand (as load_ct_gem_crosswalk does). The
-    swap is refused, leaving the old map in place, when two source rows sit on
-    one GEM unit and both generate in the same month outside the US (a
-    renamed plant reported under both names would count twice); several US
-    generators on one GEM unit (a combined cycle's turbines) are normal.
+    replace a map first loaded by hand (as load_ct_gem_crosswalk does).
     """
     path = DATA_DIR / "crosswalks" / "unit_gem_map.parquet"
     if not path.exists():
@@ -503,7 +488,7 @@ def load_unit_gem_map(engine):
             "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'etl_writer') "
             "THEN ALTER TABLE unit_gem_map OWNER TO etl_writer; ALTER VIEW gem_unit_monthly OWNER TO etl_writer; "
             "END IF; END $$",
-            UNIT_MAP_OVERLAP_GUARD,
+            *NPP_COMPAT_SQL,
         ],
     )
 

@@ -1,10 +1,11 @@
 """unit_gem_map: every source's units placed at GEM, in one shape for all countries.
 
 The tracker pairs a feed's rows with GEM's units only through gem_unit_id.
-India has its own map (npp_unit_gem_map, unchanged); every other source writes
-rows of this shape, and the view gem_unit_monthly attaches them to the
-source's monthly generation so the tracker reads one view for all of them
-(WHERE gem_location_id = …), as it reads npp_gem_unit_monthly for India.
+Every source writes rows of this shape, India included, and the view
+gem_unit_monthly attaches them to the source's monthly generation so the
+tracker reads one view for all of them (WHERE gem_location_id = …). India's
+older names, npp_unit_gem_map and npp_gem_unit_monthly, are views over these
+with their original columns, so readers of them keep working.
 
 One row per source unit:
 * source_system, plant_key, unit_key: how the source names the unit (EIA:

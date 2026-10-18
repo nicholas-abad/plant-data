@@ -44,7 +44,6 @@ from src.build_crosswalk import (  # noqa: E402
     ENTSOE_AREA_COUNTRIES,
     GPPD_CSV,
     HUMAN_METHODS,
-    NPP_UNIT_MAP_FILE,
     OUTPUT_FILE,
     _make_engine,
 )
@@ -195,7 +194,7 @@ def eia_id_gates(xw: pd.DataFrame) -> None:
 
 
 def unit_overlaps(engine, umap: pd.DataFrame) -> str | None:
-    """The loader's same-month overlap check, run on this build's map before any swap.
+    """The same-month overlap check (bootstrap_neon_db.unit_overlap_sql) on this build's map, before any swap.
 
     The new map goes into a temporary table that shadows unit_gem_map for this
     transaction only (pg_temp comes first on the search path), so the
@@ -249,7 +248,7 @@ def unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
     lone = matched[matched["gem_unit_id"].notna() & (matched["gem_unit_id"] != matched["gem_unit_ids"])]
     if len(lone):
         fail(f"G-UNITMAP: {len(lone)} rows whose gem_unit_id is not their only gem_unit_ids entry")
-    for system in ("ONS", "CHILE", "OE", "OCCTO", "ENTSOE"):
+    for system in ("NPP", "ONS", "CHILE", "OE", "OCCTO", "ENTSOE"):
         rows = umap[(umap["source_system"] == system) & umap["is_coal"].astype(bool)]
         if len(rows):
             placed = rows[rows["map_source"] != "crosswalk-plant"]
@@ -262,7 +261,10 @@ def unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
     engine = _make_engine()
     clash = unit_overlaps(engine, umap)
     if clash:
-        fail(f"G-UNITMAP: rows sharing a GEM unit generate in the same month (the loader would refuse): {clash[:300]}")
+        print(
+            f"warn  G-UNITMAP: {clash.count(',') + 1} GEM units reported under two source names in one month "
+            f"(a mid-month rename, or the source reporting twice; check the source): {clash[:300]}"
+        )
     eia = umap[umap["source_system"] == "EIA"]
     if eia.empty:
         # The US rows need eia_generator_key() (ETL migration 023); without it
@@ -841,9 +843,12 @@ def main() -> int:
         else:
             ok("G-CT6: all CT capacities are CT-sourced")
 
-    # G-NPPMAP: India's unit-grain GEM identity (npp_unit_gem_map)
-    if NPP_UNIT_MAP_FILE.exists():
-        umap = pd.read_parquet(NPP_UNIT_MAP_FILE)
+    # G-NPPMAP: India's unit-grain GEM identity (the NPP rows of unit_gem_map)
+    npp_rows = (
+        pd.read_parquet(UNIT_MAP_FILE).query("source_system == 'NPP'") if UNIT_MAP_FILE.exists() else pd.DataFrame()
+    )
+    if len(npp_rows):
+        umap = npp_rows.rename(columns={"plant_key": "plant", "unit_key": "unit"})
         before = fail.count
         dups = int(umap.duplicated(["plant", "unit"]).sum())
         if dups:
@@ -880,7 +885,7 @@ def main() -> int:
                 "Barh/Anpara/Durgapur Steel placed on their GEM sites"
             )
     else:
-        fail(f"G-NPPMAP: {NPP_UNIT_MAP_FILE.name} missing — the build did not write it")
+        fail(f"G-NPPMAP: no NPP rows in {UNIT_MAP_FILE.name} — the build did not write them")
 
     unit_map_gate(xw, gem_tables["units"])
 

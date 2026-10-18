@@ -43,6 +43,7 @@ from .plant_name_matchers import (
 )
 from . import gem_reference as gemref
 from . import eia_gem_ids, eia_unit_map, entsoe_unit_map, occto_unit_map, oe_unit_map, reviewed_unit_map
+from .unit_gem_map import COLUMNS as UNIT_MAP_COLUMNS
 from .unit_gem_map import MAP_FILE as UNIT_MAP_FILE
 from .gem_external_ids import eia_plant_locations, load_snapshot
 from .utils import get_crosswalk_dir, validate_coordinates
@@ -52,7 +53,6 @@ from .utils import get_crosswalk_dir, validate_coordinates
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = get_crosswalk_dir()
 OUTPUT_FILE = OUTPUT_DIR / "unified_plant_crosswalk.parquet"
-NPP_UNIT_MAP_FILE = OUTPUT_DIR / "npp_unit_gem_map.parquet"
 
 GPPD_CSV = get_crosswalk_dir() / "global_power_plant_database.csv"
 EIA_LOOKUP_CSV = get_crosswalk_dir() / "eia_plant_lookup.csv"
@@ -2457,7 +2457,7 @@ def veto_non_coal_feeds(rows: pd.DataFrame, plants_df: pd.DataFrame) -> pd.DataF
 
 
 def build_npp_unit_map(units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataFrame:
-    """One GEM location per India (plant, unit): npp_unit_gem_map.
+    """One GEM location per India (plant, unit): the NPP rows of unit_gem_map.
 
     The crosswalk is plant-grained, so a DGR plant whose units GEM files under
     two sites (BARH STPS -> Barh I + Barh II after the 2022 rename, ANPARA TPS
@@ -2497,7 +2497,7 @@ def build_npp_unit_map(units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataF
     out.loc[fallback & out["gem_location_id"].notna(), "map_source"] = "crosswalk-plant"
     out = out[out["gem_location_id"].notna()].reset_index(drop=True)
     logger.info(
-        f"npp_unit_gem_map: {len(out):,} (plant, unit) rows — "
+        f"unit_gem_map NPP: {len(out):,} (plant, unit) rows — "
         f"{(out['map_source'] == 'gipt-unit').sum():,} gipt-unit, "
         f"{(out['map_source'] == 'crosswalk-plant').sum():,} crosswalk-plant; "
         f"{len(units[['plant', 'unit']].drop_duplicates()) - len(out):,} unmapped"
@@ -2505,9 +2505,37 @@ def build_npp_unit_map(units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataF
     return out
 
 
+def npp_unit_gem_rows(npp_map: pd.DataFrame, units: pd.DataFrame) -> pd.DataFrame:
+    """India's map in unit_gem_map's shape (source_system 'NPP'); ``units`` gives each unit's fuel."""
+    fuel = units.drop_duplicates(["plant", "unit"]).set_index(["plant", "unit"])["fuel_type"]
+    key = pd.MultiIndex.from_frame(npp_map[["plant", "unit"]])
+    return pd.DataFrame(
+        {
+            "source_system": "NPP",
+            "plant_key": npp_map["plant"],
+            "unit_key": npp_map["unit"],
+            "gem_location_id": npp_map["gem_location_id"],
+            "gem_unit_id": npp_map["gem_unit_id"],
+            "gem_unit_ids": npp_map["gem_unit_id"],
+            "map_source": npp_map["map_source"],
+            "fuel": fuel.reindex(key).to_numpy(),
+            "is_coal": (fuel.reindex(key) == "THERMAL").to_numpy(),
+            "other_gem_unit_ids": None,
+        },
+        columns=UNIT_MAP_COLUMNS,
+    )
+
+
 def _pull_npp_units(engine) -> pd.DataFrame:
+    """Each (plant, unit) of mv_npp_unit_monthly and its fuel (THERMAL if it ever reported it)."""
     with engine.connect() as conn:
-        return pd.read_sql(text("SELECT DISTINCT plant, unit FROM mv_npp_unit_monthly"), conn)
+        return pd.read_sql(
+            text(
+                "SELECT plant, unit, CASE WHEN bool_or(fuel_type = 'THERMAL') THEN 'THERMAL' "
+                "ELSE min(fuel_type) END AS fuel_type FROM mv_npp_unit_monthly GROUP BY 1, 2"
+            ),
+            conn,
+        )
 
 
 def build_unified_crosswalk(
@@ -2838,14 +2866,14 @@ def build_unified_crosswalk(
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     unified.to_parquet(OUTPUT_FILE, index=False)
     logger.info(f"Saved {len(unified):,} rows to {OUTPUT_FILE}")
-    if sources is None or "NPP" in sources:
-        unit_map = build_npp_unit_map(_pull_npp_units(engine), unified)
-        unit_map.to_parquet(NPP_UNIT_MAP_FILE, index=False)
-        logger.info(f"Saved {len(unit_map):,} rows to {NPP_UNIT_MAP_FILE}")
-    # unit_gem_map: one file for every source (src/unit_gem_map.py). A partial
-    # rebuild (--sources) replaces only the rebuilt sources' rows.
+    # unit_gem_map: one file for every source, India included (src/unit_gem_map.py).
+    # A partial rebuild (--sources) replaces only the rebuilt sources' rows.
     gem_units = gemref.load_tables()["units"]
     parts, rebuilt = [], set()
+    if sources is None or "NPP" in sources:
+        npp_units = _pull_npp_units(engine)
+        parts.append(npp_unit_gem_rows(build_npp_unit_map(npp_units, unified), npp_units))
+        rebuilt.add("NPP")
     if sources is None or "EIA" in sources:
         built = eia_unit_map.build_from_db(engine, gem_units, unified)
         if built is not None:
