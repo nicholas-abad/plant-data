@@ -194,6 +194,38 @@ def eia_id_gates(xw: pd.DataFrame) -> None:
         )
 
 
+def unit_overlaps(engine, umap: pd.DataFrame) -> str | None:
+    """The loader's same-month overlap check, run on this build's map before any swap.
+
+    The new map goes into a temporary table that shadows unit_gem_map for this
+    transaction only (pg_temp comes first on the search path), so the
+    loader's own view SQL reads it; the transaction is rolled back.
+    """
+    import bootstrap_neon_db as boot
+    from sqlalchemy import text as _sql_text
+
+    cols = ["source_system", "plant_key", "unit_key", "gem_location_id", "gem_unit_id", "gem_unit_ids", "map_source", "fuel", "is_coal"]  # fmt: skip
+    rows = umap[cols].to_json(orient="records")
+    union = boot.gem_unit_rows_sql(engine)
+    with engine.connect() as conn:
+        conn.execute(
+            _sql_text(
+                "CREATE TEMP TABLE unit_gem_map (source_system text, plant_key text, unit_key text, "
+                "gem_location_id text, gem_unit_id text, gem_unit_ids text, map_source text, fuel text, "
+                "is_coal boolean) ON COMMIT DROP"
+            )
+        )
+        conn.execute(
+            _sql_text(
+                "INSERT INTO pg_temp.unit_gem_map SELECT * FROM json_populate_recordset(NULL::pg_temp.unit_gem_map, :rows)"
+            ),
+            {"rows": rows},
+        )
+        clash = conn.execute(_sql_text(boot.unit_overlap_sql(union))).scalar()
+        conn.rollback()
+    return clash
+
+
 def unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
     """G-UNITMAP: unit_gem_map (every source but India), when the build wrote it."""
     if not UNIT_MAP_FILE.exists():
@@ -225,10 +257,13 @@ def unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
                 f"ok    G-UNITMAP: {system} {len(placed)} coal rows on GEM units, "
                 f"{len(rows) - len(placed)} at plant level"
             )
-    eia = umap[umap["source_system"] == "EIA"]
     from sqlalchemy import text as _sql_text
 
     engine = _make_engine()
+    clash = unit_overlaps(engine, umap)
+    if clash:
+        fail(f"G-UNITMAP: rows sharing a GEM unit generate in the same month (the loader would refuse): {clash[:300]}")
+    eia = umap[umap["source_system"] == "EIA"]
     if eia.empty:
         # The US rows need eia_generator_key() (ETL migration 023); without it
         # the build skips them on purpose and the other sources still load.

@@ -424,34 +424,44 @@ WHERE u.direction = 'injection'""",
 }
 
 
-UNIT_MAP_OVERLAP_GUARD = """
+def unit_overlap_sql(rows: str) -> str:
+    """'SOURCE G…' for every GEM unit two source rows of ``rows`` (gem_unit_monthly's
+    shape) both generate on in one month, outside the US; NULL when none."""
+    return f"""
+SELECT string_agg(DISTINCT source_system || ' ' || unit, ', ')
+FROM (
+  SELECT r.source_system, g.unit, r.month
+  FROM ({rows}) r CROSS JOIN LATERAL unnest(string_to_array(r.gem_unit_ids, ' ')) AS g(unit)
+  WHERE r.source_system <> 'EIA' AND r.generation_mwh > 0
+  GROUP BY 1, 2, 3
+  HAVING count(DISTINCT (r.plant_key, r.unit_key)) > 1
+) x"""
+
+
+UNIT_MAP_OVERLAP_GUARD = f"""
 DO $$
 DECLARE clash text;
 BEGIN
-  SELECT string_agg(DISTINCT source_system || ' ' || gem_unit_ids, ', ') INTO clash
-  FROM (
-    SELECT source_system, gem_unit_ids, month
-    FROM gem_unit_monthly
-    WHERE source_system <> 'EIA' AND gem_unit_ids IS NOT NULL AND generation_mwh > 0
-    GROUP BY 1, 2, 3
-    HAVING count(DISTINCT (plant_key, unit_key)) > 1
-  ) x;
+  {unit_overlap_sql("SELECT * FROM gem_unit_monthly")} INTO clash;
   IF clash IS NOT NULL THEN
     RAISE EXCEPTION 'unit_gem_map: rows sharing a GEM unit generate in the same month: %', left(clash, 500);
   END IF;
 END $$"""
 
 
-def gem_unit_view_sql(engine) -> str:
+def gem_unit_rows_sql(engine) -> str:
+    """The UNION of the branches whose source views this database has."""
     with engine.connect() as conn:
         present = [
             name
             for name in GEM_UNIT_BRANCHES
             if conn.execute(text("SELECT to_regclass(:n) IS NOT NULL"), {"n": name}).scalar()
         ]
-    return "CREATE VIEW gem_unit_monthly AS" + "\nUNION ALL".join(
-        GEM_UNIT_BRANCHES[name] for name in present
-    )
+    return "\nUNION ALL".join(GEM_UNIT_BRANCHES[name] for name in present)
+
+
+def gem_unit_view_sql(engine) -> str:
+    return "CREATE VIEW gem_unit_monthly AS" + gem_unit_rows_sql(engine)
 
 
 def load_unit_gem_map(engine):
