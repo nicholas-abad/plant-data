@@ -36,6 +36,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from src import eia_gem_ids  # noqa: E402
+from src import eia_unit_map  # noqa: E402
 from src import gem_reference as gemref  # noqa: E402
 from src.gem_external_ids import eia_plant_locations, load_snapshot  # noqa: E402
 from src.unit_gem_map import MAP_FILE as UNIT_MAP_FILE  # noqa: E402
@@ -227,16 +228,28 @@ def unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
     eia = umap[umap["source_system"] == "EIA"]
     from sqlalchemy import text as _sql_text
 
-    with _make_engine().connect() as conn:
+    engine = _make_engine()
+    if eia.empty:
+        # The US rows need eia_generator_key() (ETL migration 023); without it
+        # the build skips them on purpose and the other sources still load.
+        if eia_unit_map.has_key_function(engine):
+            fail("G-UNITMAP: no US rows although the database has eia_generator_key() (migration 023)")
+        else:
+            print("warn  G-UNITMAP: no US rows (database without ETL migration 023); US coverage not checked")
+        if fail.count == before:
+            ok(f"G-UNITMAP: {len(umap):,} rows (no US rows)")
+        return
+    with engine.connect() as conn:
         gen = pd.read_sql(
             _sql_text(
                 "SELECT e.plant_code::text AS plant_key, e.generator_id AS unit_key, SUM(e.net_generation_mwh) AS g "
                 "FROM mv_eia_unit_monthly e JOIN eia_generator_info i "
                 "ON i.plant_code = e.plant_code AND i.generator_id = e.generator_id "
-                "WHERE i.technology IN ('Conventional Steam Coal', 'Coal Integrated Gasification Combined Cycle') "
+                "WHERE i.technology = ANY(:coal) "
                 "AND e.month >= CURRENT_DATE - INTERVAL '24 months' GROUP BY 1, 2"
             ),
             conn,
+            params={"coal": sorted(eia_unit_map.COAL_TECHNOLOGIES)},
         )
     on = gen.merge(eia, on=["plant_key", "unit_key"])
     unit_share = on.loc[on["gem_unit_id"].notna(), "g"].sum() / gen["g"].sum()

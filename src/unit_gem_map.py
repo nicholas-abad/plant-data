@@ -71,7 +71,10 @@ def with_fallback(
 
 
 def check_reviewed(file: Path, reviewed: pd.DataFrame, gem_units: pd.DataFrame, key: list[str]) -> None:
-    """Every GEM unit a reviewed file lists exists and sits at the GEM plant it lists."""
+    """Each source unit is listed once, and every GEM unit listed exists at the GEM plant listed."""
+    dup = reviewed[reviewed.duplicated(key)]
+    if len(dup):
+        raise ValueError(f"{file.name}: listed twice: {dup[key].astype(str).agg(' '.join, axis=1).tolist()}")
     where = dict(zip(gem_units["gem_unit_id"], gem_units["gem_location_id"]))
     for r in reviewed.to_dict("records"):
         for unit in r["gem_unit_ids"].split():

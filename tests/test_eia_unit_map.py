@@ -1,6 +1,7 @@
 """unit_gem_map, US rows: each EIA generator's GEM unit (no database)."""
 
 import pandas as pd
+import pytest
 
 from src.eia_unit_map import build_eia_unit_map, gem_candidates
 from src.unit_gem_map import COLUMNS, with_fallback
@@ -296,3 +297,49 @@ def test_entsoe_units_match_within_phase_and_never_share_a_generating_unit():
     reviewed = pd.DataFrame([("Two X G1", "L_S", "G_S")], columns=no_review.columns)
     out = build_entsoe_unit_map(months, reviewed, gem, links).set_index("plant_key")
     assert out.loc["Two X G1", "gem_unit_id"] == "G_S" and out.loc["Two X", "map_source"] == "crosswalk-plant"
+
+
+def test_eia_unit_candidates_follow_the_plant_code_review():
+    from src.eia_unit_map import apply_review
+
+    cands = pd.DataFrame(
+        [("10307", "1", "G_T", "L_TORONTO"), ("1", "1", "G_A", "L_A"), ("2", "1", "G_B", "L_B"), ("2", "2", "G_C", "L_C")],
+        columns=["plant_code", "gem_generator_id", "gem_unit_id", "gem_location_id"],
+    )  # fmt: skip
+    review = {"10307": {"verdict": "defer", "gem_location_id": "L_TORONTO"}, "2": {"verdict": "accept", "gem_location_id": "L_B"}}
+    kept = apply_review(cands, review)
+    assert sorted(kept["gem_unit_id"]) == ["G_A", "G_B"]  # deferred code out; accepted code only at its location
+
+
+def test_petroleum_coke_counts_as_coal():
+    from src.eia_unit_map import COAL_TECHNOLOGIES
+
+    assert "Petroleum Coke" in COAL_TECHNOLOGIES
+
+
+def test_reviewed_claims_count_in_the_japan_and_europe_guards():
+    from src.entsoe_unit_map import build_entsoe_unit_map
+    from src.occto_unit_map import build_occto_unit_map
+
+    gem = pd.DataFrame([("G1", "L1", "GCPT", "Unit 1", "operating")],
+                       columns=["gem_unit_id", "gem_location_id", "tracker", "unit_name", "status"])  # fmt: skip
+    units = pd.DataFrame([("A", "1号機", "coal"), ("B", "1号機", "coal")], columns=["plant", "unit", "fuel_type"])
+    reviewed = pd.DataFrame([("A", "1号機", "L1", "G1")], columns=["plant", "unit", "gem_location_id", "gem_unit_ids"])
+    out = build_occto_unit_map(units, reviewed, gem, {"A": "L1", "B": "L1"}).set_index("plant_key")
+    assert out.loc["A", "map_source"] == "source-id-reviewed" and out.loc["B", "map_source"] == "crosswalk-plant"
+
+    months = pd.DataFrame([("X G1", "2025-01"), ("Y G1", "2025-01")], columns=["plant_name", "month"])
+    reviewed = pd.DataFrame([("X G1", "L1", "G1")], columns=["plant_name", "gem_location_id", "gem_unit_ids"])
+    out = build_entsoe_unit_map(months, reviewed, gem, {"X G1": "L1", "Y G1": "L1"}).set_index("plant_key")
+    assert out.loc["X G1", "map_source"] == "source-id-reviewed" and out.loc["Y G1", "map_source"] == "crosswalk-plant"
+
+
+def test_a_reviewed_file_listing_a_unit_twice_is_refused():
+    from pathlib import Path
+
+    from src.unit_gem_map import check_reviewed
+
+    gem = pd.DataFrame([("G1", "L1")], columns=["gem_unit_id", "gem_location_id"])
+    twice = pd.DataFrame([("X", "L1", "G1"), ("X", "L1", "G1")], columns=["plant_name", "gem_location_id", "gem_unit_ids"])
+    with pytest.raises(ValueError, match="listed twice"):
+        check_reviewed(Path("x.csv"), twice, gem, ["plant_name"])

@@ -15,6 +15,11 @@ A generator with several candidate units:
   is kept in ``other_gem_unit_ids``;
 * anything still ambiguous is left unmatched and reported, never guessed.
 
+GEM's location codes go through the same review as the plant links
+(``eia_gem_id_review.csv``, src/eia_gem_ids.py): a code rejected or deferred
+there places none of its units, and an accepted code places units only at the
+accepted location.
+
 Generators no GEM unit claims get a fallback row at their plant's crosswalk
 link, so the tracker still shows their generation on the right plant.
 """
@@ -25,12 +30,14 @@ import pandas as pd
 from loguru import logger
 from sqlalchemy import text
 
+from . import eia_gem_ids
 from .gem_external_ids import SNAPSHOT_FILE
 from .unit_gem_map import COLUMNS, with_fallback
 
 METHOD = "gem-eia-id"
 NEVER_RAN = {"planned", "cancelled"}
-COAL_TECHNOLOGIES = {"Conventional Steam Coal", "Coal Integrated Gasification Combined Cycle"}
+# The tracker's coal technologies (EIA_COAL_TECHNOLOGIES) and the coal review query's.
+COAL_TECHNOLOGIES = {"Conventional Steam Coal", "Coal Integrated Gasification Combined Cycle", "Petroleum Coke"}
 
 
 def gem_candidates(ids: pd.DataFrame) -> pd.DataFrame:
@@ -47,6 +54,17 @@ def gem_candidates(ids: pd.DataFrame) -> pd.DataFrame:
         ["gem_location_id", "gem_unit_id", "external_id"]
     ].rename(columns={"external_id": "gem_generator_id"})
     return gens.merge(plants, on="gem_location_id").drop_duplicates()
+
+
+def apply_review(cands: pd.DataFrame, review: dict[str, dict]) -> pd.DataFrame:
+    """Drop candidates the plant-code review does not allow (see the module docstring)."""
+    verdict = cands["plant_code"].map(lambda c: review.get(c, {}).get("verdict"))
+    accepted = cands["plant_code"].map(lambda c: review.get(c, {}).get("gem_location_id"))
+    keep = verdict.isna() | ((verdict == "accept") & (cands["gem_location_id"] == accepted))
+    dropped = cands.loc[~keep, "plant_code"].nunique()
+    if dropped:
+        logger.info(f"unit_gem_map EIA: {dropped} plant codes held back by eia_gem_id_review.csv")
+    return cands[keep]
 
 
 def key_with_db(engine, frame: pd.DataFrame) -> pd.Series:
@@ -164,7 +182,7 @@ def build_from_db(
             "unit_gem_map EIA rows not built: the database lacks eia_generator_key() (ETL migration 023)"
         )
         return None
-    cands = gem_candidates(pd.read_parquet(SNAPSHOT_FILE))
+    cands = apply_review(gem_candidates(pd.read_parquet(SNAPSHOT_FILE)), eia_gem_ids.load_review())
     cands["generator_id"] = key_with_db(engine, cands)
     gens = pull_generators(engine)
     matched, miss = build_eia_unit_map(gens, cands, units)

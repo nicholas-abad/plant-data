@@ -153,10 +153,11 @@ def build_entsoe_unit_map(
         )
     matched = pd.DataFrame(rows, columns=COLUMNS)
     # Two names on one GEM unit generating in the same month are two units
-    # (TPP_MI2_G3 and TPP_MI3_G3 both linked to Maritsa Iztok-2): review.
-    auto = matched[matched["map_source"] != REVIEWED][["plant_key", "gem_unit_ids"]]
-    gen = months.dropna(subset=["month"]).merge(auto, left_on="plant_name", right_on="plant_key")
-    per_month = gen.groupby(["gem_unit_ids", "month"])["plant_key"].nunique()
+    # (TPP_MI2_G3 and TPP_MI3_G3 both linked to Maritsa Iztok-2): the
+    # automatic claims wait for review; a reviewed claim counts but stays.
+    claims = matched.assign(unit=matched["gem_unit_ids"].str.split()).explode("unit")[["plant_key", "unit"]]
+    gen = months.dropna(subset=["month"]).merge(claims, left_on="plant_name", right_on="plant_key")
+    per_month = gen.groupby(["unit", "month"])["plant_key"].nunique()
     clash = set(per_month[per_month > 1].index.get_level_values(0))
     matched = matched[~(matched["gem_unit_ids"].isin(clash) & (matched["map_source"] != REVIEWED))]
     every = pd.DataFrame({"source_system": "ENTSOE", "plant_key": names, "unit_key": "", "fuel": "coal", "is_coal": True})

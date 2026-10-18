@@ -33,11 +33,11 @@ def has_unit_table(engine) -> bool:
 
 
 def pull_units(engine) -> pd.DataFrame:
-    """Every unit that generated, its facility and fueltech."""
+    """Every unit that generated, its latest facility name (else its DUID) and fueltech."""
     with engine.connect() as conn:
         return pd.read_sql(
             text(
-                "SELECT DISTINCT ON (unit_code) unit_code, facility_name, fueltech "
+                "SELECT DISTINCT ON (unit_code) unit_code, COALESCE(facility_name, unit_code) AS facility_name, fueltech "
                 "FROM oe_unit_generation_all_fuels WHERE direction = 'injection' "
                 "ORDER BY unit_code, timestamp_ms DESC"
             ),

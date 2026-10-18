@@ -54,11 +54,7 @@ SOURCES = [
 
 def load_reviewed(source: Source) -> pd.DataFrame:
     df = pd.read_csv(source.file, dtype=str, keep_default_na=False)
-    df = df.rename(columns={source.id_column: "source_id"})
-    dup = df["source_id"][df["source_id"].duplicated()]
-    if len(dup):
-        raise ValueError(f"{source.file.name}: IDs listed twice: {dup.tolist()}")
-    return df
+    return df.rename(columns={source.id_column: "source_id"})
 
 
 def build_rows(

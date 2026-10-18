@@ -94,11 +94,12 @@ def build_occto_unit_map(
         )
     matched = pd.DataFrame(rows, columns=COLUMNS)
     # An automatic match must not hand one GEM unit to two OCCTO plants (both
-    # Hibikinada names sit on a site with one GEM unit): those wait for review.
-    auto = matched["map_source"] != REVIEWED
-    plants_per_unit = matched[auto].groupby("gem_unit_ids")["plant_key"].nunique()
+    # Hibikinada names sit on a site with one GEM unit), counting reviewed
+    # claims too: the automatic one waits for review, the reviewed one stays.
+    each = matched.assign(unit=matched["gem_unit_ids"].str.split()).explode("unit")
+    plants_per_unit = each.groupby("unit")["plant_key"].nunique()
     shared = set(plants_per_unit[plants_per_unit > 1].index)
-    matched = matched[~(auto & matched["gem_unit_ids"].isin(shared))]
+    matched = matched[~((matched["map_source"] != REVIEWED) & matched["gem_unit_ids"].isin(shared))]
     every = pd.DataFrame(
         {
             "source_system": "OCCTO",

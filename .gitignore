@@ -65,7 +65,7 @@ data/crosswalks/*.csv
 !data/crosswalks/ct_gem_crosswalk.csv
 # Reviewed EIA ↔ GEM-code verdicts (src/eia_gem_ids.py): the build reads it.
 !data/crosswalks/eia_gem_id_review.csv
-# Reviewed ONS ID -> GEM unit(s) for Brazil (src/ons_unit_map.py): the build reads it.
+# Reviewed source unit -> GEM unit(s) files (src/reviewed_unit_map.py, oe/occto/entsoe_unit_map.py): the build reads them.
 !data/crosswalks/ons_unit_gem_map.csv
 !data/crosswalks/chile_unit_gem_map.csv
 !data/crosswalks/oe_unit_gem_map.csv

@@ -376,6 +376,7 @@ def load_gem_external_ids(engine):
 # One branch per source, built from the sources this database has (Australia's
 # unit-grain view exists only where ETL migration 022 is applied).
 _UNIT_COLS = "m.source_system, m.gem_location_id, m.gem_unit_id, m.gem_unit_ids, m.plant_key, m.unit_key"
+_MONTH_COLS = "u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint AS timestamp_ms"
 GEM_UNIT_BRANCHES = {
     "mv_eia_unit_monthly": f"""
 SELECT {_UNIT_COLS}, u.month, u.timestamp_ms, u.net_generation_mwh AS generation_mwh,
@@ -385,41 +386,60 @@ JOIN unit_gem_map m
   ON m.source_system = 'EIA' AND m.plant_key = u.plant_code AND m.unit_key = u.generator_id""",
     # Brazil: ONS reports whole plants or phases (unit_key ''); coal rows only.
     "mv_ons_plant_monthly": f"""
-SELECT {_UNIT_COLS}, u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.generation_mwh,
-       u.fuel_type, TRUE, m.map_source
+SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
+       u.fuel_type AS fuel, TRUE AS is_coal, m.map_source
 FROM mv_ons_plant_monthly u
 JOIN unit_gem_map m ON m.source_system = 'ONS' AND m.plant_key = u.plant AND m.unit_key = ''
 WHERE u.fuel_type = 'Carvão'""",
     # Chile: plant or unit rows as the Coordinador reports them; coal rows only.
     "mv_chile_plant_monthly": f"""
-SELECT {_UNIT_COLS}, u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.generation_mwh,
-       u.fuel_type, TRUE, m.map_source
+SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
+       u.fuel_type AS fuel, TRUE AS is_coal, m.map_source
 FROM mv_chile_plant_monthly u
 JOIN unit_gem_map m ON m.source_system = 'CHILE' AND m.plant_key = u.plant AND m.unit_key = ''
 WHERE u.fuel_type = 'Carbón'""",
     # Japan: OCCTO units under their plant names; coal rows only.
     "mv_occto_unit_monthly": f"""
-SELECT {_UNIT_COLS}, u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.generation_mwh,
-       u.fuel_type, TRUE, m.map_source
+SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
+       u.fuel_type AS fuel, TRUE AS is_coal, m.map_source
 FROM mv_occto_unit_monthly u
 JOIN unit_gem_map m ON m.source_system = 'OCCTO' AND m.plant_key = u.plant AND m.unit_key = u.unit
 WHERE u.fuel_type = 'coal'""",
     # Europe: ENTSO-E unit names (each its own crosswalk row, unit_key ''); coal rows only.
     "mv_entsoe_plant_monthly": f"""
-SELECT {_UNIT_COLS}, u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.generation_mwh,
-       u.fuel_type, TRUE, m.map_source
+SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
+       u.fuel_type AS fuel, TRUE AS is_coal, m.map_source
 FROM mv_entsoe_plant_monthly u
 JOIN unit_gem_map m ON m.source_system = 'ENTSOE' AND m.plant_key = u.plant_name AND m.unit_key = ''
 WHERE u.fuel_type IN ('Fossil Hard coal', 'Fossil Brown coal/Lignite')""",
     # Australia: OE units (DUIDs), generation = injection, network-local months.
+    # Joined on the DUID alone: a month filed under an older facility name
+    # (plant_key is the latest one) still belongs to the unit.
     "mv_oe_all_fuels_unit_monthly": f"""
-SELECT {_UNIT_COLS}, u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint, u.energy_mwh,
-       u.fueltech, left(u.fueltech, 4) = 'coal', m.map_source
+SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.energy_mwh AS generation_mwh,
+       u.fueltech AS fuel, left(u.fueltech, 4) = 'coal' AS is_coal, m.map_source
 FROM mv_oe_all_fuels_unit_monthly u
-JOIN unit_gem_map m
-  ON m.source_system = 'OE' AND m.plant_key = u.facility_name AND m.unit_key = u.unit_code
+JOIN unit_gem_map m ON m.source_system = 'OE' AND m.unit_key = u.unit_code
 WHERE u.direction = 'injection'""",
 }
+
+
+UNIT_MAP_OVERLAP_GUARD = """
+DO $$
+DECLARE clash text;
+BEGIN
+  SELECT string_agg(DISTINCT source_system || ' ' || gem_unit_ids, ', ') INTO clash
+  FROM (
+    SELECT source_system, gem_unit_ids, month
+    FROM gem_unit_monthly
+    WHERE source_system <> 'EIA' AND gem_unit_ids IS NOT NULL AND generation_mwh > 0
+    GROUP BY 1, 2, 3
+    HAVING count(DISTINCT (plant_key, unit_key)) > 1
+  ) x;
+  IF clash IS NOT NULL THEN
+    RAISE EXCEPTION 'unit_gem_map: rows sharing a GEM unit generate in the same month: %', left(clash, 500);
+  END IF;
+END $$"""
 
 
 def gem_unit_view_sql(engine) -> str:
@@ -444,10 +464,17 @@ def load_unit_gem_map(engine):
     source joins its own monthly view here (UNION ALL as sources are added).
     The swap drops the view with the old table (CASCADE), so it is
     re-created here every load.
+
+    Ownership goes to etl_writer when that role exists, so the weekly job can
+    replace a map first loaded by hand (as load_ct_gem_crosswalk does). The
+    swap is refused, leaving the old map in place, when two source rows sit on
+    one GEM unit and both generate in the same month outside the US (a
+    renamed plant reported under both names would count twice); several US
+    generators on one GEM unit (a combined cycle's turbines) are normal.
     """
     path = DATA_DIR / "crosswalks" / "unit_gem_map.parquet"
     if not path.exists():
-        print(f"  SKIP  {path.name} not found — build_crosswalk.py writes it once ETL migration 023 is applied")
+        print(f"  SKIP  {path.name} not found — run build_crosswalk.py first")
         return
 
     df = pd.read_parquet(path)
@@ -463,6 +490,10 @@ def load_unit_gem_map(engine):
             "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dashboard_ro') "
             "THEN GRANT SELECT ON unit_gem_map, gem_unit_monthly TO dashboard_ro; "
             "END IF; END $$",
+            "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'etl_writer') "
+            "THEN ALTER TABLE unit_gem_map OWNER TO etl_writer; ALTER VIEW gem_unit_monthly OWNER TO etl_writer; "
+            "END IF; END $$",
+            UNIT_MAP_OVERLAP_GUARD,
         ],
     )
 
@@ -733,10 +764,11 @@ def load_ct_gem_crosswalk(engine):
 
 
 def load_all_reference_data(engine):
-    """Load the unified crosswalk table, EIA generator info, and GCPT coal metadata."""
+    """Load the unified crosswalk table, EIA generator info, GCPT coal metadata and the unit map."""
     load_unified_crosswalk(engine)
     load_eia_generator_info(engine)
     load_gcpt_coal_metadata(engine)
+    load_unit_gem_map(engine)
 
 
 # ---------------------------------------------------------------------------
