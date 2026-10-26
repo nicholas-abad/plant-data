@@ -1,0 +1,2 @@
+source_system,plant_code,plant_name,gem_location_id,not_in_gem,decision_note
+NPP,,RIHAND HPS,,true,"Rihand hydro station (Uttar Pradesh), not the Rihand coal plant L100000102649 it was name-matched to (legacy rapidfuzz). GEM's hydro tracker is not in gem_locations, so no GEM plant here."
