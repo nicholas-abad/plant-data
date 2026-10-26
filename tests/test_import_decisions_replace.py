@@ -134,12 +134,46 @@ def test_unknown_gem_location_is_refused(mod, db, tmp_path):
     assert rows(db).loc["Pljevlja", "gem_location_id"] == "LGAS"
 
 
+@pytest.mark.parametrize("change", [
+    "UPDATE plant_crosswalk SET decided_by = 'other reviewer', not_in_gem = 1 WHERE plant_name = 'Pljevlja'",
+    "DELETE FROM plant_crosswalk WHERE plant_name = 'Pljevlja'",
+])
+def test_row_changed_after_it_was_read_is_refused(mod, db, tmp_path, change):
+    # someone else's write lands between the importer's SELECT and its UPDATE
+    def interleave(conn, cursor, statement, *_):
+        if statement.lstrip().startswith("UPDATE plant_crosswalk SET") and "matching_method = 'manual'" in statement:
+            cursor.execute(change)
+
+    event.listen(db, "before_cursor_execute", interleave)
+    try:
+        code = run(mod, manifest(tmp_path, GOOD[:1]), commit=True)
+    finally:
+        event.remove(db, "before_cursor_execute", interleave)
+    assert code == 1
+    assert "LCOAL" not in rows(db)["gem_location_id"].tolist()
+
+
 def test_malformed_manifests_stop_before_the_database(mod, tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "get_engine", lambda: pytest.fail("must not connect"))
     path = tmp_path / "bad.csv"
     pd.DataFrame({"source_system": ["ENTSOE"], "key": ["X"]}).to_csv(path, index=False)
     assert run(mod, path, commit=True) == 2
     assert run(mod, manifest(tmp_path, [GOOD[0], GOOD[0]]), commit=True) == 2
+    no_author = [("ENTSOE", "Pljevlja", "LGAS", "", "LCOAL", "", "note")]
+    assert run(mod, manifest(tmp_path, no_author), commit=True) == 2
+
+
+@pytest.mark.parametrize("argv", [
+    [],  # neither input
+    ["review.csv", "--replace-file", "m.csv"],  # both
+    ["--replace-file", "m.csv", "--note", "dropped otherwise"],
+    ["--replace-file", "m.csv", "--override-reason", "dropped otherwise"],
+])
+def test_replace_file_rejects_options_it_would_ignore(mod, monkeypatch, argv):
+    monkeypatch.setattr(sys, "argv", ["import_decisions.py", "--by", "T. Est", *argv])
+    with pytest.raises(SystemExit) as exit_:
+        mod.main()
+    assert exit_.value.code == 2
 
 
 @pytest.mark.parametrize("name", sorted(p.name for p in (
@@ -150,4 +184,6 @@ def test_committed_manifests_are_well_formed(mod, name):
     assert list(m.columns) == mod.MANIFEST_COLUMNS
     assert not m.duplicated(["source_system", "key"]).any()
     assert m["gem_location_id"].str.fullmatch(r"L\d+").all()
-    assert (m["old_gem_location_id"] != m["gem_location_id"]).all()
+    # every row changes something; a lock-in keeps the link and changes only decided_by
+    old = m["old_gem_location_id"] + "|" + m["old_decided_by"]
+    assert (old != m["gem_location_id"] + "|" + m["decided_by"]).all()

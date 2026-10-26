@@ -24,12 +24,16 @@ old → new changes, e.g. data/crosswalks/decision_migrations/entsoe-gem-2026-10
 gem_location_id, decided_by, note). A row is replaced only if its current link
 and decided_by are exactly the manifest's "old" values (empty = NULL); the run
 exits non-zero unless every manifest row was applied, so a partial migration
-cannot pass as done. Keys are matched verbatim, trailing spaces included
-(ENTSO-E's 'DEWHV______1_____ '), unlike the review CSV, whose keys are stripped.
+cannot pass as done. The UPDATE itself re-checks the old values, so a row
+changed by someone else after it was read is refused, not overwritten. Keys
+are matched verbatim, trailing spaces included (ENTSO-E's 'DEWHV______1_____ '),
+unlike the review CSV, whose keys are stripped. The manifest's own note and
+decided_by are recorded; --note, --override-reason and --replace do not apply.
 
 Decisions live on the row and survive the weekly rebuild (tier 0 of the
 funnel re-emits them). Coordinates, capacity and coal type for a newly linked
-row appear after the next rebuild, which derives them from the GEM tables.
+row appear after the next rebuild, which derives them from the GEM tables; a
+replaced row shows its OLD site's values until then.
 """
 
 from __future__ import annotations
@@ -122,8 +126,10 @@ def main() -> int:
     if args.replace and not args.note:
         ap.error("--replace requires --note")
     if bool(args.csv) == bool(args.replace_file):
-        ap.error("give either a review CSV or --replace-file, not both")
+        ap.error("give exactly one of a review CSV or --replace-file")
     if args.replace_file:
+        if args.replace or args.note or args.override_reason:
+            ap.error("--replace, --note and --override-reason do not apply to --replace-file")
         return replace_from_manifest(args)
 
     df = pd.read_csv(args.csv, dtype=str)
@@ -254,6 +260,10 @@ def replace_from_manifest(args) -> int:
     if m.duplicated(["source_system", "key"]).any():
         logger.error(f"{args.replace_file}: a key is listed twice")
         return 2
+    blank = m[(m[["source_system", "key", "gem_location_id", "decided_by", "note"]] == "").any(axis=1)]
+    if len(blank):
+        logger.error(f"{args.replace_file}: empty new value in rows {blank.index.tolist()}")
+        return 2
     engine = get_engine()
     today = date.today().isoformat()
     applied, refused = [], []
@@ -286,7 +296,9 @@ def replace_from_manifest(args) -> int:
                 continue
             sp = conn.begin_nested()
             try:
-                conn.execute(
+                # the old values again, in the UPDATE itself: a row changed
+                # (or deleted) since the SELECT above matches nothing
+                done = conn.execute(
                     text(
                         f"""
                         UPDATE plant_crosswalk SET
@@ -296,7 +308,10 @@ def replace_from_manifest(args) -> int:
                             candidate_1_id = NULL, candidate_1_name = NULL, candidate_1_score = NULL,
                             candidate_2_id = NULL, candidate_2_name = NULL, candidate_2_score = NULL,
                             candidate_3_id = NULL, candidate_3_name = NULL, candidate_3_score = NULL
-                        WHERE {KEY_SQL}"""
+                        WHERE {KEY_SQL}
+                          AND COALESCE(gem_location_id, '') = :old_L
+                          AND COALESCE(decided_by, '') = :old_by
+                          AND NOT COALESCE(not_in_gem, FALSE)"""
                     ),
                     {
                         **params,
@@ -306,8 +321,14 @@ def replace_from_manifest(args) -> int:
                         "note": f"{r['note']} (applied by {args.by})",
                         "gname": g.name,
                         "gcountry": g.country,
+                        "old_L": want[0],
+                        "old_by": want[1],
                     },
                 )
+                if done.rowcount != 1:
+                    sp.rollback()
+                    refused.append((target, f"row changed while applying ({done.rowcount} rows matched)"))
+                    continue
                 sp.commit()
                 applied.append(target)
                 logger.info(f"replaced {target}: {want[0] or 'unlinked'} → {r['gem_location_id']} ({g.name})")
