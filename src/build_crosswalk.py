@@ -543,7 +543,10 @@ def pull_plant_names(engine, sources: list[str] | None = None) -> pd.DataFrame:
         # eia_state: the state(s) EIA reports for the plant, for the GEM-ID
         # tier's state cross-check ('TX', or 'TX|OK' if EIA ever disagrees).
         "EIA": "SELECT plant_code AS plant_name, string_agg(DISTINCT state, '|' ORDER BY state) AS eia_state FROM eia_generation_data WHERE plant_code IS NOT NULL GROUP BY 1",
-        "ONS": "SELECT DISTINCT plant AS plant_name FROM ons_generation_data WHERE plant IS NOT NULL",
+        # ons_untracked_fuel: the plant only ever reports fuels no GEM tracker
+        # in gem_locations covers (hydro, wind, solar, nuclear) — feeds the
+        # non-coal veto (a hydro dam fuzzing onto a namesake bagasse plant).
+        "ONS": "SELECT plant AS plant_name, bool_and(fuel_type IN ('Hidráulica', 'Eólica', 'Fotovoltaica', 'Nuclear')) AS ons_untracked_fuel FROM ons_generation_data WHERE plant IS NOT NULL GROUP BY 1",
         "OE": "SELECT DISTINCT facility_name AS plant_name, latitude, longitude FROM oe_facility_generation_data WHERE facility_name IS NOT NULL",
         # occto_has_coal: whether the plant ever reports coal — feeds the
         # non-coal veto (a gas unit fuzzing onto a coal site's alias).
@@ -2419,8 +2422,19 @@ def veto_non_coal_feeds(rows: pd.DataFrame, plants_df: pd.DataFrame) -> pd.DataF
     '第2発電所' alias, BHADRA HPS (hydro, Karnataka) onto the Bhadrak coal
     plant — and it blanks the site in the tracker, which reads these feeds
     for coal only yet drops the site's CT fallback once any feed is linked.
+    ONS plants reporting only fuels no GEM tracker here covers (hydro, wind,
+    solar, nuclear) lose a pipeline link to ANY site: each such link is a
+    namesake — the Itumbiara dam on a bagasse plant in Itumbiara town.
     Human decisions are exempt.
     """
+    untracked: set[tuple[str, str]] = set()
+    if "ons_untracked_fuel" in plants_df.columns:
+        o = plants_df[plants_df["source_system"] == "ONS"]
+        untracked = {
+            (n, "ONS")
+            for n, v in zip(o["plant_name"], o["ons_untracked_fuel"])
+            if pd.notna(v) and bool(v)
+        }
     non_coal: set[tuple[str, str]] = set()
     if "occto_has_coal" in plants_df.columns:
         o = plants_df[plants_df["source_system"] == "OCCTO"]
@@ -2436,23 +2450,32 @@ def veto_non_coal_feeds(rows: pd.DataFrame, plants_df: pd.DataFrame) -> pd.DataF
             for n, f in zip(p["plant_name"], p["npp_fuel"])
             if pd.notna(f) and f != "THERMAL"
         }
-    if not non_coal:
+    if not (non_coal or untracked):
         return rows
+    keys = pd.Series(list(zip(rows["plant_name"], rows["source_system"])), index=rows.index)
     pipe = (
-        pd.Series(list(zip(rows["plant_name"], rows["source_system"])), index=rows.index).isin(non_coal)
-        & rows["gem_location_id"].notna()
+        rows["gem_location_id"].notna()
         & ~rows["matching_method"].isin(HUMAN_METHODS)
         & rows["decided_by"].isna()
     )
     kill = [
-        i for i in rows.index[pipe]
+        i for i in rows.index[pipe & keys.isin(non_coal)]
         if gemref._site_attrs(rows.at[i, "gem_location_id"])["_is_coal"]
     ]
-    if kill:
-        rows.loc[kill, ["gem_location_id", "gem_unit_id", "ref_source", "ref_matched_name", "confidence", "matching_method"]] = None
-        rows.loc[kill, ["latitude", "longitude", "coal_type", "combustion_tech", "capacity_mw"]] = None
-        rows.loc[kill, "note"] = "auto-link vetoed: non-coal plant fuzzed onto a coal site — needs review"
-        logger.info(f"non-coal veto: {len(kill)} OCCTO/NPP pipeline links nulled for review")
+    kill_any = list(rows.index[pipe & keys.isin(untracked)])
+    for idx, note in (
+        (kill, "auto-link vetoed: non-coal plant fuzzed onto a coal site — needs review"),
+        (kill_any, "auto-link vetoed: hydro/wind/solar/nuclear plant fuzzed onto a GEM site — needs review"),
+    ):
+        if idx:
+            rows.loc[idx, ["gem_location_id", "gem_unit_id", "ref_source", "ref_matched_name", "confidence", "matching_method"]] = None
+            rows.loc[idx, ["latitude", "longitude", "coal_type", "combustion_tech", "capacity_mw"]] = None
+            rows.loc[idx, "note"] = note
+    if kill or kill_any:
+        logger.info(
+            f"non-coal veto: {len(kill)} OCCTO/NPP links to coal sites and "
+            f"{len(kill_any)} ONS hydro/wind/solar/nuclear links nulled for review"
+        )
     return rows
 
 
