@@ -1,0 +1,2 @@
+source_system,key,old_gem_location_id,old_decided_by,gem_location_id,decided_by,note
+ENTSOE,"DEWHV______1_____ ",,,L100000101920,entsoe-gem-2026-10,"Wilhelmshaven (Engie), the spelling production's feed uses since Dec 2025, with a trailing space; the review CSV strips keys and cannot address it. N. Abad 2026-10-26"
