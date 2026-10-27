@@ -62,17 +62,24 @@ NON_THERMAL = {"HYDRO", "NUCLEAR", "THER (GT)", "THER (DG)"}
 
 
 def fleet_capacity_mw(rows: pd.DataFrame) -> float:
-    """Fleet capacity of crosswalk rows, counting each GEM site's nameplate once.
+    """Fleet capacity of crosswalk rows, counting a GEM site's nameplate once.
 
-    Rows with ``capacity_source == "GEM"`` carry their whole GEM site's
-    capacity on every feed name linked to it, so a plant the feed renamed
-    (ONS's Jorge Lacerda: 9 names x 857 MW) would otherwise count once per
-    name, and every newly linked name would read as fleet growth. Those rows
-    count once per (GEM site, capacity), which keeps distinct capacities at one
-    site (NPP's KORBA-II 200 MW and KORBA-III 240 MW). Every other row
-    (ENTSO-E apportioned shares, HJKS units, Climate TRACE, legacy) is summed.
+    Outside India, a row with ``capacity_source == "GEM"`` carries its whole
+    GEM site's capacity, copied onto every feed name linked to that site. A
+    plant the feed renamed (ONS's Jorge Lacerda: 9 names x 857 MW) would
+    otherwise count once per name, and every newly linked name would read as
+    fleet growth, so those rows count once per (GEM site, capacity).
+
+    NPP rows are summed: their GEM capacity is the sum of the row's own GEM
+    units (build_crosswalk's NPP-GIPT stage), so two phases with the same
+    nameplate are different capacity (CHHABRA-I PH-1 and PH-2, 500 MW each).
+    So are ENTSO-E apportioned shares, HJKS units, Climate TRACE and legacy rows.
     """
-    stamped = rows["capacity_source"].eq("GEM") & rows["gem_location_id"].notna()
+    stamped = (
+        rows["capacity_source"].eq("GEM")
+        & rows["gem_location_id"].notna()
+        & rows["source_system"].ne("NPP")
+    )
     once = rows[stamped].drop_duplicates(["gem_location_id", "capacity_mw"])
     return float(
         once["capacity_mw"].fillna(0).sum() + rows.loc[~stamped, "capacity_mw"].fillna(0).sum()
@@ -359,13 +366,16 @@ def main() -> int:
         if not idx:
             continue
         b, n = bb.loc[idx], nn.loc[idx]
-        bcap, ncap = fleet_capacity_mw(b), fleet_capacity_mw(n)
-        if bcap > 0 and abs(ncap - bcap) > 0.03 * bcap:
-            (ok if args.expect_gppd_migration else fail)(
-                f"gate7: {src} fleet capacity {ncap:,.0f} MW vs baseline {bcap:,.0f} MW (>3%)"
-            )
+        if "capacity_source" not in base.columns:
+            fail(f"gate7: {src} fleet capacity not compared: baseline predates capacity_source")
         else:
-            ok(f"gate7: {src} fleet capacity {ncap:,.0f} MW (baseline {bcap:,.0f})")
+            bcap, ncap = fleet_capacity_mw(b), fleet_capacity_mw(n)
+            if bcap > 0 and abs(ncap - bcap) > 0.03 * bcap:
+                (ok if args.expect_gppd_migration else fail)(
+                    f"gate7: {src} fleet capacity {ncap:,.0f} MW vs baseline {bcap:,.0f} MW (>3%)"
+                )
+            else:
+                ok(f"gate7: {src} fleet capacity {ncap:,.0f} MW (baseline {bcap:,.0f})")
         changed = 0
         for col in ("coal_type", "combustion_tech"):
             changed += int(

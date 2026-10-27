@@ -20,21 +20,24 @@ def mod():
     return m
 
 
-def rows(*records):
-    return pd.DataFrame(
+def rows(source, *records):
+    df = pd.DataFrame(
         records,
         columns=["plant_name", "gem_location_id", "capacity_mw", "capacity_source"],
     )
+    return df.assign(source_system=source)
 
 
 def test_linking_a_renamed_plant_does_not_grow_the_fleet(mod):
     before = rows(
+        "ONS",
         ("Jorge Lacerda A", "L1", 857.0, "GEM"),
         ("Jorge Lacerda B", "L1", 857.0, "GEM"),
         ("U.JLACERDA A", None, None, None),
         ("Pampa Sul", "L2", 345.0, "GEM"),
     )
     after = rows(
+        "ONS",
         ("Jorge Lacerda A", "L1", 857.0, "GEM"),
         ("Jorge Lacerda B", "L1", 857.0, "GEM"),
         ("U.JLACERDA A", "L1", 857.0, "GEM"),
@@ -43,16 +46,28 @@ def test_linking_a_renamed_plant_does_not_grow_the_fleet(mod):
     assert mod.fleet_capacity_mw(before) == mod.fleet_capacity_mw(after) == 1202.0
 
 
-def test_distinct_gem_capacities_at_one_site_both_count(mod):
-    korba = rows(("KORBA-II", "L3", 200.0, "GEM"), ("KORBA-III", "L3", 240.0, "GEM"))
-    assert mod.fleet_capacity_mw(korba) == 440.0
+def test_npp_phases_with_the_same_nameplate_both_count(mod):
+    chhabra = rows(
+        "NPP",
+        ("CHHABRA-I PH-1 TPP", "L3", 500.0, "GEM"),
+        ("CHHABRA-I PH-2 TPP", "L3", 500.0, "GEM"),
+    )
+    assert mod.fleet_capacity_mw(chhabra) == 1000.0
 
 
 def test_unit_and_apportioned_capacities_are_summed(mod):
-    units = rows(
-        ("Neurath F", "L4", 1100.0, "ENTSOE_APPORTIONED"),
-        ("Neurath G", "L4", 1100.0, "ENTSOE_APPORTIONED"),
-        ("Hekinan 1", "L5", 700.0, "HJKS"),
-        ("Hekinan 2", "L5", 700.0, "HJKS"),
+    units = pd.concat(
+        [
+            rows(
+                "ENTSOE",
+                ("Neurath F", "L4", 1100.0, "ENTSOE_APPORTIONED"),
+                ("Neurath G", "L4", 1100.0, "ENTSOE_APPORTIONED"),
+            ),
+            rows(
+                "OCCTO",
+                ("Hekinan 1", "L5", 700.0, "HJKS"),
+                ("Hekinan 2", "L5", 700.0, "HJKS"),
+            ),
+        ]
     )
     assert mod.fleet_capacity_mw(units) == 3600.0
