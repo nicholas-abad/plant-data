@@ -61,6 +61,24 @@ KNOWN_BAD = {
 NON_THERMAL = {"HYDRO", "NUCLEAR", "THER (GT)", "THER (DG)"}
 
 
+def fleet_capacity_mw(rows: pd.DataFrame) -> float:
+    """Fleet capacity of crosswalk rows, counting each GEM site's nameplate once.
+
+    Rows with ``capacity_source == "GEM"`` carry their whole GEM site's
+    capacity on every feed name linked to it, so a plant the feed renamed
+    (ONS's Jorge Lacerda: 9 names x 857 MW) would otherwise count once per
+    name, and every newly linked name would read as fleet growth. Those rows
+    count once per (GEM site, capacity), which keeps distinct capacities at one
+    site (NPP's KORBA-II 200 MW and KORBA-III 240 MW). Every other row
+    (ENTSO-E apportioned shares, HJKS units, Climate TRACE, legacy) is summed.
+    """
+    stamped = rows["capacity_source"].eq("GEM") & rows["gem_location_id"].notna()
+    once = rows[stamped].drop_duplicates(["gem_location_id", "capacity_mw"])
+    return float(
+        once["capacity_mw"].fillna(0).sum() + rows.loc[~stamped, "capacity_mw"].fillna(0).sum()
+    )
+
+
 def fail(msg: str) -> None:
     print(f"FAIL  {msg}")
     fail.count += 1
@@ -318,7 +336,8 @@ def main() -> int:
     # Coordinates, capacity, coal type and technology are what the dashboard
     # shows. Compare against the baseline per source with explicit tolerances:
     # capacity fleet totals within 3% (ENTSO-E re-weights per unit every
-    # build; totals must hold), and no more than 2% of a source's rows changing
+    # build; totals must hold; see fleet_capacity_mw for how a site with
+    # several feed names counts), and no more than 2% of a source's rows changing
     # coal_type / combustion_tech / coordinates.
     bk = (
         base["source_system"].astype(str)
@@ -340,10 +359,7 @@ def main() -> int:
         if not idx:
             continue
         b, n = bb.loc[idx], nn.loc[idx]
-        bcap, ncap = (
-            float(b["capacity_mw"].fillna(0).sum()),
-            float(n["capacity_mw"].fillna(0).sum()),
-        )
+        bcap, ncap = fleet_capacity_mw(b), fleet_capacity_mw(n)
         if bcap > 0 and abs(ncap - bcap) > 0.03 * bcap:
             (ok if args.expect_gppd_migration else fail)(
                 f"gate7: {src} fleet capacity {ncap:,.0f} MW vs baseline {bcap:,.0f} MW (>3%)"
