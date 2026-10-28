@@ -4,6 +4,7 @@ CHILE,,TER ANGAMOS,Chile,L100000100182,,False,legacy,legacy-pipeline,2026-08-30,
 CHILE,,TER BOCAMINA II,Chile,L100000100195,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'BOCAMINA (I-II)'),,,
 CHILE,,TER CAMPICHE,Chile,L100000100194,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 0.33km + name-verified vs GEM 'Ventanas power station' (old GPPD match: 'CAMPICHE'),,Ventanas power station,Chile
 CHILE,,TER HORNITOS,Chile,L100000100181,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Andina-Hornitos power station',,Andina-Hornitos power station,Chile
+CHILE,,TER IEM,Chile,L100000100184,,False,manual,N. Abad,2026-10-28,Infraestructura Energetica Mejillones = GEM Mejillones Unit 4 (IEM); peak 403 MW vs 375 MW; was unlinked (name match failed). As on staging 2026-10-17.,,Mejillones power station,Chile
 CHILE,,TER NORGENER,Chile,L100000100185,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 0.12km + name-verified vs GEM 'Nueva Tocopilla power station' (old GPPD match: 'TERMOELECTRICA NORGENER (NTO2)'),,Nueva Tocopilla power station,Chile
 CHILE,,TER NUEVA VENTANAS,Chile,L100000100194,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'NUEVA VENTANAS'),,,
 CHILE,,TER VENTANAS II,Chile,L100000100194,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 0.24km + name-verified vs GEM 'Ventanas power station' (old GPPD match: 'VENTANAS'),,Ventanas power station,Chile
@@ -20,7 +21,7 @@ EIA,3,Barry,United States,L100000103776,,False,gppd-geo,gppd-migration-2026-09,2
 EIA,8042,Belews Creek,United States,L100000104072,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Belews Creek'),,,
 EIA,645,Big Bend,United States,L100000103820,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Big Bend'),,,
 EIA,1464,Big Cajun 1,United States,L100000103954,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered rapidfuzz match to GEM 'Big Cajun I'; pipeline reproduces the match, values frozen",,Big Cajun I,United States
-EIA,6055,Big Cajun 2,United States,L100000103954,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered rapidfuzz match to GEM 'Big Cajun I'; pipeline reproduces the match, values frozen",,Big Cajun I,United States
+EIA,6055,Big Cajun 2,United States,L100000103955,,False,manual,gem-eia-id-2026-10,2026-10-28,GEM lists EIA plant code 6055 at L100000103955 (Big Cajun II Power Plant); was L100000103954 (legacy-pipeline) (applied by N. Abad (US release 2026-10-28)),,Big Cajun II Power Plant,United States
 EIA,1353,Big Sandy,United States,L100000103930,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Big Sandy'),,,
 EIA,54304,Birchwood Power,United States,L100000104230,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Birchwood Power'),,,
 EIA,1904,Black Dog,United States,L100000103997,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Black Dog'),,,
@@ -37,8 +38,8 @@ EIA,10641,Cambria Cogen,United States,L100000104600,,False,legacy,legacy-pipelin
 EIA,7552,Campbell Power Plant,United States,L100000103974,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'J H Campbell'),,,
 EIA,1363,Cane Run,United States,L100000103932,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Cane Run'),,,
 EIA,2828,Cardinal,United States,L100000104103,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Cardinal'),,,
-EIA,7527,Carson Power Plant,United States,L100001048149,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Carson County Power Plant',,Carson County Power Plant,United States
-EIA,2535,Cayuga Operating Company,United States,L100000103880,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Cayuga Generating Station',,Cayuga Generating Station,United States
+EIA,7527,Carson Power Plant,United States,L100000401605,,False,manual,gem-eia-id-2026-10,2026-10-28,GEM lists EIA plant code 7527 at L100000401605 (Carson Ice-Gen Project power station); was L100001048149 (legacy-pipeline) (applied by N. Abad (US release 2026-10-28)),,Carson Ice-Gen Project power station,United States
+EIA,2535,Cayuga Operating Company,United States,L100000104062,,False,manual,gem-eia-id-2026-10,2026-10-28,GEM lists EIA plant code 2535 at L100000104062 (Cayuga power station (New York)); was L100000103880 (legacy-pipeline) (applied by N. Abad (US release 2026-10-28)),,Cayuga power station (New York),United States
 EIA,1571,Chalk Point Power,United States,L100000103962,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Chalk Point LLC'),,,
 EIA,469,Cherokee,United States,L100000103806,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Cherokee'),,,
 EIA,113,Cholla,United States,L100000103788,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Cholla'),,,
@@ -47,8 +48,8 @@ EIA,983,Clifty Creek,United States,L100000103881,,False,gppd-geo,gppd-migration-
 EIA,6076,Colstrip,United States,L100000104031,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Colstrip'),,,
 EIA,10784,Colstrip Energy LP,United States,L100000104036,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 0.04km + name-verified vs GEM 'Rosebud Power Plant' (old GPPD match: 'Colstrip Energy LP'),,Rosebud Power Plant,United States
 EIA,8023,Columbia (WI),United States,L100000104268,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 0.06km + name-verified vs GEM 'Columbia Energy Center' (old GPPD match: 'Columbia (WI)'),,Columbia Energy Center,United States
-EIA,470,Comanche (CO),United States,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered rapidfuzz match to GEM 'Comanche (OK) power station'; GEM name did not resolve to one location — review,,,
-EIA,8059,Comanche (OK),United States,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered rapidfuzz match to GEM 'Comanche (OK) power station'; GEM name did not resolve to one location — review,,,
+EIA,470,Comanche (CO),United States,L100000103807,,False,manual,gem-eia-id-2026-10,2026-10-28,GEM lists EIA plant code 470 at L100000103807 (Comanche power station); was unlinked (legacy-pipeline) (applied by N. Abad (US release 2026-10-28)),,Comanche power station,United States
+EIA,8059,Comanche (OK),United States,L100000402231,,False,manual,gem-eia-id-2026-10,2026-10-28,GEM lists EIA plant code 8059 at L100000402231 (Comanche (OK) power station); was unlinked (legacy-pipeline) (applied by N. Abad (US release 2026-10-28)),,Comanche (OK) power station,United States
 EIA,3118,Conemaugh,United States,L100000104137,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Conemaugh'),,,
 EIA,7210,Cope,United States,L100000104171,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Cope'),,,
 EIA,6177,Coronado,United States,L100000103789,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Coronado'),,,
@@ -59,7 +60,7 @@ EIA,628,Crystal River,United States,L100000103825,,False,manual,"Claude (verifie
 EIA,6823,D B Wilson,United States,L100000103953,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'D B Wilson'),,,
 EIA,963,Dallman,United States,L100000103856,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Dallman'),,,
 EIA,1702,Dan E Karn,United States,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered rapidfuzz match to GEM 'Dan E Karn power station'; GEM name did not resolve to one location — review,,,
-EIA,2723,Dan River,United States,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered rapidfuzz match to GEM 'Indian River (FL) power station'; GEM name did not resolve to one location — review,,,
+EIA,2723,Dan River,United States,L100000104076,,False,manual,gem-eia-id-2026-10,2026-10-28,GEM lists EIA plant code 2723 at L100000104076 (Dan River Steam Station); was unlinked (legacy-pipeline) (applied by N. Abad (US release 2026-10-28)),,Dan River Steam Station,United States
 EIA,1572,Dickerson Power,United States,L100000103964,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Dickerson'),,,
 EIA,26,E C Gaston,United States,L100000103780,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'E C Gaston'),,,
 EIA,1355,E W Brown,United States,L100000103937,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 0.08km + name-verified vs GEM 'E.W. Brown Generating Station' (old GPPD match: 'E W Brown'),,E.W. Brown Generating Station,United States
@@ -68,7 +69,7 @@ EIA,1217,Earl F Wisdom,United States,L100000103908,,False,gppd-geo,gppd-migratio
 EIA,6018,East Bend,United States,L100000103938,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'East Bend'),,,
 EIA,10603,Ebensburg Power,United States,L100000104139,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 0.0km + name-verified vs GEM 'Ebensburg Generating Plant' (old GPPD match: 'Ebensburg Power'),,Ebensburg Generating Plant,United States
 EIA,4050,Edgewater,United States,L100000104269,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Edgewater'),,,
-EIA,56068,Elm Road Generating Station,United States,L100000103891,,False,legacy,legacy-pipeline,2026-08-30,grandfathered rapidfuzz match to GEM 'Merom Generating Station'; pipeline proposed L100000104021,,Merom Generating Station,United States
+EIA,56068,Elm Road Generating Station,United States,L100000104274,,False,manual,gem-eia-id-2026-10,2026-10-28,GEM lists EIA plant code 56068 at L100000104274 (Elm Road power station); was L100000103891 (legacy-pipeline) (applied by N. Abad (US release 2026-10-28)),,Elm Road power station,United States
 EIA,1374,Elmer Smith,United States,L100000103939,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Elmer Smith'),,,
 EIA,87,Escalante,United States,L100000104059,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Escalante'),,,
 EIA,2878,FirstEnergy Bay Shore,United States,L100000104100,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 0.0km + name-verified vs GEM 'Bay Shore Plant' (old GPPD match: 'FirstEnergy Bay Shore'),,Bay Shore Plant,United States
@@ -98,7 +99,7 @@ EIA,1554,Herbert A Wagner,United States,L100000103965,,False,gppd-geo,gppd-migra
 EIA,108,Holcomb,United States,L100000103921,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Holcomb'),,,
 EIA,1943,Hoot Lake,United States,L100000104000,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Hoot Lake'),,,
 EIA,6065,Iatan,United States,L100000104017,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Iatan'),,,
-EIA,594,Indian River Generating Station,United States,L100000103942,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered rapidfuzz match to GEM 'Green River Generating Station'; pipeline reproduces the match, values frozen",,Green River Generating Station,United States
+EIA,594,Indian River Generating Station,United States,L100000103819,,False,manual,gem-eia-id-2026-10,2026-10-28,GEM lists EIA plant code 594 at L100000103819 (Indian River power station); was L100000103942 (legacy-pipeline) (applied by N. Abad (US release 2026-10-28)),,Indian River power station,United States
 EIA,50976,Indiantown Cogeneration LP,United States,L100000103828,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Indiantown Cogeneration LP'),,,
 EIA,1710,J H Campbell,United States,L100000103974,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'J H Campbell'),,,
 EIA,7097,J K Spruce,United States,L100000104200,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'J K Spruce'),,,
@@ -113,7 +114,7 @@ EIA,4271,John P Madgett,United States,L100000104272,,False,manual,Claude scan 20
 EIA,3405,John Sevier,United States,L100000104188,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'John Sevier'),,,
 EIA,6195,John Twitty Energy Center,United States,L100000104029,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered rapidfuzz match to GEM 'John Twitty Energy Center'; pipeline reproduces the match, values frozen",,John Twitty Energy Center,United States
 EIA,384,Joliet 29,United States,L100000103864,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Joliet 29'),,,
-EIA,874,Joliet 9,United States,L100000103864,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Joliet 9'),,,
+EIA,874,Joliet 9,United States,L100000103865,,False,manual,gem-eia-id-2026-10,2026-10-28,GEM lists EIA plant code 874 at L100000103865 (Joliet 9 Generating Station); was L100000103864 (gppd-migration-2026-09) (applied by N. Abad (US release 2026-10-28)),,Joliet 9 Generating Station,United States
 EIA,887,Joppa Steam,United States,L100000103866,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Joppa Steam'),,,
 EIA,3136,Keystone,United States,L100000104148,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Keystone'),,,
 EIA,876,Kincaid Generation LLC,United States,L100000103867,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 0.05km + name-verified vs GEM 'Kincaid Generating Station' (old GPPD match: 'Kincaid Generation LLC'),,Kincaid Generating Station,United States
@@ -174,7 +175,7 @@ EIA,54625,Reworld Plymouth LLC,United States,L100000200345,,False,legacy,legacy-
 EIA,6166,Rockport,United States,L100000103895,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Rockport'),,,
 EIA,2712,Roxboro,United States,L100000104086,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Roxboro'),,,
 EIA,51026,"Ryegate Associates, LLC",United States,L100001047610,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Ryegate power station',,Ryegate power station,United States
-EIA,10789,Sabine River Operations,United States,L100000401680,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Sabine cogeneration power station',,Sabine cogeneration power station,United States
+EIA,10789,Sabine River Operations,United States,L100000402480,,False,manual,gem-eia-id-2026-10,2026-10-28,GEM lists EIA plant code 10789 at L100000402480 (Sabine River Works power station); was L100000401680 (legacy-pipeline) (applied by N. Abad (US release 2026-10-28)),,Sabine River Works power station,United States
 EIA,2451,San Juan,United States,L100000104061,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'San Juan'),,,
 EIA,6183,San Miguel,United States,L100000104211,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'San Miguel'),,,
 EIA,56611,Sandy Creek Energy Station,United States,L100000104213,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 0.08km + name-verified vs GEM 'Sandy Creek Plant' (old GPPD match: 'Sandy Creek Energy Station'),,Sandy Creek Plant,United States
@@ -199,12 +200,12 @@ EIA,3845,Transalta Centralia Generation,United States,L100000104247,,False,manua
 EIA,6071,Trimble County,United States,L100000103951,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered rapidfuzz match to GEM 'Trimble County power station'; pipeline reproduces the match, values frozen",,Trimble County power station,United States
 EIA,58159,UCONN Cogen Facility,United States,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered rapidfuzz match to GEM 'Lincoln Cogen Facility power station'; GEM name did not resolve to one location — review,,,
 EIA,3295,Urquhart,United States,L100000104178,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Urquhart'),,,
-EIA,408,Valley (CA),United States,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered rapidfuzz match to GEM 'Valley (CA) power station'; GEM name did not resolve to one location — review,,,
-EIA,4042,Valley (WI),United States,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered rapidfuzz match to GEM 'Valley (CA) power station'; GEM name did not resolve to one location — review,,,
+EIA,408,Valley (CA),United States,L100000402054,,False,manual,gem-eia-id-2026-10,2026-10-28,GEM lists EIA plant code 408 at L100000402054 (Valley (CA) power station); was unlinked (legacy-pipeline) (applied by N. Abad (US release 2026-10-28)),,Valley (CA) power station,United States
+EIA,4042,Valley (WI),United States,L100000104279,,False,manual,gem-eia-id-2026-10,2026-10-28,GEM lists EIA plant code 4042 at L100000104279 (Valley Power Plant); was unlinked (legacy-pipeline) (applied by N. Abad (US release 2026-10-28)),,Valley Power Plant,United States
 EIA,477,Valmont,United States,L100000103815,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Valmont'),,,
 EIA,3470,W A Parish,United States,L100000104208,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 0.73km + name-verified vs GEM 'Parish Generating Station' (old GPPD match: 'W A Parish'),,Parish Generating Station,United States
 EIA,2866,W H Sammis,United States,L100000104118,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'FirstEnergy W H Sammis'),,,
-EIA,56078,Walnut Energy Center,United States,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered rapidfuzz match to GEM 'Walnut energy center'; GEM name did not resolve to one location — review,,,
+EIA,56078,Walnut Energy Center,United States,L100000402334,,False,manual,gem-eia-id-2026-10,2026-10-28,GEM lists EIA plant code 56078 at L100000402334 (Walnut energy center); was unlinked (legacy-pipeline) (applied by N. Abad (US release 2026-10-28)),,Walnut energy center,United States
 EIA,1082,Walter Scott Jr Energy Center,United States,L100000103906,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 0.29km + name-verified vs GEM 'Walter Scott Jr. power station' (old GPPD match: 'Walter Scott Jr Energy Center'),,Walter Scott Jr. power station,United States
 EIA,6052,Wansley,United States,L100000103848,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Wansley'),,,
 EIA,3297,Wateree,United States,L100000104180,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Wateree'),,,
@@ -216,7 +217,7 @@ EIA,1040,Whitewater Valley,United States,L100000103901,,False,gppd-geo,gppd-migr
 EIA,3298,Williams,United States,L100000104181,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Williams'),,,
 EIA,6249,Winyah,United States,L100000104182,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Winyah'),,,
 EIA,1866,Wyandotte,United States,L100000103995,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Wyandotte'),,,
-EIA,56319,Wygen 2,United States,L100000104288,,False,legacy,legacy-pipeline,2026-08-30,grandfathered rapidfuzz match to GEM 'Wygen I power station'; pipeline proposed L100000104290,,Wygen I power station,United States
+EIA,56319,Wygen 2,United States,L100000104290,,False,manual,gem-eia-id-2026-10,2026-10-28,GEM lists EIA plant code 56319 at L100000104290 (Wygen II power station); was L100000104288 (legacy-pipeline) (applied by N. Abad (US release 2026-10-28)),,Wygen II power station,United States
 EIA,728,Yates,United States,L100000103850,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Yates'),,,
 EIA,56196,Zeltmann,United States,L100000402125,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Eugene W. Zeltmann power project',,Eugene W. Zeltmann power project,United States
 ENTSOE,,AG_NIKOLAOS2,Greece,L100000400290,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Agios Nikolaos power station',,Agios Nikolaos power station,Greece
@@ -935,7 +936,7 @@ OCCTO,,東北電力能代火力発電所２号機,Japan,L100000102910,,False,leg
 OCCTO,,東北電力能代火力発電所３号機,Japan,L100000102910,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Noshiro power station',,Noshiro power station,Japan
 OCCTO,,東扇島火力発電所１号機,Japan,L100000405155,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Higashi-Ohgishima thermal power station',,Higashi-Ohgishima thermal power station,Japan
 OCCTO,,東扇島火力発電所２号機,Japan,L100000405155,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Higashi-Ohgishima thermal power station'; pipeline proposed L100000102886,,Higashi-Ohgishima thermal power station,Japan
-OCCTO,,松浦発電所,Japan,L100000102940,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Matsuura power station'),,,
+OCCTO,,松浦発電所,Japan,L100000102939,,False,manual,occto-unit-review-2026-10,2026-10-28,"Kyushu Electric's Matsuura (units 684/956 MW peak) is GEM Matsuura Kyushu power station (700/1000 MW); was linked to Matsuura J-POWER (L100000102940), which is OCCTO's 電源開発松浦火力発電所 (applied by N. Abad (US release 2026-10-28))",,Matsuura Kyushu power station,Japan
 OCCTO,,柳井発電所第１号系列上位,Japan,L100000405194,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yanai power station',,Yanai power station,Japan
 OCCTO,,柳井発電所第１号系列下位,Japan,L100000405194,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yanai power station',,Yanai power station,Japan
 OCCTO,,柳井発電所第２号系列,Japan,L100000405194,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yanai power station'; pipeline proposed L100000102886,,Yanai power station,Japan
