@@ -816,182 +816,60 @@ NPP,,UDANGUDI TPP,India,L100000102588,,False,legacy,legacy-pipeline,2026-08-30,"
 NPP,,UKAI HPS,India,L100000102231,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered rapidfuzz match to GEM 'Ukai Thermal Power Station'; pipeline reproduces the match, values frozen",,Ukai Thermal Power Station,India
 NPP,,UNOSUGEN CCPP,India,L100000401478,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Unosugen Combined Cycle power plant',,Unosugen Combined Cycle power plant,India
 OCCTO,,ひびき灘石炭・バイオマス発電所,Japan,L100000104537,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Hibikinada Thermal Power Station',,Hibikinada Thermal Power Station,Japan
-OCCTO,,ひびき発電所,Japan,L100000405153,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Hibiki Natural Gas power plant',,Hibiki Natural Gas power plant,Japan
-OCCTO,,カナデビア株式会社茨城工場第一発電所,Japan,L100000405159,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Ibaraki power plant',,Ibaraki power plant,Japan
-OCCTO,,ゼロワットパワー株式会社　市原発電所,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Ichihara power station'; GEM name did not resolve to one location — review,,,
 OCCTO,,トクヤマ東発電所第3号発電所,Japan,L100000104538,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Tokuyama East power station',,Tokuyama East power station,Japan
 OCCTO,,三池発電所,Japan,L100000102941,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Miike power station',,Miike power station,Japan
 OCCTO,,三隅発電所第１号機,Japan,L100000102883,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Misumi power station',,Misumi power station,Japan
 OCCTO,,三隅発電所第２号機,Japan,L100000102883,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Misumi power station'; pipeline proposed L100000102886,,Misumi power station,Japan
-OCCTO,,上越火力発電所,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Joetsu thermal power station'; GEM name did not resolve to one location — review,,,
-OCCTO,,中袖クリーンパワー発電所,Japan,L100000405171,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Nakasode Clean power station',,Nakasode Clean power station,Japan
-OCCTO,,仙台パワーステーション,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Sendai power station'; GEM name did not resolve to one location — review,,,
-OCCTO,,伊達発電所,Japan,L100000408466,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Date power station',,Date power station,Japan
+OCCTO,,仙台パワーステーション,Japan,L100000102964,,False,manual,N. Abad (tracker #31),2026-10-28,"Sendai Power Station (coal, 112 MW): GEM Sendai power station",,Sendai power station,Japan
 OCCTO,,具志川1号,Japan,L100000102933,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Gushikawa power station',,Gushikawa power station,Japan
 OCCTO,,具志川2号,Japan,L100000102933,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Gushikawa power station'; pipeline proposed L100000102886,,Gushikawa power station,Japan
 OCCTO,,勿来発電所,Japan,L100000102967,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Nakoso power station',,Nakoso power station,Japan
 OCCTO,,北陸電力 七尾大田火力発電所,Japan,L100000102875,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Nanao-Ota Shinko power station',,Nanao-Ota Shinko power station,Japan
 OCCTO,,北陸電力 富山新港火力発電所,Japan,L100000102878,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Toyama Shinko power station',,Toyama Shinko power station,Japan
-OCCTO,,北陸電力 富山火力発電所,Japan,L100000408491,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Toyama Thermal power station',,Toyama Thermal power station,Japan
 OCCTO,,北陸電力 敦賀火力発電所,Japan,L100000102879,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Tsuruga power station'),,,
-OCCTO,,北陸電力 福井火力発電所,Japan,L100000408465,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Fukui Thermal power station',,Fukui Thermal power station,Japan
-OCCTO,,千葉火力発電所１号系列１軸,Japan,L100000405146,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chiba thermal power station',,Chiba thermal power station,Japan
-OCCTO,,千葉火力発電所１号系列２軸,Japan,L100000405146,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chiba thermal power station',,Chiba thermal power station,Japan
-OCCTO,,千葉火力発電所１号系列３軸,Japan,L100000405146,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chiba thermal power station',,Chiba thermal power station,Japan
-OCCTO,,千葉火力発電所１号系列４軸,Japan,L100000405146,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chiba thermal power station',,Chiba thermal power station,Japan
-OCCTO,,千葉火力発電所２号系列１軸,Japan,L100000405146,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chiba thermal power station',,Chiba thermal power station,Japan
-OCCTO,,千葉火力発電所２号系列２軸,Japan,L100000405146,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chiba thermal power station',,Chiba thermal power station,Japan
-OCCTO,,千葉火力発電所２号系列３軸,Japan,L100000405146,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chiba thermal power station',,Chiba thermal power station,Japan
-OCCTO,,千葉火力発電所２号系列４軸,Japan,L100000405146,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chiba thermal power station',,Chiba thermal power station,Japan
-OCCTO,,千葉火力発電所３号系列１軸,Japan,L100000405146,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chiba thermal power station',,Chiba thermal power station,Japan
-OCCTO,,千葉火力発電所３号系列２軸,Japan,L100000405146,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chiba thermal power station',,Chiba thermal power station,Japan
-OCCTO,,千葉火力発電所３号系列３軸,Japan,L100000405146,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chiba thermal power station',,Chiba thermal power station,Japan
-OCCTO,,南横浜火力発電所１号機,Japan,L100000405168,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Minami Yokohama thermal power station',,Minami Yokohama thermal power station,Japan
-OCCTO,,南横浜火力発電所３号機,Japan,L100000405168,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Minami Yokohama thermal power station',,Minami Yokohama thermal power station,Japan
-OCCTO,,南港発電所,Japan,L100000405172,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Nanko power station',,Nanko power station,Japan
-OCCTO,,吉の浦1号,Japan,L100000405197,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yoshinoura thermal power plant',,Yoshinoura thermal power plant,Japan
-OCCTO,,吉の浦2号,Japan,L100000405197,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yoshinoura thermal power plant'; pipeline proposed L100000102886,,Yoshinoura thermal power plant,Japan
 OCCTO,,名古屋発電所,Japan,L100000102873,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Nagoya power station',,Nagoya power station,Japan
-OCCTO,,品川火力発電所１号系列１軸,Japan,L100000405185,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Shinagawa thermal power station',,Shinagawa thermal power station,Japan
-OCCTO,,品川火力発電所１号系列２軸,Japan,L100000405185,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Shinagawa thermal power station',,Shinagawa thermal power station,Japan
-OCCTO,,品川火力発電所１号系列３軸,Japan,L100000405185,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Shinagawa thermal power station',,Shinagawa thermal power station,Japan
-OCCTO,,四国電力　坂出発電所,Japan,L100000405176,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Sakaide power station',,Sakaide power station,Japan
+OCCTO,,名古屋第二発電所,Japan,L100000102873,,False,manual,N. Abad (tracker #31),2026-10-28,"Nakayama Nagoya No. 2 (110 MW): GEM Nagoya power station, name_other 'Nakayama Nagoya power station 2 (Unit 2)'; sister 名古屋発電所 already linked there",,Nagoya power station,Japan
 OCCTO,,四国電力　橘湾発電所,Japan,L100000102956,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Shikoku Tachibana-wan power station',,Shikoku Tachibana-wan power station,Japan
 OCCTO,,四国電力　西条発電所,Japan,L100000102955,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Saijo power station',,Saijo power station,Japan
-OCCTO,,四国電力　阿南発電所,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Anan power station'; GEM name did not resolve to one location — review,,,
-OCCTO,,四日市火力発電所,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yokkaichi thermal power station'; GEM name did not resolve to one location — review,,,
 OCCTO,,土佐発電所,Japan,L100000102957,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Tosa power station'),,,
-OCCTO,,堺港発電所,Japan,L100000405175,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Sakai Port power station',,Sakai Port power station,Japan
 OCCTO,,壬生川火力発電所,Japan,L100000102954,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Nyugawa power station'),,,
 OCCTO,,大崎発電所第１号１軸,Japan,L100000102888,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Osaki power station',,Osaki power station,Japan
 OCCTO,,奈井江発電所,Japan,L100000102902,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Naie power station'),,,
-OCCTO,,姉崎火力発電所新１号機,Japan,L100000405145,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Anegasaki thermal power station',,Anegasaki thermal power station,Japan
-OCCTO,,姉崎火力発電所新２号機,Japan,L100000405145,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Anegasaki thermal power station'; pipeline proposed L100000102886,,Anegasaki thermal power station,Japan
-OCCTO,,姉崎火力発電所新３号機,Japan,L100000405145,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Anegasaki thermal power station',,Anegasaki thermal power station,Japan
-OCCTO,,姉崎火力発電所５号機,Japan,L100000405145,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Anegasaki thermal power station',,Anegasaki thermal power station,Japan
-OCCTO,,姉崎火力発電所６号機,Japan,L100000405145,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Anegasaki thermal power station',,Anegasaki thermal power station,Japan
-OCCTO,,姫路天然ガス発電所,Japan,L100000405158,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Himeji Natural Gas power station',,Himeji Natural Gas power station,Japan
-OCCTO,,姫路第一発電所,Japan,L100000405156,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Himeji Daiichi power station',,Himeji Daiichi power station,Japan
-OCCTO,,姫路第二発電所,Japan,L100000405157,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Himeji Daini power station',,Himeji Daini power station,Japan
 OCCTO,,宇部興産発電所,Japan,L100000104623,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'UBE Industries power station',,UBE Industries power station,Japan
-OCCTO,,富津火力発電所１号系列１軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所１号系列２軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所１号系列３軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所１号系列４軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所１号系列５軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所１号系列６軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所１号系列７軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所２号系列１軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所２号系列２軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所２号系列３軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所２号系列４軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所２号系列５軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所２号系列６軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所２号系列７軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所３号系列１軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所３号系列２軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所３号系列３軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所３号系列４軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所４号系列１軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所４号系列２軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,富津火力発電所４号系列３軸,Japan,L100000405151,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Futtsu thermal power station',,Futtsu thermal power station,Japan
-OCCTO,,川崎天然ガス発電所,Japan,L100000405166,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kawasaki Natural Gas power station',,Kawasaki Natural Gas power station,Japan
-OCCTO,,川崎火力発電所１号系列１軸,Japan,L100000405167,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kawasaki thermal power station',,Kawasaki thermal power station,Japan
-OCCTO,,川崎火力発電所１号系列２軸,Japan,L100000405167,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kawasaki thermal power station',,Kawasaki thermal power station,Japan
-OCCTO,,川崎火力発電所１号系列３軸,Japan,L100000405167,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kawasaki thermal power station',,Kawasaki thermal power station,Japan
-OCCTO,,川崎火力発電所２号系列１軸,Japan,L100000405167,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kawasaki thermal power station',,Kawasaki thermal power station,Japan
-OCCTO,,川崎火力発電所２号系列２軸,Japan,L100000405167,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kawasaki thermal power station',,Kawasaki thermal power station,Japan
-OCCTO,,川崎火力発電所２号系列３軸,Japan,L100000405167,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kawasaki thermal power station',,Kawasaki thermal power station,Japan
-OCCTO,,川越火力発電所,Japan,L100000405165,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kawagoe thermal power station',,Kawagoe thermal power station,Japan
 OCCTO,,常陸那珂共同火力発電所1号機,Japan,L100000102922,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Hitachinaka power station',,Hitachinaka power station,Japan
 OCCTO,,常陸那珂火力発電所１号機,Japan,L100000102921,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Hitachinaka power station'),,,
 OCCTO,,常陸那珂火力発電所２号機,Japan,L100000102922,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Hitachinaka power station'; pipeline proposed L100000102886,,Hitachinaka power station,Japan
-OCCTO,,広野火力発電所２号機,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Hirono power station'; GEM name did not resolve to one location — review,,,
-OCCTO,,広野火力発電所５号機,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Hirono power station'; GEM name did not resolve to one location — review,,,
-OCCTO,,広野火力発電所６号機,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Hirono Thermal power station'; GEM name did not resolve to one location — review,,,
-OCCTO,,御坊発電所,Japan,L100000408467,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Gobo power station',,Gobo power station,Japan
-OCCTO,,扇島パワー,Japan,L100000405174,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Ohgishima power station',,Ohgishima power station,Japan
-OCCTO,,新中袖発電所,Japan,L100000405181,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Shin Nakasode power station',,Shin Nakasode power station,Japan
-OCCTO,,新名古屋火力発電所,Japan,L100000405184,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Shin-Nagoya thermal power station',,Shin-Nagoya thermal power station,Japan
-OCCTO,,新大分発電所,Japan,L100000405182,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Shin Oita power station',,Shin Oita power station,Japan
-OCCTO,,新小倉発電所,Japan,L100000405180,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Shin Kokura thermal power station',,Shin Kokura thermal power station,Japan
+OCCTO,,広野火力発電所５号機,Japan,L100000102961,,False,manual,N. Abad (tracker #31),2026-10-28,"Hirono unit 5 (coal, 600 MW): GEM Hirono power station Unit 5",,Hirono power station,Japan
+OCCTO,,広野火力発電所６号機,Japan,L100000102961,,False,manual,N. Abad (tracker #31),2026-10-28,"Hirono unit 6 (coal, 600 MW): GEM Hirono power station Unit 6",,Hirono power station,Japan
 OCCTO,,新小野田発電所第１号機,Japan,L100000102889,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Shin Onoda power station',,Shin Onoda power station,Japan
 OCCTO,,新小野田発電所第２号機,Japan,L100000102889,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Shin Onoda power station'; pipeline proposed L100000102886,,Shin Onoda power station,Japan
 OCCTO,,新居浜西火力発電所,Japan,L100000102953,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Niihama Nishi power station',,Niihama Nishi power station,Japan
 OCCTO,,日本製鉄(株) 釜石火力発電所,Japan,L100000102963,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kamaishi Works power station',,Kamaishi Works power station,Japan
 OCCTO,,日本製鉄（株） 大分製鐵発電所 第9号発電設備,Japan,L100000102942,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Nippon Steel Oita Works power station',,Nippon Steel Oita Works power station,Japan
-OCCTO,,日立造船株式会社茨城工場第一発電所,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered nan match to nan nan; no GEM link — review,,,
-OCCTO,,東北電力上越火力発電所１号機,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Joetsu thermal power station'; GEM name did not resolve to one location — review,,,
-OCCTO,,東北電力仙台火力発電所４号機,Japan,L100000405183,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Shin Sendai thermal power station',,Shin Sendai thermal power station,Japan
-OCCTO,,東北電力八戸火力発電所５号機,Japan,L100000405152,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Hachinohe thermal power station',,Hachinohe thermal power station,Japan
 OCCTO,,東北電力原町火力発電所１号機,Japan,L100000102959,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Haramachi power station',,Haramachi power station,Japan
 OCCTO,,東北電力原町火力発電所２号機,Japan,L100000102959,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Haramachi power station'; pipeline proposed L100000102886,,Haramachi power station,Japan
-OCCTO,,東北電力新仙台火力発電所３号系列,Japan,L100000405183,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Shin Sendai thermal power station',,Shin Sendai thermal power station,Japan
-OCCTO,,東北電力東新潟火力発電所１号機,Japan,L100000405154,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Higashi Niigata thermal power station',,Higashi Niigata thermal power station,Japan
-OCCTO,,東北電力東新潟火力発電所３号系列,Japan,L100000405154,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Higashi Niigata thermal power station',,Higashi Niigata thermal power station,Japan
-OCCTO,,東北電力東新潟火力発電所４号系列,Japan,L100000405154,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Higashi Niigata thermal power station',,Higashi Niigata thermal power station,Japan
-OCCTO,,東北電力秋田火力発電所４号機,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Akita Thermal power station'; GEM name did not resolve to one location — review,,,
 OCCTO,,東北電力能代火力発電所１号機,Japan,L100000102910,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Noshiro power station',,Noshiro power station,Japan
 OCCTO,,東北電力能代火力発電所２号機,Japan,L100000102910,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Noshiro power station'; pipeline proposed L100000102886,,Noshiro power station,Japan
 OCCTO,,東北電力能代火力発電所３号機,Japan,L100000102910,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Noshiro power station',,Noshiro power station,Japan
-OCCTO,,東扇島火力発電所１号機,Japan,L100000405155,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Higashi-Ohgishima thermal power station',,Higashi-Ohgishima thermal power station,Japan
-OCCTO,,東扇島火力発電所２号機,Japan,L100000405155,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Higashi-Ohgishima thermal power station'; pipeline proposed L100000102886,,Higashi-Ohgishima thermal power station,Japan
 OCCTO,,松浦発電所,Japan,L100000102939,,False,manual,occto-unit-review-2026-10,2026-10-28,"Kyushu Electric's Matsuura (units 684/956 MW peak) is GEM Matsuura Kyushu power station (700/1000 MW); was linked to Matsuura J-POWER (L100000102940), which is OCCTO's 電源開発松浦火力発電所 (applied by N. Abad (US release 2026-10-28))",,Matsuura Kyushu power station,Japan
-OCCTO,,柳井発電所第１号系列上位,Japan,L100000405194,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yanai power station',,Yanai power station,Japan
-OCCTO,,柳井発電所第１号系列下位,Japan,L100000405194,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yanai power station',,Yanai power station,Japan
-OCCTO,,柳井発電所第２号系列,Japan,L100000405194,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yanai power station'; pipeline proposed L100000102886,,Yanai power station,Japan
-OCCTO,,株式会社エフビット横須賀パワー　横須賀パワーステーション,Japan,L100000102929,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yokosuka power station',,Yokosuka power station,Japan
-OCCTO,,根岸 ガス化複合発電所,Japan,L100000408480,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Negishi Refinery power station',,Negishi Refinery power station,Japan
-OCCTO,,横浜火力発電所7号系列３軸,Japan,L100000405196,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yokohama thermal power station',,Yokohama thermal power station,Japan
-OCCTO,,横浜火力発電所７号系列１軸,Japan,L100000405196,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yokohama thermal power station',,Yokohama thermal power station,Japan
-OCCTO,,横浜火力発電所８号系列２軸,Japan,L100000405196,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yokohama thermal power station',,Yokohama thermal power station,Japan
-OCCTO,,横浜火力発電所８号系列４軸,Japan,L100000405196,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yokohama thermal power station',,Yokohama thermal power station,Japan
 OCCTO,,横須賀火力発電所1号機,Japan,L100000102929,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Yokosuka'),,,
 OCCTO,,横須賀火力発電所2号機,Japan,L100000102929,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Yokosuka power station'; pipeline proposed L100000102886,,Yokosuka power station,Japan
 OCCTO,,武豊火力発電所,Japan,L100000102877,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Taketoyo power station',,Taketoyo power station,Japan
-OCCTO,,水島発電所第１号機,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Mizushima power station'; GEM name did not resolve to one location — review,,,
-OCCTO,,水島発電所第３号機,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Mizushima power station'; GEM name did not resolve to one location — review,,,
-OCCTO,,泉北天然ガス第一発電所,Japan,L100000405177,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Senboku Natural Gas power plant',,Senboku Natural Gas power plant,Japan
-OCCTO,,泉北天然ガス第二発電所,Japan,L100000405177,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Senboku Natural Gas power plant',,Senboku Natural Gas power plant,Japan
-OCCTO,,渥美火力発電所,Japan,L100000408463,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Atsumi Thermal power station',,Atsumi Thermal power station,Japan
-OCCTO,,牧港9号,Japan,L100000408476,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Makiminato Thermal power plant',,Makiminato Thermal power plant,Japan
-OCCTO,,牧港GT2号,Japan,L100000408476,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Makiminato Thermal power plant',,Makiminato Thermal power plant,Japan
-OCCTO,,玉島発電所第１号機,Japan,L100000405189,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Tamashima power station',,Tamashima power station,Japan
-OCCTO,,玉島発電所第３号機,Japan,L100000405189,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Tamashima power station',,Tamashima power station,Japan
 OCCTO,,相馬共同火力発電株式会社新地火力発電所,Japan,L100000102970,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Shinchi power station',,Shinchi power station,Japan
 OCCTO,,相馬石炭・バイオマス発電所,Japan,L100000102965,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Soma Coal-Biomass power station',,Soma Coal-Biomass power station,Japan
-OCCTO,,真岡発電所,Japan,L100000405170,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Moka power plant',,Moka power plant,Japan
-OCCTO,,知内発電所,Japan,L100000408487,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Shiriuchi power station',,Shiriuchi power station,Japan
-OCCTO,,知多火力発電所,Japan,L100000405149,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chita thermal power station',,Chita thermal power station,Japan
-OCCTO,,知多第二火力発電所,Japan,L100000405148,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chita Daini thermal power station',,Chita Daini thermal power station,Japan
-OCCTO,,石川1号,Japan,L100000102935,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Ishikawa power station',,Ishikawa power station,Japan
-OCCTO,,石川2号,Japan,L100000102935,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Ishikawa power station'),,,
-OCCTO,,石川GT1号,Japan,L100000102935,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Ishikawa power station',,Ishikawa power station,Japan
 OCCTO,,石川石炭火力発電所１号機,Japan,L100000102935,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Ishikawa power station',,Ishikawa power station,Japan
 OCCTO,,石川石炭火力発電所２号機,Japan,L100000102935,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Ishikawa power station'; pipeline proposed L100000102886,,Ishikawa power station,Japan
 OCCTO,,石巻雲雀野発電所,Japan,L100000200664,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Ishinomaki Hibarino Biomass power station',,Ishinomaki Hibarino Biomass power station,Japan
-OCCTO,,石狩湾新港発電所,Japan,L100000405161,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Ishikariwan Shinko power station',,Ishikariwan Shinko power station,Japan
 OCCTO,,砂川発電所,Japan,L100000102905,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Sunagawa power station',,Sunagawa power station,Japan
 OCCTO,,碧南火力発電所,Japan,L100000102870,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Hekinan power station',,Hekinan power station,Japan
 OCCTO,,神戸発電所,Japan,L100000102915,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Kobe power station'),,,
 OCCTO,,神栖火力発電所,Japan,L100000102925,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kamisu power station',,Kamisu power station,Japan
-OCCTO,,福島天然ガス発電所,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered nan match to nan nan; no GEM link — review,,,
 OCCTO,,糸魚川発電所,Japan,L100000102871,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Itoigawa power station'),,,
 OCCTO,,舞鶴発電所,Japan,L100000102917,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Maizuru power station',,Maizuru power station,Japan
-OCCTO,,船町発電所,Japan,L100000405150,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Funamachi power plant',,Funamachi power plant,Japan
 OCCTO,,苅田発電所,Japan,L100000102936,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Karita power station',,Karita power station,Japan
 OCCTO,,苓北発電所,Japan,L100000102944,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Reihoku power station',,Reihoku power station,Japan
-OCCTO,,苫小牧発電所,Japan,L100000408489,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Tomakomai power station',,Tomakomai power station,Japan
 OCCTO,,苫東厚真発電所,Japan,L100000102907,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Tomato-atsuma power station'),,,
-OCCTO,,袖ケ浦火力発電所１号機,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Sodegaura thermal power station'; GEM name did not resolve to one location — review,,,
-OCCTO,,袖ケ浦火力発電所２号機,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Sodegaura thermal power station'; GEM name did not resolve to one location — review,,,
-OCCTO,,袖ケ浦火力発電所３号機,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Sodegaura thermal power station'; GEM name did not resolve to one location — review,,,
-OCCTO,,袖ケ浦火力発電所４号機,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Sodegaura thermal power station'; GEM name did not resolve to one location — review,,,
-OCCTO,,西名古屋火力発電所,Japan,L100000405173,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Nishi-Nagoya thermal power station',,Nishi-Nagoya thermal power station,Japan
-OCCTO,,豊前発電所,Japan,L100000408462,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Buzen power station',,Buzen power station,Japan
 OCCTO,,豊橋発電所,Japan,L100000104557,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Toyohashi Akemi power station',,Toyohashi Akemi power station,Japan
-OCCTO,,赤穂発電所,Japan,L100000102913,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Ako power station',,Ako power station,Japan
-OCCTO,,酉島エネルギーセンター発電所,Japan,L100000405191,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Torishima Energy Center',,Torishima Energy Center,Japan
 OCCTO,,酒田共同火力発電所,Japan,L100000102969,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Sakata Kyodo power station',,Sakata Kyodo power station,Japan
 OCCTO,,金武1号,Japan,L100000102937,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kin power station',,Kin power station,Japan
 OCCTO,,金武2号,Japan,L100000102937,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Kin power station'),,,
@@ -1000,18 +878,13 @@ OCCTO,,防府バイオマス発電所,Japan,L100000104856,,False,legacy,legacy-p
 OCCTO,,電源開発松島火力発電所,Japan,L100000102938,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Matsushima power station',,Matsushima power station,Japan
 OCCTO,,電源開発松浦火力発電所,Japan,L100000102940,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Matsuura J-POWER power station',,Matsuura J-POWER power station,Japan
 OCCTO,,電源開発橘湾火力発電所,Japan,L100000102952,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'J-POWER Tachibana-wan power station',,J-POWER Tachibana-wan power station,Japan
-OCCTO,,電源開発磯子火力発電所新１号機,Japan,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Isogo power station (original)'; GEM name did not resolve to one location — review,,,
-OCCTO,,電源開発磯子火力発電所新２号機,Japan,L100000104728,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Isogo power station'),,,
+OCCTO,,電源開発磯子火力発電所新１号機,Japan,L100000102924,,False,manual,N. Abad (tracker #31),2026-10-28,J-Power Isogo New Unit 1 (600 MW): GEM Isogo power station Unit 1 (operating),,Isogo power station,Japan
+OCCTO,,電源開発磯子火力発電所新２号機,Japan,L100000102924,,False,manual,N. Abad (tracker #31),2026-10-28,"J-Power Isogo New Unit 2 (600 MW, 2009) is GEM Isogo power station Unit 2 (operating); was L100000104728, Isogo power station (original), the retired 265 MW units (gppd-migration 2026-09). N. Abad 2026-10-12 (applied by N. Abad (tracker #31))",,Isogo power station,Japan
 OCCTO,,電源開発竹原火力発電所新１号機,Japan,L100000102891,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Takehara power station'),,,
 OCCTO,,電源開発竹原火力発電所３号機,Japan,L100000102891,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Takehara power station'),,,
 OCCTO,,電源開発高砂火力発電所,Japan,L100000102918,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Takasago power station',,Takasago power station,Japan
 OCCTO,,響灘火力発電所,Japan,L100000104537,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Hibikinada Thermal Power Station',,Hibikinada Thermal Power Station,Japan
-OCCTO,,鹿島共同発電所,Japan,L100000408471,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kashima Kyodo power station',,Kashima Kyodo power station,Japan
-OCCTO,,鹿島火力発電所,Japan,L100000405164,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kashima thermal power station',,Kashima thermal power station,Japan
-OCCTO,,鹿島火力発電所７号系列１軸,Japan,L100000405164,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kashima thermal power station',,Kashima thermal power station,Japan
-OCCTO,,鹿島火力発電所７号系列２軸,Japan,L100000405164,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kashima thermal power station',,Kashima thermal power station,Japan
-OCCTO,,鹿島火力発電所７号系列３軸,Japan,L100000405164,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kashima thermal power station',,Kashima thermal power station,Japan
-OCCTO,,ＪＦＥスチール株式会社川鉄千葉クリーンパワーステーション,Japan,L100000406381,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kawatetsu Chiba Clean power station',,Kawatetsu Chiba Clean power station,Japan
+OCCTO,,鹿島火力発電所,Japan,L100000104889,,False,manual,N. Abad (tracker #31),2026-10-28,"Kashima Power (鹿島パワー) No. 2, coal, 645 MW (OCCTO peak 620 MW, code 5AEF3327U3) is GEM Kashima Works power station (name_other 鹿島パワー, name_local Kashima power station No. 2), coal tracker; was L100000405164, Kashima thermal power station, a gas site (its operating units are the 7 series gas turbines, reported separately). N. Abad 2026-10-28 (applied by N. Abad (tracker #31))",,Kashima Works power station,Japan
 OE,,Jeeralang B,Australia,,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered direct match to OE-direct 'Jeeralang B'; pipeline reproduces the match, values frozen; no GEM link — review",,,
 ONS,,Baliza,Brazil,L100000201053,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'BBF Baliza power station',,BBF Baliza power station,Brazil
 ONS,,Bracell,Brazil,L100000200454,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Bracell Star power station',,Bracell Star power station,Brazil
