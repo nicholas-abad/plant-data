@@ -9,11 +9,14 @@ generation rows carry eia_generator_key() of EIA's spelling (ETL migration
 
 A generator with several candidate units:
 * units that never ran (planned, cancelled) drop out, e.g. Bonanza's cancelled
-  "Addition" beside its operating Unit 1, both GEM generator "1";
+  "Addition" beside its operating Unit 1, both GEM generator "1"; a generator
+  only such units claim stays unmatched;
 * a coal unit wins over another tracker's unit for the same generator (coal
   units converted to gas are listed twice by GEM, once per tracker); the other
   is kept in ``other_gem_unit_ids``;
-* anything still ambiguous is left unmatched and reported, never guessed.
+* anything still ambiguous is left unmatched and reported, never guessed;
+* a GEM unit chosen by generators at two plant codes (a location GEM lists
+  under several codes) places neither: one unit cannot carry two generators.
 
 GEM's location codes go through the same review as the plant links
 (``eia_gem_id_review.csv``, src/eia_gem_ids.py): a code rejected or deferred
@@ -97,9 +100,9 @@ def choose(cands: pd.DataFrame) -> tuple[pd.Series | None, str]:
     unit GEM gives this generator's (plant_code, generator_id).
     """
     cands = cands.drop_duplicates("gem_unit_id")
-    ran = cands[~cands["status"].astype(str).str.lower().isin(NEVER_RAN)]
-    if not ran.empty:
-        cands = ran
+    cands = cands[~cands["status"].astype(str).str.lower().isin(NEVER_RAN)]
+    if cands.empty:
+        return None, "only units that never ran (planned, cancelled) claim it"
     if len(cands) == 1:
         return cands.iloc[0], ""
     coal = cands[cands["tracker"] == "GCPT"]
@@ -151,6 +154,17 @@ def build_eia_unit_map(
             }
         )
     out = pd.DataFrame(rows, columns=COLUMNS)
+    shared = out.groupby("gem_unit_id")["plant_key"].transform("nunique") > 1
+    claimants = out[shared].groupby("gem_unit_id")["plant_key"].agg(lambda s: ", ".join(sorted(set(s))))
+    for r in out[shared].itertuples(index=False):
+        unmapped.append(
+            {
+                "plant_code": r.plant_key,
+                "generator_id": r.unit_key,
+                "reason": f"{r.gem_unit_id} is also chosen at plant codes {claimants[r.gem_unit_id]}",
+            }
+        )
+    out = out[~shared].reset_index(drop=True)
     miss = pd.DataFrame(unmapped, columns=["plant_code", "generator_id", "reason"])
     logger.info(
         f"unit_gem_map EIA: {len(out):,} generators matched to a GEM unit "

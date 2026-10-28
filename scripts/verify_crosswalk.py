@@ -288,6 +288,14 @@ def unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
             conn,
             params={"coal": sorted(eia_unit_map.COAL_TECHNOLOGIES)},
         )
+    # An empty join means the register is missing or not keyed like the
+    # generation rows (loaded before migration 023); 0/0 would pass as NaN.
+    if gen["g"].sum() <= 0:
+        fail(
+            "G-UNITMAP: no US coal generation (24 months) joins mv_eia_unit_monthly to "
+            "eia_generator_info; is the register loaded and keyed with eia_generator_key()?"
+        )
+        return
     on = gen.merge(eia, on=["plant_key", "unit_key"])
     unit_share = on.loc[on["gem_unit_id"].notna(), "g"].sum() / gen["g"].sum()
     placed_share = on["g"].sum() / gen["g"].sum()

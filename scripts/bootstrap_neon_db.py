@@ -301,10 +301,15 @@ def load_unified_crosswalk(engine):
 def load_npp_unit_map(engine):
     """India's unit map is now the NPP rows of unit_gem_map (load_unit_gem_map).
 
-    Kept so callers written before the merge still run; npp_unit_gem_map and
-    npp_gem_unit_monthly are views load_unit_gem_map creates.
+    npp_unit_gem_map and npp_gem_unit_monthly are views load_unit_gem_map
+    creates. A caller written before the merge (power-generation-etl's weekly
+    job before its unit-map change) fails here instead of passing while
+    India's map goes stale.
     """
-    print("  SKIP  npp_unit_gem_map: now part of unit_gem_map (load_unit_gem_map)")
+    raise RuntimeError(
+        "load_npp_unit_map was replaced by load_unit_gem_map: update the caller "
+        "(power-generation-etl weekly job) before running against this plant-data"
+    )
 
 
 def load_gem_external_ids(engine):
@@ -340,6 +345,10 @@ def load_gem_external_ids(engine):
 
 
 # gem_unit_monthly: each source's monthly generation with the unit map attached.
+# It depends on every source view below, and India's npp_gem_unit_monthly (read
+# by the tracker) depends on it: an ETL migration or rollback that drops one of
+# these views (022's rollback drops mv_oe_all_fuels_unit_monthly) must drop
+# gem_unit_monthly and the NPP compat views first; --unit-map-only re-creates them.
 # One branch per source, built from the sources this database has (Australia's
 # unit-grain view exists only where ETL migration 022 is applied).
 _UNIT_COLS = "m.source_system, m.gem_location_id, m.gem_unit_id, m.gem_unit_ids, m.plant_key, m.unit_key"

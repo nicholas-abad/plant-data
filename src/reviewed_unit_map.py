@@ -64,8 +64,13 @@ def build_rows(
 
     ``names``: plant (as the source's monthly view names it) and source_id.
     """
+    m = names.merge(reviewed, on="source_id").drop_duplicates(["plant", "gem_location_id", "gem_unit_ids"])
+    split = sorted(set(m.loc[m["plant"].duplicated(), "plant"]))
+    if split:
+        raise ValueError(
+            f"{source.system}: names reported under source IDs reviewed to different GEM units: {split[:5]}"
+        )
     names = names.drop_duplicates("plant")
-    m = names.merge(reviewed, on="source_id")
     one = m["gem_unit_ids"].str.split().str.len() == 1
     matched = pd.DataFrame(
         {

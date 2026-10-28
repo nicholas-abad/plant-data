@@ -75,8 +75,7 @@ def build_oe_unit_map(
             unit_ids, loc, how = r["gem_unit_ids"], r["gem_location_id"], REVIEWED
         else:
             c = candidates[(candidates["unit_code"] == code.upper()) & candidates["gem_unit_id"].isin(where)]
-            ran = c[~c["gem_unit_id"].map(status).isin(NEVER_RAN)]
-            c = ran if len(ran) else c
+            c = c[~c["gem_unit_id"].map(status).isin(NEVER_RAN)]
             if len(c) != 1:
                 continue
             unit_ids, loc, how = c["gem_unit_id"].iloc[0], c["gem_location_id"].iloc[0], DUID

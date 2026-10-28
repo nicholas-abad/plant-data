@@ -343,3 +343,48 @@ def test_a_reviewed_file_listing_a_unit_twice_is_refused():
     twice = pd.DataFrame([("X", "L1", "G1"), ("X", "L1", "G1")], columns=["plant_name", "gem_location_id", "gem_unit_ids"])
     with pytest.raises(ValueError, match="listed twice"):
         check_reviewed(Path("x.csv"), twice, gem, ["plant_name"])
+
+
+def test_a_generator_only_never_built_units_claim_stays_unmapped():
+    out, miss = build_eia_unit_map(gens(("7790", "1")), cands([("7790", "1", "G_BON_ADD", "L_BON")]), UNITS)
+    assert out.empty
+    assert "never ran" in miss["reason"].iloc[0]
+
+
+def test_one_gem_unit_chosen_at_two_plant_codes_places_neither():
+    # GEM lists one location under two EIA plant codes (Stanton's 564 and 55821);
+    # both report generator "1", so one GEM unit would carry two generators.
+    out, miss = build_eia_unit_map(
+        gens(("564", "1"), ("55821", "1"), ("564", "2")),
+        cands([("564", "1", "G_RP1", "L_ST"), ("55821", "1", "G_RP1", "L_ST"), ("564", "2", "G_RP2", "L_ST")]),
+        UNITS,
+    )
+    assert out["gem_unit_id"].tolist() == ["G_RP2"]
+    assert sorted(miss["plant_code"]) == ["55821", "564"]
+    assert "also chosen at plant codes 55821, 564" in miss["reason"].iloc[0]
+
+
+def test_an_oe_unit_only_never_built_units_claim_falls_back_to_its_facility():
+    from src.oe_unit_map import build_oe_unit_map
+
+    units = pd.DataFrame([("BW05", "Bayswater", "coal_black")], columns=["unit_code", "facility_name", "fueltech"])
+    candidates = pd.DataFrame([("BW05", "G_BW5", "L_BW")], columns=["unit_code", "gem_unit_id", "gem_location_id"])
+    reviewed = pd.DataFrame(columns=["unit_code", "gem_location_id", "gem_unit_ids"])
+    gem = pd.DataFrame([("G_BW5", "L_BW", "cancelled")], columns=["gem_unit_id", "gem_location_id", "status"])
+    out = build_oe_unit_map(units, candidates, reviewed, gem, {"Bayswater": "L_BW"})
+    assert out["map_source"].tolist() == ["crosswalk-plant"]
+
+
+def test_a_name_whose_ids_are_reviewed_to_different_units_is_refused():
+    from src.reviewed_unit_map import SOURCES, build_rows
+
+    ons = next(src for src in SOURCES if src.system == "ONS")
+    reviewed = pd.DataFrame(
+        [("ID_A", "L1", "G1"), ("ID_B", "L2", "G2"), ("ID_C", "L1", "G1")],
+        columns=["source_id", "gem_location_id", "gem_unit_ids"],
+    )
+    agreeing = pd.DataFrame([("Plant", "ID_A"), ("Plant", "ID_C")], columns=["plant", "source_id"])
+    assert build_rows(ons, agreeing, reviewed, {})["gem_unit_id"].tolist() == ["G1"]
+    split = pd.DataFrame([("Plant", "ID_A"), ("Plant", "ID_B")], columns=["plant", "source_id"])
+    with pytest.raises(ValueError, match="different GEM units"):
+        build_rows(ons, split, reviewed, {})
