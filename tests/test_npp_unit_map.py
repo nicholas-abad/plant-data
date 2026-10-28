@@ -87,3 +87,20 @@ def test_gipt_unit_on_two_sites_fails_loudly(gem, tmp_path, monkeypatch):
     units = pd.DataFrame({"plant": ["BARH STPS"], "unit": ["Unit 1"]})
     with pytest.raises(ValueError, match="more than one GEM location"):
         bc.build_npp_unit_map(units, _crosswalk())
+
+
+def test_npp_rows_take_the_shared_unit_map_shape():
+    from src.unit_gem_map import COLUMNS
+
+    npp_map = pd.DataFrame(
+        [("BARH STPS", "Unit 4", "LB2", "G3", "gipt-unit"), ("KAWAI", "Unit 1", "LK", None, "crosswalk-plant")],
+        columns=["plant", "unit", "gem_location_id", "gem_unit_id", "map_source"],
+    )
+    units = pd.DataFrame(
+        [("BARH STPS", "Unit 4", "THERMAL"), ("KAWAI", "Unit 1", "HYDRO")], columns=["plant", "unit", "fuel_type"]
+    )
+    rows = bc.npp_unit_gem_rows(npp_map, units)
+    assert list(rows.columns) == COLUMNS and set(rows["source_system"]) == {"NPP"}
+    barh = rows.iloc[0]
+    assert (barh["plant_key"], barh["unit_key"], barh["gem_unit_ids"], barh["is_coal"]) == ("BARH STPS", "Unit 4", "G3", True)
+    assert rows.iloc[1]["fuel"] == "HYDRO" and not rows.iloc[1]["is_coal"] and pd.isna(rows.iloc[1]["gem_unit_ids"])

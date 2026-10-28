@@ -1,0 +1,7 @@
+unit_code,gem_location_id,gem_unit_ids,evidence,reviewed_by,reviewed_on
+LD01,L100000100006,G100000106281,"Liddell Unit 1; daily-average peak 421 MW vs GEM 500 MW; retired 2023; GEM has no DUID for it",proposed,2026-10-17
+LD02,L100000100006,G100000106282,"Liddell Unit 2; daily-average peak 420 MW vs GEM 500 MW; retired 2023",proposed,2026-10-17
+LD03,L100000100006,G100000106283,"Liddell Unit 3; daily-average peak 420 MW vs GEM 500 MW; retired 2022",proposed,2026-10-17
+LD04,L100000100006,G100000106284,"Liddell Unit 4; daily-average peak 420 MW vs GEM 500 MW; retired 2023",proposed,2026-10-17
+MUJA_G5,L100000100042,G100000107085,"Muja Stage C Unit 5; daily-average peak 191 MW vs GEM 200 MW; retired 2022",proposed,2026-10-17
+CALL_A_4,L100000100012,G100000101159,"Callide A Unit 4 = Callide Oxyfuel Project (30 MW, retired 2015); OE reports zero output",proposed,2026-10-17

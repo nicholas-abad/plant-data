@@ -298,25 +298,185 @@ def load_unified_crosswalk(engine):
     print(f"  OK  plant_crosswalk: {len(df):,} rows")
 
 
-NPP_GEM_UNIT_VIEW = """
-CREATE VIEW npp_gem_unit_monthly AS
-SELECT m.gem_location_id, u.month, u.plant, u.unit, u.fuel_type,
-       u.generation_mwh, m.gem_unit_id, m.map_source
-FROM mv_npp_unit_monthly u
-JOIN npp_unit_gem_map m ON m.plant = u.plant AND m.unit = u.unit
-"""
-
-
 def load_npp_unit_map(engine):
-    """Load npp_unit_gem_map and (re)create npp_gem_unit_monthly on it.
+    """India's unit map is now the NPP rows of unit_gem_map (load_unit_gem_map).
 
-    India's GEM identity at unit grain: the tracker reads a GEM site's India
-    generation from npp_gem_unit_monthly (WHERE gem_location_id = …), which
-    places units of a DGR plant split across GEM sites (BARH STPS → Barh I /
-    Barh II) correctly. The swap drops the view with the old table (CASCADE),
-    so it is re-created here every load.
+    npp_unit_gem_map and npp_gem_unit_monthly are views load_unit_gem_map
+    creates. A caller written before the merge (power-generation-etl's weekly
+    job before its unit-map change) fails here instead of passing while
+    India's map goes stale.
     """
-    path = DATA_DIR / "crosswalks" / "npp_unit_gem_map.parquet"
+    raise RuntimeError(
+        "load_npp_unit_map was replaced by load_unit_gem_map: update the caller "
+        "(power-generation-etl weekly job) before running against this plant-data"
+    )
+
+
+def load_gem_external_ids(engine):
+    """Load GEM's external IDs (EIA codes, AEMO DUIDs, …) into gem_external_ids.
+
+    From the dated snapshot parsed out of a GEM export (src/gem_external_ids.py);
+    GEM's API does not carry these IDs yet. Same columns fetch_gem.py creates
+    the table with, so its consumers (the dashboard role, the crosswalk's
+    EIA-code tier) do not change when the API starts filling it.
+    """
+    path = DATA_DIR / "crosswalks" / "gem_external_ids.parquet"
+    if not path.exists():
+        print(f"  SKIP  {path.name} not found — run scripts/build_gem_external_ids.py first")
+        return
+
+    df = pd.read_parquet(path)
+
+    _atomic_replace_table(
+        engine,
+        df,
+        "gem_external_ids",
+        [
+            "CREATE INDEX ix_gem_external_ids_lookup ON gem_external_ids (namespace, external_id)",
+            "CREATE INDEX ix_gem_external_ids_unit ON gem_external_ids (gem_unit_id) WHERE gem_unit_id IS NOT NULL",
+            "CREATE INDEX ix_gem_external_ids_location ON gem_external_ids (gem_location_id)",
+            "COMMENT ON TABLE gem_external_ids IS 'Other systems'' IDs for GEM locations (gem_unit_id NULL) "
+            "and units: EIA plant code / generator ID, AEMO DUID, … From a dated GEM export until the "
+            "GEM API exposes them (plant-data src/gem_external_ids.py).'",
+        ],
+    )
+
+    print(f"  OK  gem_external_ids: {len(df):,} rows")
+
+
+# gem_unit_monthly: each source's monthly generation with the unit map attached.
+# It depends on every source view below, and India's npp_gem_unit_monthly (read
+# by the tracker) depends on it: an ETL migration or rollback that drops one of
+# these views (022's rollback drops mv_oe_all_fuels_unit_monthly) must drop
+# gem_unit_monthly and the NPP compat views first; --unit-map-only re-creates them.
+# One branch per source, built from the sources this database has (Australia's
+# unit-grain view exists only where ETL migration 022 is applied).
+_UNIT_COLS = "m.source_system, m.gem_location_id, m.gem_unit_id, m.gem_unit_ids, m.plant_key, m.unit_key"
+_MONTH_COLS = "u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint AS timestamp_ms"
+GEM_UNIT_BRANCHES = {
+    # India: NPP units under their DGR plant names, all fuels (coal = THERMAL).
+    "mv_npp_unit_monthly": f"""
+SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
+       u.fuel_type AS fuel, u.fuel_type = 'THERMAL' AS is_coal, m.map_source
+FROM mv_npp_unit_monthly u
+JOIN unit_gem_map m ON m.source_system = 'NPP' AND m.plant_key = u.plant AND m.unit_key = u.unit""",
+    "mv_eia_unit_monthly": f"""
+SELECT {_UNIT_COLS}, u.month, u.timestamp_ms, u.net_generation_mwh AS generation_mwh,
+       m.fuel, m.is_coal, m.map_source
+FROM mv_eia_unit_monthly u
+JOIN unit_gem_map m
+  ON m.source_system = 'EIA' AND m.plant_key = u.plant_code AND m.unit_key = u.generator_id""",
+    # Brazil: ONS reports whole plants or phases (unit_key ''); coal rows only.
+    "mv_ons_plant_monthly": f"""
+SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
+       u.fuel_type AS fuel, TRUE AS is_coal, m.map_source
+FROM mv_ons_plant_monthly u
+JOIN unit_gem_map m ON m.source_system = 'ONS' AND m.plant_key = u.plant AND m.unit_key = ''
+WHERE u.fuel_type = 'Carvão'""",
+    # Chile: plant or unit rows as the Coordinador reports them; coal rows only.
+    "mv_chile_plant_monthly": f"""
+SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
+       u.fuel_type AS fuel, TRUE AS is_coal, m.map_source
+FROM mv_chile_plant_monthly u
+JOIN unit_gem_map m ON m.source_system = 'CHILE' AND m.plant_key = u.plant AND m.unit_key = ''
+WHERE u.fuel_type = 'Carbón'""",
+    # Japan: OCCTO units under their plant names; coal rows only.
+    "mv_occto_unit_monthly": f"""
+SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
+       u.fuel_type AS fuel, TRUE AS is_coal, m.map_source
+FROM mv_occto_unit_monthly u
+JOIN unit_gem_map m ON m.source_system = 'OCCTO' AND m.plant_key = u.plant AND m.unit_key = u.unit
+WHERE u.fuel_type = 'coal'""",
+    # Europe: ENTSO-E unit names (each its own crosswalk row, unit_key ''); coal rows only.
+    "mv_entsoe_plant_monthly": f"""
+SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
+       u.fuel_type AS fuel, TRUE AS is_coal, m.map_source
+FROM mv_entsoe_plant_monthly u
+JOIN unit_gem_map m ON m.source_system = 'ENTSOE' AND m.plant_key = u.plant_name AND m.unit_key = ''
+WHERE u.fuel_type IN ('Fossil Hard coal', 'Fossil Brown coal/Lignite')""",
+    # Australia: OE units (DUIDs), generation = injection, network-local months.
+    # Joined on the DUID alone: a month filed under an older facility name
+    # (plant_key is the latest one) still belongs to the unit.
+    "mv_oe_all_fuels_unit_monthly": f"""
+SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.energy_mwh AS generation_mwh,
+       u.fueltech AS fuel, left(u.fueltech, 4) = 'coal' AS is_coal, m.map_source
+FROM mv_oe_all_fuels_unit_monthly u
+JOIN unit_gem_map m ON m.source_system = 'OE' AND m.unit_key = u.unit_code
+WHERE u.direction = 'injection'""",
+}
+
+
+# India's names from before the merge, as views over the shared map with their
+# original columns (the tracker reads both). A database loaded before the merge
+# still has npp_unit_gem_map as a table: it is dropped (with the old view) first.
+NPP_COMPAT_SQL = [
+    "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_class WHERE oid = to_regclass('public.npp_unit_gem_map') "
+    "AND relkind = 'r') THEN DROP TABLE public.npp_unit_gem_map CASCADE; END IF; END $$",
+    "CREATE VIEW npp_unit_gem_map AS SELECT plant_key AS plant, unit_key AS unit, gem_location_id, "
+    "gem_unit_id, map_source FROM unit_gem_map WHERE source_system = 'NPP'",
+    "CREATE VIEW npp_gem_unit_monthly AS SELECT gem_location_id, month, plant_key AS plant, "
+    "unit_key AS unit, fuel AS fuel_type, generation_mwh, gem_unit_id, map_source "
+    "FROM gem_unit_monthly WHERE source_system = 'NPP'",
+    "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dashboard_ro') "
+    "THEN GRANT SELECT ON npp_unit_gem_map, npp_gem_unit_monthly TO dashboard_ro; END IF; "
+    "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'etl_writer') "
+    "THEN ALTER VIEW npp_unit_gem_map OWNER TO etl_writer; ALTER VIEW npp_gem_unit_monthly OWNER TO etl_writer; "
+    "END IF; END $$",
+]
+
+
+def unit_overlap_sql(rows: str) -> str:
+    """'SOURCE G…' for every GEM unit two source rows of ``rows`` (gem_unit_monthly's
+    shape) both generate on in one month, outside the US; NULL when none.
+
+    Used by verify_crosswalk.py as a warning, not a refusal: a plant renamed
+    mid-month legitimately reports one unit under both names that month
+    (India's BARH I / BARH STPS in 2022-07), while a source reporting the
+    same hours under two names (ONS in production, May-June 2026) counts
+    twice. Monthly totals cannot tell the two apart; the source's own rows
+    can, so duplicates are removed where the ETL loads them."""
+    return f"""
+SELECT string_agg(DISTINCT source_system || ' ' || unit, ', ')
+FROM (
+  SELECT r.source_system, g.unit, r.month
+  FROM ({rows}) r CROSS JOIN LATERAL unnest(string_to_array(r.gem_unit_ids, ' ')) AS g(unit)
+  WHERE r.source_system <> 'EIA' AND r.generation_mwh > 0
+  GROUP BY 1, 2, 3
+  HAVING count(DISTINCT (r.plant_key, r.unit_key)) > 1
+) x"""
+
+
+def gem_unit_rows_sql(engine) -> str:
+    """The UNION of the branches whose source views this database has."""
+    with engine.connect() as conn:
+        present = [
+            name
+            for name in GEM_UNIT_BRANCHES
+            if conn.execute(text("SELECT to_regclass(:n) IS NOT NULL"), {"n": name}).scalar()
+        ]
+    return "\nUNION ALL".join(GEM_UNIT_BRANCHES[name] for name in present)
+
+
+def gem_unit_view_sql(engine) -> str:
+    return "CREATE VIEW gem_unit_monthly AS" + gem_unit_rows_sql(engine)
+
+
+def load_unit_gem_map(engine):
+    """Load unit_gem_map and (re)create gem_unit_monthly on it.
+
+    Every source's units placed at GEM in one shape (src/unit_gem_map.py);
+    India included (its older names npp_unit_gem_map and npp_gem_unit_monthly
+    are re-created as views here). The tracker reads a GEM site's units from
+    gem_unit_monthly (WHERE gem_location_id = …): a unit GEM identifies
+    carries its gem_unit_id, the rest sit at their plant's GEM plant. Each
+    source joins its own monthly view here (UNION ALL as sources are added).
+    The swap drops the view with the old table (CASCADE), so it is
+    re-created here every load.
+
+    Ownership goes to etl_writer when that role exists, so the weekly job can
+    replace a map first loaded by hand (as load_ct_gem_crosswalk does).
+    """
+    path = DATA_DIR / "crosswalks" / "unit_gem_map.parquet"
     if not path.exists():
         print(f"  SKIP  {path.name} not found — run build_crosswalk.py first")
         return
@@ -326,18 +486,22 @@ def load_npp_unit_map(engine):
     _atomic_replace_table(
         engine,
         df,
-        "npp_unit_gem_map",
+        "unit_gem_map",
         [
-            "CREATE UNIQUE INDEX ux_npp_unit_gem_map ON npp_unit_gem_map (plant, unit)",
-            "CREATE INDEX ix_npp_unit_gem_map_location ON npp_unit_gem_map (gem_location_id)",
-            NPP_GEM_UNIT_VIEW,
+            "CREATE UNIQUE INDEX ux_unit_gem_map ON unit_gem_map (source_system, plant_key, unit_key)",
+            "CREATE INDEX ix_unit_gem_map_location ON unit_gem_map (gem_location_id)",
+            gem_unit_view_sql(engine),
             "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dashboard_ro') "
-            "THEN GRANT SELECT ON npp_unit_gem_map, npp_gem_unit_monthly TO dashboard_ro; "
+            "THEN GRANT SELECT ON unit_gem_map, gem_unit_monthly TO dashboard_ro; "
             "END IF; END $$",
+            "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'etl_writer') "
+            "THEN ALTER TABLE unit_gem_map OWNER TO etl_writer; ALTER VIEW gem_unit_monthly OWNER TO etl_writer; "
+            "END IF; END $$",
+            *NPP_COMPAT_SQL,
         ],
     )
 
-    print(f"  OK  npp_unit_gem_map: {len(df):,} rows (+ view npp_gem_unit_monthly)")
+    print(f"  OK  unit_gem_map: {len(df):,} rows (+ view gem_unit_monthly)")
 
 
 def load_npp_llm_test(engine):
@@ -359,6 +523,29 @@ def load_npp_llm_test(engine):
     )
 
     print(f"  OK  npp_llm_test: {len(df):,} rows")
+
+
+# EIA spells some generator IDs differently in Form 923 (generation) and Form
+# 860 (this register): Dry Fork "1" vs "01", Rockport "MB1" vs "1". ETL
+# migration 023 adds eia_generator_key(), keys the generation rows with it and
+# keeps EIA's spelling; these statements key the register and GEM's EIA unit
+# IDs the same way so the coal join matches. On a database without 023 they
+# leave the IDs as loaded, which is exactly how the generation rows are kept.
+def _eia_key_sql(table: str, set_clause: str, where: str = "TRUE") -> str:
+    return (
+        "DO $$ BEGIN IF to_regproc('public.eia_generator_key') IS NOT NULL THEN "
+        f"UPDATE {table} SET {set_clause} WHERE {where}; END IF; END $$"
+    )
+
+
+EIA_REGISTER_KEY_SQL = [
+    "ALTER TABLE eia_generator_info ADD COLUMN id_as_registered TEXT",
+    "UPDATE eia_generator_info SET id_as_registered = generator_id",
+    _eia_key_sql(
+        "eia_generator_info",
+        "generator_id = public.eia_generator_key(plant_code, id_as_registered)",
+    ),
+]
 
 
 def load_eia_generator_info(engine):
@@ -384,6 +571,9 @@ def load_eia_generator_info(engine):
         df,
         "eia_generator_info",
         [
+            # Keyed before the primary key: two Form 860 rows that one key
+            # would merge fail the swap, and the old table stays.
+            *EIA_REGISTER_KEY_SQL,
             "ALTER TABLE eia_generator_info ADD PRIMARY KEY (plant_code, generator_id)",
             "CREATE INDEX idx_eia_gen_info_technology ON eia_generator_info (technology)",
         ],
@@ -485,6 +675,12 @@ def load_gcpt_coal_metadata(engine):
         "gcpt_coal_metadata",
         [
             "ALTER TABLE gcpt_coal_metadata ADD PRIMARY KEY (gcpt_unit_id)",
+            _eia_key_sql(
+                "gcpt_coal_metadata",
+                "eia_unit_id = split_part(eia_unit_id, '|', 1) || '|' || "
+                "public.eia_generator_key(split_part(eia_unit_id, '|', 1), split_part(eia_unit_id, '|', 2))",
+                "eia_unit_id IS NOT NULL",
+            ),
             "CREATE INDEX idx_gcpt_coal_eia_unit "
             "ON gcpt_coal_metadata (eia_unit_id) WHERE eia_unit_id IS NOT NULL",
         ],
@@ -572,10 +768,11 @@ def load_ct_gem_crosswalk(engine):
 
 
 def load_all_reference_data(engine):
-    """Load the unified crosswalk table, EIA generator info, and GCPT coal metadata."""
+    """Load the unified crosswalk table, EIA generator info, GCPT coal metadata and the unit map."""
     load_unified_crosswalk(engine)
     load_eia_generator_info(engine)
     load_gcpt_coal_metadata(engine)
+    load_unit_gem_map(engine)
 
 
 # ---------------------------------------------------------------------------
@@ -613,6 +810,16 @@ def main():
         help="Only load GCPT coal metadata (gcpt_coal_metadata table)",
     )
     parser.add_argument(
+        "--unit-map-only",
+        action="store_true",
+        help="Only load the unit map (unit_gem_map + view gem_unit_monthly)",
+    )
+    parser.add_argument(
+        "--gem-ids-only",
+        action="store_true",
+        help="Only load GEM's external IDs (gem_external_ids table)",
+    )
+    parser.add_argument(
         "--ct-gem-only",
         action="store_true",
         help="Only load Climate TRACE's CT → GEM links (ct_gem_crosswalk table)",
@@ -627,11 +834,13 @@ def main():
             args.generator_info_only,
             args.gcpt_only,
             args.ct_gem_only,
+            args.gem_ids_only,
+            args.unit_map_only,
         ]
     )
     if mutually_exclusive > 1:
         print(
-            "ERROR: --schema-only, --data-only, --test-only, --generator-info-only, --gcpt-only and --ct-gem-only are mutually exclusive"
+            "ERROR: --schema-only, --data-only, --test-only, --generator-info-only, --gcpt-only, --ct-gem-only, --gem-ids-only and --unit-map-only are mutually exclusive"
         )
         sys.exit(1)
 
@@ -646,7 +855,15 @@ def main():
         print(f"ERROR: Could not connect to database: {e}")
         sys.exit(1)
 
-    if args.ct_gem_only:
+    if args.unit_map_only:
+        print("Loading the unit map...")
+        load_unit_gem_map(engine)
+        print()
+    elif args.gem_ids_only:
+        print("Loading GEM external IDs...")
+        load_gem_external_ids(engine)
+        print()
+    elif args.ct_gem_only:
         print("Loading Climate TRACE CT → GEM links...")
         load_ct_gem_crosswalk(engine)
         print()

@@ -42,6 +42,10 @@ from .plant_name_matchers import (
     validate_match,
 )
 from . import gem_reference as gemref
+from . import eia_gem_ids, eia_unit_map, entsoe_unit_map, occto_unit_map, oe_unit_map, reviewed_unit_map
+from .unit_gem_map import COLUMNS as UNIT_MAP_COLUMNS
+from .unit_gem_map import MAP_FILE as UNIT_MAP_FILE
+from .gem_external_ids import eia_plant_locations, load_snapshot
 from .utils import get_crosswalk_dir, validate_coordinates
 
 # ---------------------------------------------------------------------------
@@ -49,7 +53,6 @@ from .utils import get_crosswalk_dir, validate_coordinates
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = get_crosswalk_dir()
 OUTPUT_FILE = OUTPUT_DIR / "unified_plant_crosswalk.parquet"
-NPP_UNIT_MAP_FILE = OUTPUT_DIR / "npp_unit_gem_map.parquet"
 
 GPPD_CSV = get_crosswalk_dir() / "global_power_plant_database.csv"
 EIA_LOOKUP_CSV = get_crosswalk_dir() / "eia_plant_lookup.csv"
@@ -258,7 +261,8 @@ OUTPUT_COLUMNS = [
 HUMAN_METHODS = {"manual", "legacy"}
 # Decisions whose displayed values are re-derived from GEM on every rebuild
 # (legacy rows instead carry frozen values).
-DERIVED_METHODS = {"manual", "gppd-geo"}
+# gem-eia-id: linked by the EIA plant code GEM records (src/eia_gem_ids.py).
+DERIVED_METHODS = {"manual", "gppd-geo", eia_gem_ids.METHOD}
 # Values a frozen (legacy) row carries verbatim across rebuilds — the whole
 # point of grandfathering: the pipeline cannot reproduce them (they came from
 # Gemini or an older GEM release), so tier 0 must carry them, not just the link.
@@ -536,7 +540,9 @@ def pull_plant_names(engine, sources: list[str] | None = None) -> pd.DataFrame:
         # units) — lifetime weights hand retired units a share of capacity
         # they no longer have and push the active units past 100% CF.
         "ENTSOE": "SELECT plant_name, MAX(country_code) AS entsoe_area, COALESCE(SUM(generation_mwh) FILTER (WHERE fuel_type IN ('Fossil Hard coal','Fossil Brown coal/Lignite') AND month >= CURRENT_DATE - INTERVAL '24 months'), 0) AS entsoe_gen_mwh FROM mv_entsoe_plant_monthly WHERE plant_name IS NOT NULL GROUP BY 1",
-        "EIA": "SELECT DISTINCT plant_code AS plant_name FROM eia_generation_data WHERE plant_code IS NOT NULL",
+        # eia_state: the state(s) EIA reports for the plant, for the GEM-ID
+        # tier's state cross-check ('TX', or 'TX|OK' if EIA ever disagrees).
+        "EIA": "SELECT plant_code AS plant_name, string_agg(DISTINCT state, '|' ORDER BY state) AS eia_state FROM eia_generation_data WHERE plant_code IS NOT NULL GROUP BY 1",
         "ONS": "SELECT DISTINCT plant AS plant_name FROM ons_generation_data WHERE plant IS NOT NULL",
         "OE": "SELECT DISTINCT facility_name AS plant_name, latitude, longitude FROM oe_facility_generation_data WHERE facility_name IS NOT NULL",
         # occto_has_coal: whether the plant ever reports coal — feeds the
@@ -2451,7 +2457,7 @@ def veto_non_coal_feeds(rows: pd.DataFrame, plants_df: pd.DataFrame) -> pd.DataF
 
 
 def build_npp_unit_map(units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataFrame:
-    """One GEM location per India (plant, unit): npp_unit_gem_map.
+    """One GEM location per India (plant, unit): the NPP rows of unit_gem_map.
 
     The crosswalk is plant-grained, so a DGR plant whose units GEM files under
     two sites (BARH STPS -> Barh I + Barh II after the 2022 rename, ANPARA TPS
@@ -2491,7 +2497,7 @@ def build_npp_unit_map(units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataF
     out.loc[fallback & out["gem_location_id"].notna(), "map_source"] = "crosswalk-plant"
     out = out[out["gem_location_id"].notna()].reset_index(drop=True)
     logger.info(
-        f"npp_unit_gem_map: {len(out):,} (plant, unit) rows — "
+        f"unit_gem_map NPP: {len(out):,} (plant, unit) rows — "
         f"{(out['map_source'] == 'gipt-unit').sum():,} gipt-unit, "
         f"{(out['map_source'] == 'crosswalk-plant').sum():,} crosswalk-plant; "
         f"{len(units[['plant', 'unit']].drop_duplicates()) - len(out):,} unmapped"
@@ -2499,9 +2505,37 @@ def build_npp_unit_map(units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataF
     return out
 
 
+def npp_unit_gem_rows(npp_map: pd.DataFrame, units: pd.DataFrame) -> pd.DataFrame:
+    """India's map in unit_gem_map's shape (source_system 'NPP'); ``units`` gives each unit's fuel."""
+    fuel = units.drop_duplicates(["plant", "unit"]).set_index(["plant", "unit"])["fuel_type"]
+    key = pd.MultiIndex.from_frame(npp_map[["plant", "unit"]])
+    return pd.DataFrame(
+        {
+            "source_system": "NPP",
+            "plant_key": npp_map["plant"],
+            "unit_key": npp_map["unit"],
+            "gem_location_id": npp_map["gem_location_id"],
+            "gem_unit_id": npp_map["gem_unit_id"],
+            "gem_unit_ids": npp_map["gem_unit_id"],
+            "map_source": npp_map["map_source"],
+            "fuel": fuel.reindex(key).to_numpy(),
+            "is_coal": (fuel.reindex(key) == "THERMAL").to_numpy(),
+            "other_gem_unit_ids": None,
+        },
+        columns=UNIT_MAP_COLUMNS,
+    )
+
+
 def _pull_npp_units(engine) -> pd.DataFrame:
+    """Each (plant, unit) of mv_npp_unit_monthly and its fuel (THERMAL if it ever reported it)."""
     with engine.connect() as conn:
-        return pd.read_sql(text("SELECT DISTINCT plant, unit FROM mv_npp_unit_monthly"), conn)
+        return pd.read_sql(
+            text(
+                "SELECT plant, unit, CASE WHEN bool_or(fuel_type = 'THERMAL') THEN 'THERMAL' "
+                "ELSE min(fuel_type) END AS fuel_type FROM mv_npp_unit_monthly GROUP BY 1, 2"
+            ),
+            conn,
+        )
 
 
 def build_unified_crosswalk(
@@ -2549,6 +2583,28 @@ def build_unified_crosswalk(
     logger.info(f"Step 1: Pulling distinct plant names from Neon DB ({src_label})...")
     plants_df = pull_plant_names(engine, sources=sources)
     logger.info(f"Total distinct plant entries: {len(plants_df):,}")
+
+    # Step 2: EIA plants GEM codes (src/eia_gem_ids.py). Per plant_code and
+    # BEFORE the name de-duplication below: name matching hands every code
+    # sharing a name one link, which is how Coal Creek (ND) landed on Coleto
+    # Creek (TX). Matched codes leave plants_df, so no later stage (or the
+    # name expansion) can emit them a second time.
+    id_rows = pd.DataFrame(columns=OUTPUT_COLUMNS)
+    is_eia = plants_df["source_system"] == "EIA"
+    eia_states = (
+        dict(zip(plants_df.loc[is_eia, "plant_code"].astype(str), plants_df.loc[is_eia, "eia_state"]))
+        if "eia_state" in plants_df.columns
+        else {}
+    )
+    if is_eia.any():
+        id_rows = eia_gem_ids.match_eia_by_gem_id(
+            plants_df[is_eia],
+            eia_plant_locations(load_snapshot()),
+            eia_gem_ids.load_review(),
+            OUTPUT_COLUMNS,
+        )
+        plants_df = plants_df[~(is_eia & plants_df["plant_code"].isin(id_rows["plant_code"]))]
+        logger.info(f"EIA linked by GEM's plant code: {len(id_rows):,} plants")
 
     # Save full EIA plant_code→plant_name mapping before dedup
     # (multiple plant_codes can share the same name; we expand back after matching)
@@ -2712,6 +2768,14 @@ def build_unified_crosswalk(
             logger.info(
                 f"Expanded {n_added} additional EIA rows for duplicate plant names"
             )
+    new_rows = eia_gem_ids.veto_cross_state(new_rows, eia_states)
+    new_rows = pd.concat([new_rows, id_rows], ignore_index=True)
+    eia_keys = new_rows.loc[new_rows["source_system"] == "EIA", "plant_code"]
+    if eia_keys.duplicated().any() or eia_keys.isna().any():
+        raise ValueError(
+            f"EIA rows must be one per plant_code: duplicated {eia_keys[eia_keys.duplicated()].tolist()[:5]}, "
+            f"{int(eia_keys.isna().sum())} without a code"
+        )
 
     # --- GEM identity ------------------------------------------------------
     # Order matters: decisions are keyed on plant_code for EIA (hence after the
@@ -2773,9 +2837,14 @@ def build_unified_crosswalk(
     # to a location whose GCPT units are all cancelled/shelved is nulled and
     # sent to review — the Itaqui/Jänschwalde/Bansagar name-collision class.
     # Mirrors verify gate G-LIVE, applied to every past and future stage.
-    _pipe = unified["gem_location_id"].notna() & ~unified["matching_method"].isin(
-        HUMAN_METHODS
-    ) & unified["decided_by"].isna()
+    # GEM-code links are exempt: GEM itself puts the plant there, and a gas
+    # plant on a site whose only coal unit was cancelled is real (Lansing
+    # REO Town, EIA 58427), not a name collision.
+    _pipe = (
+        unified["gem_location_id"].notna()
+        & ~unified["matching_method"].isin(HUMAN_METHODS | {eia_gem_ids.METHOD})
+        & unified["decided_by"].isna()
+    )
     _dead = unified.loc[_pipe, "gem_location_id"].map(
         lambda L: not _is_live_coal_site(L) and gemref._site_attrs(L)["_is_coal"]
     )
@@ -2797,10 +2866,41 @@ def build_unified_crosswalk(
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     unified.to_parquet(OUTPUT_FILE, index=False)
     logger.info(f"Saved {len(unified):,} rows to {OUTPUT_FILE}")
+    # unit_gem_map: one file for every source, India included (src/unit_gem_map.py).
+    # A partial rebuild (--sources) replaces only the rebuilt sources' rows.
+    gem_units = gemref.load_tables()["units"]
+    parts, rebuilt = [], set()
     if sources is None or "NPP" in sources:
-        unit_map = build_npp_unit_map(_pull_npp_units(engine), unified)
-        unit_map.to_parquet(NPP_UNIT_MAP_FILE, index=False)
-        logger.info(f"Saved {len(unit_map):,} rows to {NPP_UNIT_MAP_FILE}")
+        npp_units = _pull_npp_units(engine)
+        parts.append(npp_unit_gem_rows(build_npp_unit_map(npp_units, unified), npp_units))
+        rebuilt.add("NPP")
+    if sources is None or "EIA" in sources:
+        built = eia_unit_map.build_from_db(engine, gem_units, unified)
+        if built is not None:
+            parts.append(built[0])
+            rebuilt.add("EIA")
+    if sources is None or "OE" in sources:
+        built_oe = oe_unit_map.build_from_db(engine, gem_units, unified)
+        if built_oe is not None:
+            parts.append(built_oe)
+            rebuilt.add("OE")
+    if sources is None or "OCCTO" in sources:
+        parts.append(occto_unit_map.build_from_db(engine, gem_units, unified))
+        rebuilt.add("OCCTO")
+    if sources is None or "ENTSOE" in sources:
+        parts.append(entsoe_unit_map.build_from_db(engine, gem_units, unified))
+        rebuilt.add("ENTSOE")
+    for reviewed in reviewed_unit_map.SOURCES:  # Brazil (ONS), Chile
+        if sources is None or reviewed.system in sources:
+            parts.append(reviewed_unit_map.build_from_db(engine, reviewed, gem_units, unified))
+            rebuilt.add(reviewed.system)
+    if parts:
+        if sources is not None and UNIT_MAP_FILE.exists():
+            kept = pd.read_parquet(UNIT_MAP_FILE)
+            parts.append(kept[~kept["source_system"].isin(rebuilt)])
+        unit_map = pd.concat(parts, ignore_index=True)
+        unit_map.to_parquet(UNIT_MAP_FILE, index=False)
+        logger.info(f"Saved {len(unit_map):,} rows to {UNIT_MAP_FILE}")
 
     # Summary
     logger.info("=" * 60)

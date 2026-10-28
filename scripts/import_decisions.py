@@ -29,6 +29,8 @@ changed by someone else after it was read is refused, not overwritten. Keys
 are matched verbatim, trailing spaces included (ENTSO-E's 'DEWHV______1_____ '),
 unlike the review CSV, whose keys are stripped. The manifest's own note and
 decided_by are recorded; --note, --override-reason and --replace do not apply.
+verify_crosswalk.py's gate6f accepts the changes the manifests in
+decision_migrations/ list, and no others.
 
 Decisions live on the row and survive the weekly rebuild (tier 0 of the
 funnel re-emits them). Coordinates, capacity and coal type for a newly linked

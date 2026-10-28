@@ -1,0 +1,9 @@
+plant_name,gem_location_id,gem_unit_ids,evidence,reviewed_by,reviewed_on
+Bełchatów B14,L100000103216,G100000100722,"Bełchatów's 858 MW unit (2011) = GEM Phase 2 Unit 1; ENTSO-E peak 803 MW; B14 has no Phase 1 counterpart",proposed,2026-10-17
+Eemshaven A,L100000103088,G100000102596,"RWE Eemshaven A = GEM Unit 1 (800 MW); ENTSO-E peak 808 MW",proposed,2026-10-17
+Eemshaven B,L100000103088,G100000102597,"RWE Eemshaven B = GEM Unit 2 (800 MW); ENTSO-E peak 816 MW",proposed,2026-10-17
+Turów B11,L100000103210,G100000110372,"Turów's new unit (2021) = GEM Unit 7R (460 MW); ENTSO-E peak 457 MW",proposed,2026-10-17
+Łagisza B10,L100000103264,G100000106102,"Łagisza's supercritical unit = GEM Unit 8 (460 MW); ENTSO-E peak 466 MW",proposed,2026-10-17
+Pątnów 2 B9,L100000103220,G100000107859,"Pątnów II's single unit = GEM Unit II-1 (474 MW); ENTSO-E peak 450 MW",proposed,2026-10-17
+TE_STANARI_G1,L100000100103,G100000109595,"Stanari's only unit (GEM 300 MW); the other name, TE_STANARI, has no generation",proposed,2026-10-17
+Jaworzno 2 B7,L100000103261,G100000104991,"Jaworzno's 910 MW unit (2020) = GEM Phase 3 Unit 7; ENTSO-E files it under Jaworzno 2",proposed,2026-10-17

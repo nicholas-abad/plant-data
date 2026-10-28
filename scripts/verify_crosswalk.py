@@ -35,12 +35,15 @@ import pandas as pd
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
+from src import eia_gem_ids  # noqa: E402
+from src import eia_unit_map  # noqa: E402
 from src import gem_reference as gemref  # noqa: E402
+from src.gem_external_ids import eia_plant_locations, load_snapshot  # noqa: E402
+from src.unit_gem_map import MAP_FILE as UNIT_MAP_FILE  # noqa: E402
 from src.build_crosswalk import (  # noqa: E402
     ENTSOE_AREA_COUNTRIES,
     GPPD_CSV,
     HUMAN_METHODS,
-    NPP_UNIT_MAP_FILE,
     OUTPUT_FILE,
     _make_engine,
 )
@@ -96,6 +99,224 @@ fail.count = 0
 
 def ok(msg: str) -> None:
     print(f"ok    {msg}")
+
+
+def _migrated_decisions(bdec: pd.DataFrame, now: pd.DataFrame, changed: list[str]) -> set[str]:
+    """Changed decisions that match a reviewed manifest row exactly (old → new)."""
+    def s(v) -> str:
+        return v if isinstance(v, str) else ""
+
+    out = set()
+    for path in sorted(eia_gem_ids.MIGRATIONS_DIR.glob("*.csv")):
+        m = pd.read_csv(path, dtype=str, keep_default_na=False)
+        for r in m.to_dict("records"):
+            k = f"{r['source_system']}|{r['key']}"
+            if k not in changed:
+                continue
+            was = (s(bdec.at[k, "gem_location_id"]), s(bdec.at[k, "decided_by"]))
+            is_ = (s(now.at[k, "gem_location_id"]), s(now.at[k, "decided_by"]))
+            if was == (r["old_gem_location_id"], r["old_decided_by"]) and is_ == (
+                r["gem_location_id"],
+                r["decided_by"],
+            ):
+                out.add(k)
+    return out
+
+
+def eia_id_gates(xw: pd.DataFrame) -> None:
+    """G-EIAID and G-USSTATE: EIA links against the EIA plant code GEM records."""
+    try:
+        with _make_engine().connect() as conn:
+            st = pd.read_sql(
+                "SELECT plant_code, string_agg(DISTINCT state, '|' ORDER BY state) AS eia_state "
+                "FROM eia_generation_data WHERE plant_code IS NOT NULL GROUP BY 1",
+                conn,
+            )
+    except Exception as e:  # noqa: BLE001 — offline verification of a parquet
+        print(f"  (G-EIAID / G-USSTATE skipped: no database for EIA states: {e})")
+        return
+    states = dict(zip(st["plant_code"].astype(str), st["eia_state"]))
+    code_locs = eia_plant_locations(load_snapshot())
+    review = eia_gem_ids.load_review()
+    eia = xw[xw["source_system"] == "EIA"]
+
+    def person(decided_by) -> bool:
+        return isinstance(decided_by, str) and decided_by not in eia_gem_ids.PIPELINE_DECIDERS
+
+    wrong, open_ = [], []
+    for r in eia.itertuples(index=False):
+        code = str(r.plant_code)
+        locs = code_locs.get(code, set())
+        t = eia_gem_ids.target(code, locs, states.get(code), review)
+        link = r.gem_location_id if isinstance(r.gem_location_id, str) else None
+        if t.gem_location_id is not None:
+            if link != t.gem_location_id and not person(r.decided_by):
+                wrong.append((code, r.plant_name, link, t.gem_location_id))
+        elif locs and link not in locs and not person(r.decided_by):
+            open_.append((code, r.plant_name, t.reason))
+    if wrong:
+        fail(
+            f"G-EIAID: {len(wrong)} EIA rows link somewhere other than the location GEM "
+            f"gives their plant code (code, name, link, GEM): {wrong[:5]}"
+        )
+    else:
+        ok(f"G-EIAID: every EIA link agrees with GEM's confirmed plant codes ({len(eia):,} rows)")
+    if open_:
+        print(
+            f"warn  G-EIAID: {len(open_)} EIA rows disagree with GEM's code but await review "
+            f"({eia_gem_ids.REVIEW_FILE.name}), e.g. {open_[:3]}"
+        )
+
+    # G-USSTATE (warning for now): a name-made US link must stay in its state.
+    named = eia[
+        eia["gem_location_id"].notna()
+        & eia["matching_method"].isin(["rapidfuzz", "gppd-geo", "legacy"])
+    ]
+    crossing, decided = [], []
+    for r in named.itertuples(index=False):
+        a = eia_gem_ids.eia_state_name(states.get(str(r.plant_code)))
+        b = eia_gem_ids.gem_state(r.gem_location_id)
+        if a and b and a != b:
+            item = (str(r.plant_code), r.plant_name, a, b)
+            (decided if isinstance(r.decided_by, str) else crossing).append(item)
+    if crossing:
+        fail(
+            f"G-USSTATE: {len(crossing)} pipeline name matches put a US plant in another state "
+            f"(code, name, EIA state, GEM state): {crossing[:5]}"
+        )
+    else:
+        ok(f"G-USSTATE: no pipeline name match crosses a US state line ({len(named):,} checked)")
+    if decided:
+        print(
+            f"warn  G-USSTATE: {len(decided)} DECIDED US links cross a state line — review "
+            f"(code, name, EIA state, GEM state): {decided}"
+        )
+
+
+def unit_overlaps(engine, umap: pd.DataFrame) -> str | None:
+    """The same-month overlap check (bootstrap_neon_db.unit_overlap_sql) on this build's map, before any swap.
+
+    The new map goes into a temporary table that shadows unit_gem_map for this
+    transaction only (pg_temp comes first on the search path), so the
+    loader's own view SQL reads it; the transaction is rolled back.
+    """
+    import bootstrap_neon_db as boot
+    from sqlalchemy import text as _sql_text
+
+    cols = ["source_system", "plant_key", "unit_key", "gem_location_id", "gem_unit_id", "gem_unit_ids", "map_source", "fuel", "is_coal"]  # fmt: skip
+    rows = umap[cols].to_json(orient="records")
+    union = boot.gem_unit_rows_sql(engine)
+    with engine.connect() as conn:
+        conn.execute(
+            _sql_text(
+                "CREATE TEMP TABLE unit_gem_map (source_system text, plant_key text, unit_key text, "
+                "gem_location_id text, gem_unit_id text, gem_unit_ids text, map_source text, fuel text, "
+                "is_coal boolean) ON COMMIT DROP"
+            )
+        )
+        conn.execute(
+            _sql_text(
+                "INSERT INTO pg_temp.unit_gem_map SELECT * FROM json_populate_recordset(NULL::pg_temp.unit_gem_map, :rows)"
+            ),
+            {"rows": rows},
+        )
+        clash = conn.execute(_sql_text(boot.unit_overlap_sql(union))).scalar()
+        conn.rollback()
+    return clash
+
+
+def unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
+    """G-UNITMAP: unit_gem_map (every source but India), when the build wrote it."""
+    if not UNIT_MAP_FILE.exists():
+        print(f"warn  G-UNITMAP: {UNIT_MAP_FILE.name} not built (database without ETL migration 023?)")
+        return
+    umap = pd.read_parquet(UNIT_MAP_FILE)
+    before = fail.count
+    key = ["source_system", "plant_key", "unit_key"]
+    dups = int(umap.duplicated(key).sum())
+    if dups:
+        fail(f"G-UNITMAP: {dups} source units mapped twice")
+    where = dict(zip(units["gem_unit_id"], units["gem_location_id"]))
+    matched = umap[umap["gem_unit_ids"].notna()]
+    each = matched.assign(unit=matched["gem_unit_ids"].str.split()).explode("unit")
+    unknown = each[~each["unit"].isin(where)]
+    if len(unknown):
+        fail(f"G-UNITMAP: {len(unknown)} GEM units not in gem_units: {unknown['unit'].head(5).tolist()}")
+    moved = each[each["unit"].map(where).fillna(each["gem_location_id"]) != each["gem_location_id"]]
+    if len(moved):
+        fail(f"G-UNITMAP: {len(moved)} units sit at another GEM location than gem_units says")
+    lone = matched[matched["gem_unit_id"].notna() & (matched["gem_unit_id"] != matched["gem_unit_ids"])]
+    if len(lone):
+        fail(f"G-UNITMAP: {len(lone)} rows whose gem_unit_id is not their only gem_unit_ids entry")
+    for system in ("NPP", "ONS", "CHILE", "OE", "OCCTO", "ENTSOE"):
+        rows = umap[(umap["source_system"] == system) & umap["is_coal"].astype(bool)]
+        if len(rows):
+            placed = rows[rows["map_source"] != "crosswalk-plant"]
+            print(
+                f"ok    G-UNITMAP: {system} {len(placed)} coal rows on GEM units, "
+                f"{len(rows) - len(placed)} at plant level"
+            )
+    from sqlalchemy import text as _sql_text
+
+    engine = _make_engine()
+    clash = unit_overlaps(engine, umap)
+    if clash:
+        print(
+            f"warn  G-UNITMAP: {clash.count(',') + 1} GEM units reported under two source names in one month "
+            f"(a mid-month rename, or the source reporting twice; check the source): {clash[:300]}"
+        )
+    eia = umap[umap["source_system"] == "EIA"]
+    if eia.empty:
+        # The US rows need eia_generator_key() (ETL migration 023); without it
+        # the build skips them on purpose and the other sources still load.
+        if eia_unit_map.has_key_function(engine):
+            fail("G-UNITMAP: no US rows although the database has eia_generator_key() (migration 023)")
+        else:
+            print("warn  G-UNITMAP: no US rows (database without ETL migration 023); US coverage not checked")
+        if fail.count == before:
+            ok(f"G-UNITMAP: {len(umap):,} rows (no US rows)")
+        return
+    with engine.connect() as conn:
+        gen = pd.read_sql(
+            _sql_text(
+                "SELECT e.plant_code::text AS plant_key, e.generator_id AS unit_key, SUM(e.net_generation_mwh) AS g "
+                "FROM mv_eia_unit_monthly e JOIN eia_generator_info i "
+                "ON i.plant_code = e.plant_code AND i.generator_id = e.generator_id "
+                "WHERE i.technology = ANY(:coal) "
+                "AND e.month >= CURRENT_DATE - INTERVAL '24 months' GROUP BY 1, 2"
+            ),
+            conn,
+            params={"coal": sorted(eia_unit_map.COAL_TECHNOLOGIES)},
+        )
+    # An empty join means the register is missing or not keyed like the
+    # generation rows (loaded before migration 023); 0/0 would pass as NaN.
+    if gen["g"].sum() <= 0:
+        fail(
+            "G-UNITMAP: no US coal generation (24 months) joins mv_eia_unit_monthly to "
+            "eia_generator_info; is the register loaded and keyed with eia_generator_key()?"
+        )
+        return
+    on = gen.merge(eia, on=["plant_key", "unit_key"])
+    unit_share = on.loc[on["gem_unit_id"].notna(), "g"].sum() / gen["g"].sum()
+    placed_share = on["g"].sum() / gen["g"].sum()
+    if unit_share < 0.99:
+        fail(f"G-UNITMAP: only {unit_share:.1%} of US coal generation (24 months) is matched to a GEM unit")
+    link = xw[xw["source_system"] == "EIA"].set_index("plant_code")["gem_location_id"]
+    apart = matched[
+        (matched["source_system"] == "EIA")
+        & matched["plant_key"].map(link).notna()
+        & (matched["plant_key"].map(link) != matched["gem_location_id"])
+    ]
+    if len(apart):
+        print(
+            f"warn  G-UNITMAP: {len(apart)} US generators sit at another GEM site than their plant's "
+            f"crosswalk link (review): {sorted(set(apart['plant_key']))[:10]}"
+        )
+    if fail.count == before:
+        ok(
+            f"G-UNITMAP: {len(umap):,} rows; US coal (24 months) {unit_share:.1%} matched to a GEM unit, "
+            f"{placed_share:.1%} placed on a GEM plant (unit or fallback)"
+        )
 
 
 def main() -> int:
@@ -324,6 +545,17 @@ def main() -> int:
         # Plants that left the SOURCE (e.g. mojibake identities merged away) are
         # not losses of ours.
         lost -= set(bsub["plant_name"]) - set(nsub["plant_name"])
+        # Wrong name matches the state veto removed lose their (wrong) coordinates.
+        vetoed = set(
+            nsub.loc[
+                nsub["note"].astype(str).str.contains("GEM site in another state"),
+                "plant_name",
+            ]
+        ) & lost
+        if vetoed:
+            ok(f"gate5: {src}: {len(vetoed)} cross-state name matches vetoed (back to review)")
+        lost -= vetoed
+        b_n -= len(vetoed)
         if n_n < b_n or lost:
             if args.expect_gppd_migration:
                 ok(
@@ -361,6 +593,24 @@ def main() -> int:
     )
     nn = xw.assign(_k=nk).drop_duplicates("_k").set_index("_k")
     common = bb.index.intersection(nn.index)
+    # Rows GEM's EIA plant code moved to another location (or linked for the
+    # first time) change coordinates, capacity and coal type by design; G-EIAID
+    # checks where they went. The tolerances below apply to every other row.
+    def _s(v) -> str:
+        return v if isinstance(v, str) else ""
+
+    relinked = {
+        k
+        for k in common
+        if _s(bb.at[k, "gem_location_id"]) != _s(nn.at[k, "gem_location_id"])
+        and (
+            nn.at[k, "matching_method"] == eia_gem_ids.METHOD
+            or _s(nn.at[k, "decided_by"]).startswith("gem-eia-id")
+        )
+    }
+    if relinked:
+        ok(f"gate7: {len(relinked)} rows relinked by GEM's EIA plant code are checked by G-EIAID instead")
+    common = common.difference(relinked)
     for src in sorted(set(base["source_system"]) & set(xw["source_system"])):
         idx = [k for k in common if k.startswith(f"{src}|")]
         if not idx:
@@ -501,6 +751,10 @@ def main() -> int:
                     f"gate6f: {len(allowed)} legacy rows superseded by the GPPD migration (null → link)"
                 )
             changed = [k for k in changed if k not in set(allowed)]
+        migrated = _migrated_decisions(bdec, now, changed)
+        if migrated:
+            ok(f"gate6f: {len(migrated)} decisions changed exactly as a reviewed manifest lists")
+        changed = [k for k in changed if k not in migrated]
         if lost or changed:
             fail(
                 f"gate6f: decisions not preserved — {len(lost)} rows gone, {len(changed)} links changed: {(lost + changed)[:5]}"
@@ -509,6 +763,8 @@ def main() -> int:
             ok(f"gate6f: all {len(bdec):,} prior decisions preserved")
     else:
         ok("gate6f: baseline predates decisions (nothing to preserve)")
+
+    eia_id_gates(xw)
 
     # G-LIVE: no PIPELINE link may point at a location whose GCPT units are all
     # cancelled/shelved (paper projects sharing coords/names with real plants —
@@ -525,8 +781,11 @@ def main() -> int:
             "gem_location_id"
         ]
     )
+    # GEM-code links are exempt, like human ones: GEM itself places the plant
+    # (a gas plant beside a cancelled coal unit, e.g. Lansing REO Town).
     pipe_linked = xw[
-        xw["gem_location_id"].notna() & ~xw["matching_method"].isin(HUMAN_METHODS)
+        xw["gem_location_id"].notna()
+        & ~xw["matching_method"].isin(HUMAN_METHODS | {eia_gem_ids.METHOD})
     ]
     dead_linked = pipe_linked[pipe_linked["gem_location_id"].isin(dead_locs)]
     if len(dead_linked):
@@ -592,9 +851,12 @@ def main() -> int:
         else:
             ok("G-CT6: all CT capacities are CT-sourced")
 
-    # G-NPPMAP: India's unit-grain GEM identity (npp_unit_gem_map)
-    if NPP_UNIT_MAP_FILE.exists():
-        umap = pd.read_parquet(NPP_UNIT_MAP_FILE)
+    # G-NPPMAP: India's unit-grain GEM identity (the NPP rows of unit_gem_map)
+    npp_rows = (
+        pd.read_parquet(UNIT_MAP_FILE).query("source_system == 'NPP'") if UNIT_MAP_FILE.exists() else pd.DataFrame()
+    )
+    if len(npp_rows):
+        umap = npp_rows.rename(columns={"plant_key": "plant", "unit_key": "unit"})
         before = fail.count
         dups = int(umap.duplicated(["plant", "unit"]).sum())
         if dups:
@@ -631,7 +893,9 @@ def main() -> int:
                 "Barh/Anpara/Durgapur Steel placed on their GEM sites"
             )
     else:
-        fail(f"G-NPPMAP: {NPP_UNIT_MAP_FILE.name} missing — the build did not write it")
+        fail(f"G-NPPMAP: no NPP rows in {UNIT_MAP_FILE.name} — the build did not write them")
+
+    unit_map_gate(xw, gem_tables["units"])
 
     print(
         f"\n{'ALL GATES PASSED' if fail.count == 0 else f'{fail.count} GATE(S) FAILED'}"

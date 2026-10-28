@@ -1,0 +1,10 @@
+plant,unit,gem_location_id,gem_unit_ids,evidence,reviewed_by,reviewed_on
+鹿島火力発電所,2号機,L100000104889,G100000109694,"Kashima coal unit 2 = GEM Kashima Works power station (local names: Kashima power station No. 2); OCCTO peak 620 MW vs GEM 645 MW; the plant name is linked to JERA's gas Kashima",proposed,2026-10-17
+電源開発竹原火力発電所新１号機,1号機,L100000102891,G100000109869,"Takehara New No.1; OCCTO peak 554 MW vs GEM New Unit 1 600 MW (old Unit 1 retired)",proposed,2026-10-17
+四国電力　西条発電所,１号機,L100000102955,G100000108716,"Saijo New No.1; OCCTO peak 498 MW vs GEM Unit 1 Replacement 500 MW (old Unit 1 retired)",proposed,2026-10-17
+トクヤマ東発電所第3号発電所,単独,L100000104538,G100000114087,"Tokuyama East Power Generation No. 3; OCCTO peak 276 MW vs GEM Unit 3 300 MW",proposed,2026-10-17
+宇部興産発電所,6号,L100000105019,G100000114362,"UBE unit 6 = GEM UBE Power Center Unit 6; OCCTO peak 198 MW vs GEM 216 MW",proposed,2026-10-17
+松浦発電所,１号機,L100000102939,G100000106742,"Kyushu Matsuura Unit 1; OCCTO peak 684 MW vs GEM 700 MW (the plant link pointed at J-POWER's Matsuura)",proposed,2026-10-17
+松浦発電所,２号機,L100000102939,G100000106743,"Kyushu Matsuura Unit 2; OCCTO peak 956 MW vs GEM 1000 MW",proposed,2026-10-17
+名古屋発電所,1号機,L100000102873,G100000107185,"Nakayama Nagoya Unit 1; OCCTO peak 138 MW vs GEM 149 MW",proposed,2026-10-17
+名古屋第二発電所,1号機,L100000102873,G100000107186,"Nakayama Nagoya No. 2 = GEM Unit 2 (local name 'Nakayama Nagoya power station 2 (Unit 2)'); OCCTO peak 104 MW vs GEM 110 MW",proposed,2026-10-17

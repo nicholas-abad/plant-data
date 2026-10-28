@@ -1,0 +1,2 @@
+source_system,key,old_gem_location_id,old_decided_by,gem_location_id,decided_by,note
+OCCTO,松浦発電所,L100000102940,gppd-migration-2026-09,L100000102939,occto-unit-review-2026-10,"Kyushu Electric's Matsuura (units 684/956 MW peak) is GEM Matsuura Kyushu power station (700/1000 MW); was linked to Matsuura J-POWER (L100000102940), which is OCCTO's 電源開発松浦火力発電所"

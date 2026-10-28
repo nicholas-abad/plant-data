@@ -46,7 +46,7 @@ uv run python scripts/bootstrap_neon_db.py --data-only        # 3. swap into Neo
 |---|---|
 | `verify_crosswalk.py` | Regression gates on a freshly built parquet. Run **before** every production swap. |
 | `fetch_hjks_units.py` | Refresh `data/crosswalks/hjks_units.csv` (Japanese unit rated outputs). Commit the result. |
-| `bootstrap_neon_db.py` | Load reference data into Neon. Flags: `--schema-only`, `--data-only`, `--generator-info-only`, `--gcpt-only`, `--test-only`. |
+| `bootstrap_neon_db.py` | Load reference data into Neon. Flags: `--schema-only`, `--data-only` (crosswalk, generator info, GCPT metadata and the unit map), `--generator-info-only`, `--gcpt-only`, `--gem-ids-only`, `--unit-map-only` (`unit_gem_map` + view `gem_unit_monthly`), `--ct-gem-only`, `--test-only`. |
 | `build_gcpt_crosswalks.py` | **Legacy.** Produces per-source parquets nothing downstream consumes any more. |
 | `test_npp_llm.py` | Spot-check LLM matching on India names. |
 | `drop_old_reference_tables.sql` | One-off cleanup of retired reference tables. |
