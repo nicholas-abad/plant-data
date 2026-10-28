@@ -388,3 +388,18 @@ def test_a_name_whose_ids_are_reviewed_to_different_units_is_refused():
     split = pd.DataFrame([("Plant", "ID_A"), ("Plant", "ID_B")], columns=["plant", "source_id"])
     with pytest.raises(ValueError, match="different GEM units"):
         build_rows(ons, split, reviewed, {})
+
+
+def test_australian_non_coal_units_come_along_only_at_coal_facilities():
+    from src.oe_unit_map import build_oe_unit_map
+
+    units = pd.DataFrame(
+        [("ER01", "Eraring", "coal_black"), ("ERBG01", "Eraring", "battery_discharging"),
+         ("PNJ1", "Pinjarra", "gas_ocgt")],
+        columns=["unit_code", "facility_name", "fueltech"],
+    )  # fmt: skip
+    candidates = pd.DataFrame(columns=["unit_code", "gem_unit_id", "gem_location_id"])
+    reviewed = pd.DataFrame(columns=["unit_code", "gem_location_id", "gem_unit_ids"])
+    gem = pd.DataFrame(columns=["gem_unit_id", "gem_location_id", "status"])
+    out = build_oe_unit_map(units, candidates, reviewed, gem, {"Eraring": "L_ER", "Pinjarra": "L_PNJ"})
+    assert sorted(out["unit_key"]) == ["ER01", "ERBG01"]  # the battery stays; the gas-only station goes

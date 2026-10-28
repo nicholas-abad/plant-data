@@ -7,6 +7,9 @@ MUJA_G7) in the unit-grain table ingestion.oe_unit_generation_all_fuels
 keeps without a DUID (retired ones: Liddell, Muja C Unit 5, Callide A Unit 4)
 come from the reviewed file data/crosswalks/oe_unit_gem_map.csv. Units no GEM
 unit claims sit at their facility's crosswalk link (fallback rows).
+
+Only facilities with at least one coal unit are mapped; their other units
+(batteries, gas, diesel) come along, gas-only stations do not.
 """
 
 from __future__ import annotations
@@ -63,7 +66,11 @@ def build_oe_unit_map(
     gem_units: pd.DataFrame,
     plant_links: dict[str, str],
 ) -> pd.DataFrame:
-    """Rows for every OE unit: reviewed file first, then a unique GEM DUID, else its facility's link."""
+    """Rows for every OE unit at a coal facility: reviewed file first, then a unique GEM DUID, else its facility's link."""
+    # Coal plants only: a facility's batteries, gas and diesel units come along
+    # only where the facility also has a coal unit (Eraring's battery, not Pinjarra's gas).
+    coal = units["fueltech"].astype(str).str.startswith("coal")
+    units = units[coal.groupby(units["facility_name"]).transform("any")]
     status = dict(zip(gem_units["gem_unit_id"], gem_units["status"].astype(str).str.lower()))
     where = dict(zip(gem_units["gem_unit_id"], gem_units["gem_location_id"]))
     by_code = reviewed.set_index("unit_code")
