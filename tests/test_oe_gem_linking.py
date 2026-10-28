@@ -188,6 +188,53 @@ def test_non_coal_feed_pipeline_link_to_coal_site_is_vetoed(gem):
     assert out.loc["gas unit decided", "gem_location_id"] == "LBAY"
 
 
+@pytest.mark.parametrize("site", ["LBAY", "LGAS"])  # a coal site and a non-coal one
+def test_ons_untracked_fuel_link_is_vetoed_at_any_site(gem, site):
+    # GEM here has no hydro tracker, so a hydro dam's name match is always a
+    # namesake (Itumbiara dam -> bagasse plant, a non-coal site).
+    def ons(name, **kw):
+        r = {c: None for c in bc.OUTPUT_COLUMNS}
+        r.update(
+            plant_name=name,
+            source_system="ONS",
+            gem_location_id=site,
+            ref_source="GEM",
+            matching_method="rapidfuzz",
+            latitude=1.0,
+        )
+        r.update(kw)
+        return r
+
+    rows = pd.DataFrame(
+        [
+            ons("Itumbiara"),  # hydro only
+            ons("Alcon"),  # biomass: a fuel GEM tracks
+            ons("Hydro decided", decided_by="C. Team", matching_method="manual"),
+        ]
+    )
+    plants = pd.DataFrame(
+        {
+            "plant_name": ["Itumbiara", "Alcon", "Hydro decided"],
+            "source_system": ["ONS"] * 3,
+            "ons_untracked_fuel": [True, False, True],
+        }
+    )
+    out = bc.veto_non_coal_feeds(rows, plants).set_index("plant_name")
+    assert pd.isna(out.loc["Itumbiara", "gem_location_id"])
+    assert pd.isna(out.loc["Itumbiara", "latitude"])
+    assert out.loc["Alcon", "gem_location_id"] == site
+    assert out.loc["Hydro decided", "gem_location_id"] == site
+
+
+def test_ons_untracked_fuels_have_no_gem_tracker():
+    # The ONS veto treats hydro, wind, solar and nuclear as fuels no GEM
+    # tracker here covers. Adding such a tracker must shrink the fuel list in
+    # pull_plant_names' ONS query, or every correct link to it is vetoed.
+    from src import gem_api
+
+    assert set(gem_api.TRACKERS.values()) == {"GCPT", "GOGPT", "GBPT"}
+
+
 def test_unit_group_suffix_links_to_the_station(gem, monkeypatch):
     # 'Muja CD' / 'Muja AB': OE's unit-group names for GEM's 'Muja power station'
     locs = gemref._TABLES["locations"].copy()
