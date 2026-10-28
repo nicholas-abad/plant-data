@@ -1,0 +1,7 @@
+source_system,plant_code,plant_name,source_country,gem_location_id,not_in_gem,decided_by,decision_note
+OCCTO,,広野火力発電所５号機,Japan,L100000102961,f,N. Abad (tracker #31),"Hirono unit 5 (coal, 600 MW): GEM Hirono power station Unit 5"
+OCCTO,,広野火力発電所６号機,Japan,L100000102961,f,N. Abad (tracker #31),"Hirono unit 6 (coal, 600 MW): GEM Hirono power station Unit 6"
+OCCTO,,電源開発磯子火力発電所新１号機,Japan,L100000102924,f,N. Abad (tracker #31),"J-Power Isogo New Unit 1 (600 MW): GEM Isogo power station Unit 1 (operating)"
+OCCTO,,電源開発磯子火力発電所新２号機,Japan,L100000102924,f,N. Abad (tracker #31),"J-Power Isogo New Unit 2 (600 MW, 2009): GEM Isogo power station Unit 2 (operating), not the retired original 265 MW units"
+OCCTO,,仙台パワーステーション,Japan,L100000102964,f,N. Abad (tracker #31),"Sendai Power Station (coal, 112 MW): GEM Sendai power station"
+OCCTO,,名古屋第二発電所,Japan,L100000102873,f,N. Abad (tracker #31),"Nakayama Nagoya No. 2 (110 MW): GEM Nagoya power station, name_other 'Nakayama Nagoya power station 2 (Unit 2)'; sister 名古屋発電所 already linked there"
