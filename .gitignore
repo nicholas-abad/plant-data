@@ -75,6 +75,8 @@ data/crosswalks/*.xlsx
 
 # Crosswalk test/scratch artifacts (not the real unified_plant_crosswalk.parquet)
 data/crosswalks/npp_llm_test.parquet
+# Build output of src/build_crosswalk.py; bootstrap --unit-map-only loads it from the build's worktree.
+data/crosswalks/unit_gem_map.parquet
 
 # Large temporary files
 *.tmp
