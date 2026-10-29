@@ -7,3 +7,7 @@ Turów B11,L100000103210,G100000110372,"Turów's new unit (2021) = GEM Unit 7R (
 Pątnów 2 B9,L100000103220,G100000107859,"Pątnów II's single unit = GEM Unit II-1 (474 MW); ENTSO-E peak 450 MW",proposed,2026-10-17
 TE_STANARI_G1,L100000100103,G100000109595,"Stanari's only unit (GEM 300 MW); the other name, TE_STANARI, has no generation",proposed,2026-10-17
 Jaworzno 2 B7,L100000103261,G100000104991,"Jaworzno's 910 MW unit (2020) = GEM Phase 3 Unit 7; ENTSO-E files it under Jaworzno 2",proposed,2026-10-17
+DEWHV______1_____,L100000101920,G100000110939,"Wilhelmshaven's only GEM coal unit (830 MW); ENTSO-E reports it under two paddings (…1____ one empty month in 2018, …1_____ since 2019), which defeats the single-unit rule",proposed,2026-10-26
+DEWHV______1____,L100000101920,G100000110939,"Empty 2018 spelling of DEWHV______1_____ (no generation); same unit",proposed,2026-10-26
+DEZOLLI____1_____,L100000101885,G100000111745,"Zolling's only GEM coal unit (Unit 5, 474 MW, retired); ENTSO-E reports it under two paddings (…1____ one empty month in 2018, …1_____ 2019–2025)",proposed,2026-10-26
+DEZOLLI____1____,L100000101885,G100000111745,"Empty 2018 spelling of DEZOLLI____1_____ (no generation); same unit",proposed,2026-10-26

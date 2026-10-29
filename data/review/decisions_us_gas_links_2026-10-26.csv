@@ -1,0 +1,3 @@
+source_system,plant_name,plant_code,gem_location_id,not_in_gem,decision_note
+EIA,Bellingham Cogeneration Facility,10307,L100000402130,,"GEM lists EIA 10307 and units CT1/CT2/ST1 on L100000402130 (mislabelled 'Toronto Pearson Airport cogeneration complex', Bellingham MA coordinates). Claude + Codex blind review agree, 2026-10-26"
+EIA,Thad Hill Energy Center,55172,L100000401760,,"Renamed Bosque plant: GEM lists EIA 55172 on Bosque County Peaking (TX). Claude + Codex blind review agree, 2026-10-26"
