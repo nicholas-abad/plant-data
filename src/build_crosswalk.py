@@ -559,6 +559,17 @@ def pull_plant_names(engine, sources: list[str] | None = None) -> pd.DataFrame:
     frames = []
     with engine.connect() as conn:
         conn.execute(text("SET LOCAL statement_timeout = '120s'"))
+        if "CHILE" in queries and conn.execute(
+            text("SELECT to_regclass('chile_generation_all_fuels') IS NOT NULL")
+        ).scalar():
+            # ETL migration 019: Chile's units by their own fuel label. Its coal
+            # plants include some the coal table never had (TER MEJILLONES,
+            # TER TOCOPILLA, TER TARAPACA, TER BOCAMINA); plants without a coal
+            # unit (TER PETROPOWER, petcoke) stay out.
+            queries["CHILE"] += (
+                " UNION SELECT DISTINCT plant FROM chile_generation_all_fuels"
+                " WHERE fuel_type = 'Carbón' AND plant IS NOT NULL"
+            )
         for source, sql in queries.items():
             logger.info(f"Pulling {source} plant names...")
             df = pd.read_sql(text(sql), conn)
