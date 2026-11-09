@@ -54,6 +54,7 @@ def _crosswalk():
             "plant_name": ["BARH STPS", "KAWAI TPS", "NEW TPS"],
             "source_system": ["NPP"] * 3,
             "gem_location_id": [None, "LK", None],
+            "not_in_gem": [False, False, False],
         }
     )
 
@@ -78,6 +79,29 @@ def test_units_without_gipt_inherit_the_plant_link(gem):
 def test_unlinked_plant_without_gipt_is_left_out(gem):
     units = pd.DataFrame({"plant": ["NEW TPS"], "unit": ["Unit 1"]})
     assert bc.build_npp_unit_map(units, _crosswalk()).empty
+
+
+def test_not_in_gem_plant_is_never_placed(gem):
+    # A person decided this NPP row has no GEM plant of its own (e.g. the
+    # grid-export meter of a captive plant): GIPT must not place its units.
+    units = pd.DataFrame(
+        {"plant": ["BARH STPS", "BARH STPS", "KAWAI TPS"], "unit": ["Unit 1", "Unit 4", "Unit 1"]}
+    )
+    cw = _crosswalk()
+    out = bc.build_npp_unit_map(units, cw)
+    assert set(out["plant"]) == {"BARH STPS", "KAWAI TPS"}
+    cw.loc[cw["plant_name"] == "BARH STPS", "not_in_gem"] = True
+    out = bc.build_npp_unit_map(units, cw)
+    assert list(out["plant"]) == ["KAWAI TPS"]
+    assert list(out["map_source"]) == ["crosswalk-plant"] and list(out["gem_location_id"]) == ["LK"]
+
+
+def test_ordinary_gipt_unit_is_kept_beside_a_not_in_gem_plant(gem):
+    units = pd.DataFrame({"plant": ["BARH STPS", "NEW TPS"], "unit": ["Unit 1", "Unit 1"]})
+    cw = _crosswalk()
+    cw.loc[cw["plant_name"] == "NEW TPS", "not_in_gem"] = True
+    out = bc.build_npp_unit_map(units, cw)
+    assert list(out["plant"]) == ["BARH STPS"] and list(out["map_source"]) == ["gipt-unit"]
 
 
 def test_gipt_unit_on_two_sites_fails_loudly(gem, tmp_path, monkeypatch):
