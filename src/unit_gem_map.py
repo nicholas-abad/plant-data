@@ -19,7 +19,9 @@ One row per source unit:
   page while a unit waits for a match;
 * fuel / is_coal: the source's own fuel label for the unit and whether the
   tracker counts it as coal, where the label lives with the unit rather than
-  the generation row (EIA: Form 860 technology);
+  the generation row (EIA: Form 860 technology). In gem_unit_monthly, Chile's
+  fuel is its fuel group (coal, gas, oil, other_fossil) once it reads
+  mv_chile_fuel_group_monthly, and its non-coal rows are not coal;
 * other_gem_unit_ids: a second GEM unit kept aside (a converted unit's
   other-tracker twin, a never-built unit sharing the ID).
 """

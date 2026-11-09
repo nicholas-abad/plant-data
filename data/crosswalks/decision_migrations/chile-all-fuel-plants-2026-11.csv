@@ -1,0 +1,5 @@
+source_system,key,old_gem_location_id,old_decided_by,gem_location_id,decided_by,note
+CHILE,TER MEJILLONES,L100000100184,,L100000100184,N. Abad (tracker #33),"Record as reviewed: the build linked Engie's Mejillones (CTM1/CTM2 coal = GEM Units 1-2, CTM3 gas = GOGPT unit 3) to the plant the 2026-11-09 review chose; locks it against re-matching"
+CHILE,TER TOCOPILLA,L100000100186,,L100000100186,N. Abad (tracker #33),"Record as reviewed: Engie's Tocopilla U12-U15 (coal) and U16 (gas) = GEM Tocopilla power station, not Nueva Tocopilla (AES Norgener); locks it against re-matching"
+CHILE,TER TARAPACA,L100000100180,,L100000100180,N. Abad (tracker #33),Record as reviewed: Enel's Tarapacá CTTAR = GEM Patache power station (other name 'Central termoeléctrica Tarapacá'); locks it against re-matching
+CHILE,TER BOCAMINA,L100000100195,,L100000100195,N. Abad (tracker #33),Record as reviewed: Enel's Bocamina I = GEM Bocamina power station Unit 1; locks it against re-matching

@@ -347,8 +347,9 @@ def load_gem_external_ids(engine):
 # gem_unit_monthly: each source's monthly generation with the unit map attached.
 # It depends on every source view below, and India's npp_gem_unit_monthly (read
 # by the tracker) depends on it: an ETL migration or rollback that drops one of
-# these views (022's rollback drops mv_oe_all_fuels_unit_monthly) must drop
-# gem_unit_monthly and the NPP compat views first; --unit-map-only re-creates them.
+# these views (022's rollback drops mv_oe_all_fuels_unit_monthly, 026's drops
+# mv_chile_fuel_group_monthly) must drop gem_unit_monthly and the NPP compat
+# views first; --unit-map-only re-creates them.
 # One branch per source, built from the sources this database has (Australia's
 # unit-grain view exists only where ETL migration 022 is applied).
 _UNIT_COLS = "m.source_system, m.gem_location_id, m.gem_unit_id, m.gem_unit_ids, m.plant_key, m.unit_key"
@@ -380,6 +381,24 @@ SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
 FROM mv_chile_plant_monthly u
 JOIN unit_gem_map m ON m.source_system = 'CHILE' AND m.plant_key = u.plant AND m.unit_key = ''
 WHERE u.fuel_type = 'Carbón'""",
+    # Chile with ETL migration 026: every fuel at the coal plants, grouped
+    # (config/fuel-groups.json). Coal is every coal unit by its own label, so
+    # it includes units the coal table lacks (Mejillones CTM1/CTM2, Tocopilla
+    # U12-U15, Tarapacá, Bocamina I). Coal rows keep their reviewed GEM units;
+    # other fuels sit at the plant's GEM location without a unit. Replaces the
+    # coal-table branch once it covers all of its coal months
+    # (SUPERSEDED_BRANCHES, missing_coverage), never both. Non-coal rows carry
+    # map_source 'plant-other-fuel', so they never read as a coal unit placed
+    # at its plant; readers filter is_coal (the tracker does).
+    "mv_chile_fuel_group_monthly": f"""
+SELECT m.source_system, m.gem_location_id,
+       CASE WHEN u.fuel_group = 'coal' THEN m.gem_unit_id END AS gem_unit_id,
+       CASE WHEN u.fuel_group = 'coal' THEN m.gem_unit_ids END AS gem_unit_ids,
+       m.plant_key, m.unit_key, {_MONTH_COLS}, u.generation_mwh,
+       u.fuel_group AS fuel, u.fuel_group = 'coal' AS is_coal,
+       CASE WHEN u.fuel_group = 'coal' THEN m.map_source ELSE 'plant-other-fuel' END AS map_source
+FROM mv_chile_fuel_group_monthly u
+JOIN unit_gem_map m ON m.source_system = 'CHILE' AND m.plant_key = u.plant AND m.unit_key = ''""",
     # Japan: OCCTO units under their plant names; coal rows only.
     "mv_occto_unit_monthly": f"""
 SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
@@ -446,15 +465,70 @@ FROM (
 ) x"""
 
 
+# A branch whose view exists replaces the listed one, so the same generation
+# is never counted twice, but only once the new view holds every plant-month of
+# coal the old one has (missing_coverage): until Chile's all-fuel history is
+# loaded completely, the tracker keeps the coal table. Example: the coal table
+# has TER ANDINA 100 MWh and TER HORNITOS 200 MWh in 2024-01, the all-fuel view
+# only TER ANDINA: the coal table stays, and the load says which plant-month.
+SUPERSEDED_BRANCHES = {"mv_chile_fuel_group_monthly": "mv_chile_plant_monthly"}
+# Coal per (plant, month) in the old and the new view.
+COVERAGE_SQL = {
+    "mv_chile_plant_monthly": """
+SELECT plant, to_char(month, 'YYYY-MM') AS month, sum(generation_mwh) AS mwh
+FROM mv_chile_plant_monthly WHERE fuel_type = 'Carbón' GROUP BY 1, 2""",
+    "mv_chile_fuel_group_monthly": """
+SELECT plant, to_char(month, 'YYYY-MM') AS month, sum(generation_mwh) AS mwh
+FROM mv_chile_fuel_group_monthly WHERE fuel_group = 'coal' GROUP BY 1, 2""",
+}
+# The new view may hold slightly more (Chile's repeated April hour) but not less.
+COVERAGE_TOLERANCE = 0.01
+
+
+def missing_coverage(old_rows, new_rows, tolerance: float = COVERAGE_TOLERANCE) -> list[str]:
+    """'plant month' for each plant-month with coal in ``old_rows`` that
+    ``new_rows`` lacks or holds less than (1 - tolerance) of. Rows are
+    (plant, month, mwh); a renamed plant counts as missing (fail safe)."""
+    new = {(plant, month): mwh for plant, month, mwh in new_rows}
+    return sorted(
+        f"{plant} {month}"
+        for plant, month, mwh in old_rows
+        if mwh and mwh > 0 and new.get((plant, month), 0) < mwh * (1 - tolerance)
+    )
+
+
+def gem_unit_branches(present: set[str], uncovered: dict[str, list[str]] | None = None) -> list[str]:
+    """Branch names to union, given the source views this database has and,
+    per superseding view, the plant-months of the old view's coal it lacks."""
+    uncovered = uncovered or {}
+    replaced = {
+        old for new, old in SUPERSEDED_BRANCHES.items() if new in present and not uncovered.get(new)
+    }
+    kept_out = {new for new in SUPERSEDED_BRANCHES if new in present and uncovered.get(new)}
+    return [n for n in GEM_UNIT_BRANCHES if n in present and n not in replaced | kept_out]
+
+
 def gem_unit_rows_sql(engine) -> str:
     """The UNION of the branches whose source views this database has."""
     with engine.connect() as conn:
-        present = [
+        present = {
             name
             for name in GEM_UNIT_BRANCHES
             if conn.execute(text("SELECT to_regclass(:n) IS NOT NULL"), {"n": name}).scalar()
-        ]
-    return "\nUNION ALL".join(GEM_UNIT_BRANCHES[name] for name in present)
+        }
+        uncovered = {}
+        for new, old in SUPERSEDED_BRANCHES.items():
+            if new in present and old in present:
+                uncovered[new] = missing_coverage(
+                    conn.execute(text(COVERAGE_SQL[old])).all(),
+                    conn.execute(text(COVERAGE_SQL[new])).all(),
+                )
+                if uncovered[new]:
+                    print(
+                        f"  WARN  {new} lacks {len(uncovered[new])} plant-months of {old}'s coal "
+                        f"(e.g. {', '.join(uncovered[new][:3])}): gem_unit_monthly keeps {old}"
+                    )
+    return "\nUNION ALL".join(GEM_UNIT_BRANCHES[n] for n in gem_unit_branches(present, uncovered))
 
 
 def gem_unit_view_sql(engine) -> str:
@@ -468,7 +542,9 @@ def load_unit_gem_map(engine):
     India included (its older names npp_unit_gem_map and npp_gem_unit_monthly
     are re-created as views here). The tracker reads a GEM site's units from
     gem_unit_monthly (WHERE gem_location_id = …): a unit GEM identifies
-    carries its gem_unit_id, the rest sit at their plant's GEM plant. Each
+    carries its gem_unit_id, the rest sit at their plant's GEM plant. Chile's
+    non-coal fuels also sit at the plant, without a unit, with map_source
+    'plant-other-fuel' and is_coal false; readers sum is_coal rows. Each
     source joins its own monthly view here (UNION ALL as sources are added).
     The swap drops the view with the old table (CASCADE), so it is
     re-created here every load.

@@ -32,23 +32,31 @@ class Source:
     id_column: str
     coal: str  # the source's coal fuel label
     file: Path
+    # A second table with the same plant, ID and fuel columns, read where it
+    # exists (Chile's all-fuel table, ETL migration 019, labels each unit by
+    # its own fuel, so it has coal units the coal table never had).
+    all_fuel_table: str | None = None
 
     def pull_names(self, engine) -> pd.DataFrame:
         with engine.connect() as conn:
-            df = pd.read_sql(
-                text(
-                    f"SELECT DISTINCT plant, {self.id_column}::text AS source_id FROM {self.table} "
-                    "WHERE fuel_type = :coal AND plant IS NOT NULL"
-                ),
-                conn,
-                params={"coal": self.coal},
+            tables = [self.table]
+            if self.all_fuel_table and conn.execute(
+                text("SELECT to_regclass(:t) IS NOT NULL"), {"t": self.all_fuel_table}
+            ).scalar():
+                tables.append(self.all_fuel_table)
+            sql = " UNION ".join(
+                f"SELECT DISTINCT plant, {self.id_column}::text AS source_id FROM {t} "
+                "WHERE fuel_type = :coal AND plant IS NOT NULL"
+                for t in tables
             )
+            df = pd.read_sql(text(sql), conn, params={"coal": self.coal})
         return df
 
 
 SOURCES = [
     Source("ONS", "ons_generation_data", "ons_plant_id", "Carvão", get_crosswalk_dir() / "ons_unit_gem_map.csv"),
-    Source("CHILE", "chile_generation_data", "chile_plant_id", "Carbón", get_crosswalk_dir() / "chile_unit_gem_map.csv"),
+    Source("CHILE", "chile_generation_data", "chile_plant_id", "Carbón", get_crosswalk_dir() / "chile_unit_gem_map.csv",
+           "chile_generation_all_fuels"),
 ]  # fmt: skip
 
 
