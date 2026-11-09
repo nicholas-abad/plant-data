@@ -2499,6 +2499,9 @@ def build_npp_unit_map(units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataF
     The curated GIPT file maps every DGR unit to a GEM unit, so units are
     placed from it ('gipt-unit'); units it does not cover inherit their
     plant's crosswalk link ('crosswalk-plant'); the rest stay unmapped.
+    A plant whose crosswalk row is marked not_in_gem (a person decided the NPP
+    row has no GEM plant of its own, e.g. the grid-export meter of a captive
+    plant) is left out entirely: neither GIPT nor the fallback places its units.
     `units` holds the distinct (plant, unit) pairs of mv_npp_unit_monthly.
     """
     u2l = dict(
@@ -2519,12 +2522,12 @@ def build_npp_unit_map(units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataF
             f"GIPT maps a DGR unit to more than one GEM location: {clash[clash > 1].index.tolist()[:5]}"
         )
     gipt = gipt.drop_duplicates(["plant", "unit"])[["plant", "unit", "gem_location_id", "gem_unit_id"]]
-    plant_link = (
-        crosswalk[(crosswalk["source_system"] == "NPP") & crosswalk["gem_location_id"].notna()]
-        .set_index("plant_name")["gem_location_id"]
-        .to_dict()
-    )
-    out = units[["plant", "unit"]].drop_duplicates().merge(gipt, on=["plant", "unit"], how="left")
+    npp = crosswalk[crosswalk["source_system"] == "NPP"]
+    plant_link = npp[npp["gem_location_id"].notna()].set_index("plant_name")["gem_location_id"].to_dict()
+    not_in_gem = set(npp.loc[npp["not_in_gem"].fillna(False).astype(bool), "plant_name"])
+    pairs = units[["plant", "unit"]].drop_duplicates()
+    excluded = pairs["plant"].isin(not_in_gem)
+    out = pairs[~excluded].merge(gipt, on=["plant", "unit"], how="left")
     out["map_source"] = out["gem_location_id"].notna().map({True: "gipt-unit", False: None})
     fallback = out["gem_location_id"].isna()
     out.loc[fallback, "gem_location_id"] = out.loc[fallback, "plant"].map(plant_link)
@@ -2534,7 +2537,7 @@ def build_npp_unit_map(units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataF
         f"unit_gem_map NPP: {len(out):,} (plant, unit) rows — "
         f"{(out['map_source'] == 'gipt-unit').sum():,} gipt-unit, "
         f"{(out['map_source'] == 'crosswalk-plant').sum():,} crosswalk-plant; "
-        f"{len(units[['plant', 'unit']].drop_duplicates()) - len(out):,} unmapped"
+        f"{int(excluded.sum()):,} not_in_gem; {int((~excluded).sum()) - len(out):,} unmapped"
     )
     return out
 
