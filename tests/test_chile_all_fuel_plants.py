@@ -118,3 +118,63 @@ def test_the_fuel_group_branch_replaces_the_chile_coal_branch():
     branch = GEM_UNIT_BRANCHES["mv_chile_fuel_group_monthly"]
     assert "CASE WHEN u.fuel_group = 'coal' THEN m.gem_unit_id END" in branch
     assert "u.fuel_group = 'coal' AS is_coal" in branch
+    assert "ELSE 'plant-other-fuel'" in branch
+
+
+def test_coverage_counts_every_plant_month_and_its_energy():
+    # Rig review of PR #40: a month counted as covered when any plant had coal.
+    from bootstrap_neon_db import missing_coverage
+
+    old = [("TER ANDINA", "2024-01", 100.0), ("TER HORNITOS", "2024-01", 200.0)]
+    assert missing_coverage(old, [("TER ANDINA", "2024-01", 100.0)]) == ["TER HORNITOS 2024-01"]
+    assert missing_coverage(old, [("TER ANDINA", "2024-01", 1.0), ("TER HORNITOS", "2024-01", 200.0)]) == [
+        "TER ANDINA 2024-01"
+    ]  # a partly loaded month
+    full = [("TER ANDINA", "2024-01", 102.8), ("TER HORNITOS", "2024-01", 199.0)]
+    assert missing_coverage(old, full) == []  # the repeated April hour, rounding
+
+
+class _CoverageConn:
+    """Answers to_regclass with True and each coverage query with given rows."""
+
+    def __init__(self, old, new):
+        from bootstrap_neon_db import COVERAGE_SQL
+
+        self.rows = {COVERAGE_SQL["mv_chile_plant_monthly"]: old, COVERAGE_SQL["mv_chile_fuel_group_monthly"]: new}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def execute(self, statement, params=None):
+        rows = self.rows.get(str(statement))
+
+        class _Result:
+            def scalar(_self):
+                return True
+
+            def all(_self):
+                return rows
+
+        return _Result()
+
+
+def test_the_view_sql_keeps_the_coal_table_until_every_plant_month_is_covered():
+    import bootstrap_neon_db as boot
+
+    old = [("TER ANDINA", "2024-01", 100.0), ("TER HORNITOS", "2024-01", 200.0)]
+
+    class _Engine:
+        def __init__(self, new):
+            self.new = new
+
+        def connect(self):
+            return _CoverageConn(old, self.new)
+
+    partial = boot.gem_unit_rows_sql(_Engine([("TER ANDINA", "2024-01", 100.0)]))
+    assert "FROM mv_chile_plant_monthly" in partial and "FROM mv_chile_fuel_group_monthly" not in partial
+    complete = boot.gem_unit_rows_sql(_Engine(old))
+    assert "FROM mv_chile_fuel_group_monthly" in complete and "FROM mv_chile_plant_monthly" not in complete
+
