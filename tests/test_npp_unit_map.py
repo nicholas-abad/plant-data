@@ -96,12 +96,17 @@ def test_not_in_gem_plant_is_never_placed(gem):
     assert list(out["map_source"]) == ["crosswalk-plant"] and list(out["gem_location_id"]) == ["LK"]
 
 
-def test_ordinary_gipt_unit_is_kept_beside_a_not_in_gem_plant(gem):
+def test_only_the_not_in_gem_plant_loses_its_gipt_units(gem):
+    # Both plants are in the GIPT file; only the marked one may drop out.
+    gipt = pd.read_csv(bc.NPP_GIPT_CSV)
+    gipt.loc[len(gipt)] = ["coal", "NEW TPS", "Unit 1", "G4"]
+    gipt.to_csv(bc.NPP_GIPT_CSV, index=False)
     units = pd.DataFrame({"plant": ["BARH STPS", "NEW TPS"], "unit": ["Unit 1", "Unit 1"]})
     cw = _crosswalk()
-    cw.loc[cw["plant_name"] == "NEW TPS", "not_in_gem"] = True
+    cw.loc[cw["plant_name"] == "BARH STPS", "not_in_gem"] = True
     out = bc.build_npp_unit_map(units, cw)
-    assert list(out["plant"]) == ["BARH STPS"] and list(out["map_source"]) == ["gipt-unit"]
+    assert list(out["plant"]) == ["NEW TPS"]
+    assert list(out["map_source"]) == ["gipt-unit"] and list(out["gem_location_id"]) == ["LK"]
 
 
 def test_gipt_unit_on_two_sites_fails_loudly(gem, tmp_path, monkeypatch):
