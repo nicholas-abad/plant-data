@@ -11,3 +11,49 @@ DEWHV______1_____,L100000101920,G100000110939,"Wilhelmshaven's only GEM coal uni
 DEWHV______1____,L100000101920,G100000110939,"Empty 2018 spelling of DEWHV______1_____ (no generation); same unit",proposed,2026-10-26
 DEZOLLI____1_____,L100000101885,G100000111745,"Zolling's only GEM coal unit (Unit 5, 474 MW, retired); ENTSO-E reports it under two paddings (…1____ one empty month in 2018, …1_____ 2019–2025)",proposed,2026-10-26
 DEZOLLI____1____,L100000101885,G100000111745,"Empty 2018 spelling of DEZOLLI____1_____ (no generation); same unit",proposed,2026-10-26
+Bełchatów B01,L100000103216,G100000100724,"Bełchatów B01 = GEM Phase 1 Unit 1 (370 MW, retired 2019); B01 last generated 2019-05; B02-B12 are already Phase 1 Units 2-12, and the number 1 also matches Phase 2 Unit 1 (B14)",proposed,2026-11-10
+HKW Reuter West Block D,L100000101889,G100000100771,"Reuter West Block D (1987) = GEM Unit A (300 MW, 1987)",proposed,2026-11-10
+HKW Reuter West Block E,L100000101889,G100000100772,"Reuter West Block E (1989) = GEM Unit B (300 MW, 1989)",proposed,2026-11-10
+ECHV_G3___,L100000101794,G100000101575,"Chvaletice G3 = GEM Unit 3 (205 MW); G1, G2, G4 are already Units 1, 2, 4. ENTSO-E's Czech code numbers the unit as GEM does; the two paddings overlapping in 2025 kept the automatic match back",proposed,2026-11-10
+ECHV_G3____,L100000101794,G100000101575,Other padding of ECHV_G3___ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+EDET_G2___,L100000101786,G100000102325,"Dětmarovice G2 = GEM Unit 2 (200 MW, retired 2025); the two paddings generating in the same months in Q1 2025 (a duplicate, fixed by the CZ source rebuild) kept the automatic match back",proposed,2026-11-10
+EDET_G2____,L100000101786,G100000102325,Other padding of EDET_G2___ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+EDET_G3___,L100000101786,G100000102326,"Dětmarovice G3 = GEM Unit 3 (200 MW, retired 2025); the two paddings generating in the same months in Q1 2025 (a duplicate, fixed by the CZ source rebuild) kept the automatic match back",proposed,2026-11-10
+EDET_G3____,L100000101786,G100000102326,Other padding of EDET_G3___ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+EDET_G4___,L100000101786,G100000102327,"Dětmarovice G4 = GEM Unit 4 (200 MW, retired 2025); the two paddings generating in the same months in Q1 2025 (a duplicate, fixed by the CZ source rebuild) kept the automatic match back",proposed,2026-11-10
+EDET_G4____,L100000101786,G100000102327,Other padding of EDET_G4___ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+Hanasaari B3,L100000101845,G100000103596,"Hanasaari B3 (1974) = GEM Phase B Unit 1 (114 MW, 1974, retired 2023)",proposed,2026-11-10
+Hanasaari B4,L100000101845,G100000103597,"Hanasaari B4 (1977) = GEM Phase B Unit 2 (114 MW, 1977, retired 2023)",proposed,2026-11-10
+EECK_G5___,L100000101799,G100000105794,Kladno G5 = GEM Unit TG5 (135 MW); G4 is already TG4,proposed,2026-11-10
+EECK_G5____,L100000101799,G100000105794,Other padding of EECK_G5___ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+EECK_G7___,L100000101799,G100000105792,"Kladno G7 = GEM Unit TG7 (135 MW, 2014)",proposed,2026-11-10
+EECK_G7____,L100000101799,G100000105792,Other padding of EECK_G7___ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+NLROTTETH_,L100000103095,G100000106535,"GEM's only unit at this site (800 MW, 2015); ENTSO-E peak 729 MW. NLROTTETH_ runs to 2025-12, NLROTTETH__1 from 2025-01: one unit renamed (identical values in both in 2025-01..03, a source duplicate)",proposed,2026-11-10
+NLROTTETH__1,L100000103095,G100000106535,Later name of NLROTTETH_ (peak 729 MW); same unit,proposed,2026-11-10
+TPP_MARITSA_3_G1,L100000100136,G100000106668,"Maritsa 3's only GEM unit (120 MW); the other name, TPP_MARITSA_3, has no generation",proposed,2026-11-10
+EME3_G11__,L100000101800,G100000106851,"Mělník III (EME3) = GEM Phase 3 Unit 1 (500 MW, retired 2021); EME3_G11 last generated 2021-02",proposed,2026-11-10
+CET_Paroseni_CA,L100000103298,G100000107846,"Paroșeni's only GEM unit (Unit 4, 150 MW); the other name, CET_Paroseni, has no generation",proposed,2026-11-10
+EPC1_G2___,L100000101804,G100000108054,"Počerady G2 = GEM Phase 1 Unit 2 (200 MW, 1970); G3, G4 are already Phase 1 Units 3, 4",proposed,2026-11-10
+EPC1_G2____,L100000101804,G100000108054,Other padding of EPC1_G2___ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+EPC1_G5___,L100000101804,G100000108057,"Počerady G5 = GEM Phase 2 Unit 1 (200 MW, 1977): units 5 and 6 are the 1977 pair, GEM's Phase 2",proposed,2026-11-10
+EPC1_G5____,L100000101804,G100000108057,Other padding of EPC1_G5___ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+EPC1_G6___,L100000101804,G100000108058,"Počerady G6 = GEM Phase 2 Unit 2 (200 MW, 1977)",proposed,2026-11-10
+EPC1_G6____,L100000101804,G100000108058,Other padding of EPC1_G6___ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+EPR2_G23__,L100000101805,G100000108159,"Prunéřov G23 = GEM Phase 2 Unit B23 retrofit (250 MW, 2016); GEM's older B23 entry is the pre-retrofit unit, retired 2012",proposed,2026-11-10
+EPR2_G23___,L100000101805,G100000108159,Other padding of EPR2_G23__ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+EPR2_G24__,L100000101805,G100000108160,"Prunéřov G24 = GEM Phase 2 Unit B24 retrofit (250 MW, 2016); GEM's older B24 entry is the pre-retrofit unit, retired 2012",proposed,2026-11-10
+EPR2_G24___,L100000101805,G100000108160,Other padding of EPR2_G24__ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+EPR2_G25__,L100000101805,G100000108161,"Prunéřov G25 = GEM Phase 2 Unit B25 retrofit (250 MW, 2016); GEM's older B25 entry is the pre-retrofit unit, retired 2012",proposed,2026-11-10
+EPR2_G25___,L100000101805,G100000108161,Other padding of EPR2_G25__ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+WEIHER_C,L100000101977,G100000110779,"Weiher's only operating GEM coal unit (Weiher-3, 724 MW); Weiher-2 retired 2001",proposed,2026-11-10
+ETI2.G6,L100000101782,G100000110196,"Tisová II (ETI2) = GEM Phase 2 Unit 3 (105 MW), GEM's only Phase 2 unit",proposed,2026-11-10
+ETU2_G21__,L100000101807,G100000110381,"Tušimice II G21 = GEM Unit 1 (200 MW): the source numbers the four units 21-24, GEM 1-4",proposed,2026-11-10
+ETU2_G21___,L100000101807,G100000110381,Other padding of ETU2_G21__ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+ETU2_G22__,L100000101807,G100000110382,"Tušimice II G22 = GEM Unit 2 (200 MW): the source numbers the four units 21-24, GEM 1-4",proposed,2026-11-10
+ETU2_G22___,L100000101807,G100000110382,Other padding of ETU2_G22__ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+ETU2_G23__,L100000101807,G100000110383,"Tušimice II G23 = GEM Unit 3 (200 MW): the source numbers the four units 21-24, GEM 1-4",proposed,2026-11-10
+ETU2_G23___,L100000101807,G100000110383,Other padding of ETU2_G23__ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+ETU2_G24__,L100000101807,G100000110384,"Tušimice II G24 = GEM Unit 4 (200 MW): the source numbers the four units 21-24, GEM 1-4",proposed,2026-11-10
+ETU2_G24___,L100000101807,G100000110384,Other padding of ETU2_G24__ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
+VOELKLINGEN_HKV,L100000101976,G100000110652,"Völklingen HKV (Heizkraftwerk Fenne, 1982) = GEM Phase B Unit 1 (233 MW, 1982)",proposed,2026-11-10
+VOELKLINGEN_MKV,L100000101976,G100000110653,"Völklingen MKV (Modellkraftwerk, 1989) = GEM Phase C Unit 1 (233 MW, 1989)",proposed,2026-11-10

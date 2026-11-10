@@ -44,6 +44,8 @@ from .plant_name_matchers import (
 from . import gem_reference as gemref
 from . import eia_gem_ids, eia_unit_map, entsoe_unit_map, occto_unit_map, oe_unit_map, reviewed_unit_map
 from .unit_gem_map import COLUMNS as UNIT_MAP_COLUMNS
+from .unit_gem_map import check_reviewed
+from .reviewed_unit_map import METHOD as REVIEWED_UNIT
 from .unit_gem_map import MAP_FILE as UNIT_MAP_FILE
 from .gem_external_ids import eia_plant_locations, load_snapshot
 from .utils import get_crosswalk_dir, validate_coordinates
@@ -292,6 +294,10 @@ LINK_COLUMNS = [
 ]
 
 NPP_GIPT_CSV = get_crosswalk_dir() / "NPP_GIPT_crosswalk (1).csv"
+# Our reviewed corrections to the GIPT file, one row per DGR (plant, unit):
+# units GIPT misses (a DGR plant renamed after the file was made) or places on
+# a GEM unit that does not exist. A row here replaces GIPT's row for that unit.
+NPP_REVIEWED_CSV = get_crosswalk_dir() / "npp_unit_gem_map_reviewed.csv"
 
 
 def _parse_gem_capacity(val) -> float | None:
@@ -2497,8 +2503,11 @@ def build_npp_unit_map(units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataF
     two sites (BARH STPS -> Barh I + Barh II after the 2022 rename, ANPARA TPS
     -> Anpara + Anpara-D, DURGAPUR STEEL TPS) cannot be linked at all there.
     The curated GIPT file maps every DGR unit to a GEM unit, so units are
-    placed from it ('gipt-unit'); units it does not cover inherit their
-    plant's crosswalk link ('crosswalk-plant'); the rest stay unmapped.
+    placed from it ('gipt-unit'). Our reviewed file (NPP_REVIEWED_CSV) replaces
+    GIPT for the units it lists ('source-id-reviewed'): a DGR plant renamed after
+    GIPT was made (THAMMINAPATNAM TPS -> MEENAKSHI ENERGY LTD) or a GIPT unit ID
+    GEM does not have (NIGRI TPP). Units neither covers inherit their plant's
+    crosswalk link ('crosswalk-plant'); the rest stay unmapped.
     A plant whose crosswalk row is marked not_in_gem (a person decided the NPP
     row has no GEM plant of its own, e.g. the grid-export meter of a captive
     plant) is left out entirely: neither GIPT nor the fallback places its units.
@@ -2522,13 +2531,27 @@ def build_npp_unit_map(units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataF
             f"GIPT maps a DGR unit to more than one GEM location: {clash[clash > 1].index.tolist()[:5]}"
         )
     gipt = gipt.drop_duplicates(["plant", "unit"])[["plant", "unit", "gem_location_id", "gem_unit_id"]]
+    reviewed = pd.read_csv(NPP_REVIEWED_CSV, dtype=str, keep_default_na=False)
+    check_reviewed(NPP_REVIEWED_CSV, reviewed, gemref.load_tables()["units"], ["plant", "unit"])
+    if (reviewed["gem_unit_ids"].str.split().str.len() != 1).any():
+        raise ValueError(f"{NPP_REVIEWED_CSV.name}: each DGR unit is one GEM unit")
+    keyed = pd.MultiIndex.from_frame(gipt[["plant", "unit"]])
+    gipt = gipt[~keyed.isin(pd.MultiIndex.from_frame(reviewed[["plant", "unit"]]))]
+    gipt = pd.concat(
+        [
+            gipt.assign(map_source="gipt-unit"),
+            reviewed[["plant", "unit", "gem_location_id"]].assign(
+                gem_unit_id=reviewed["gem_unit_ids"], map_source=REVIEWED_UNIT
+            ),
+        ],
+        ignore_index=True,
+    )
     npp = crosswalk[crosswalk["source_system"] == "NPP"]
     plant_link = npp[npp["gem_location_id"].notna()].set_index("plant_name")["gem_location_id"].to_dict()
     not_in_gem = set(npp.loc[npp["not_in_gem"].fillna(False).astype(bool), "plant_name"])
     pairs = units[["plant", "unit"]].drop_duplicates()
     excluded = pairs["plant"].isin(not_in_gem)
     out = pairs[~excluded].merge(gipt, on=["plant", "unit"], how="left")
-    out["map_source"] = out["gem_location_id"].notna().map({True: "gipt-unit", False: None})
     fallback = out["gem_location_id"].isna()
     out.loc[fallback, "gem_location_id"] = out.loc[fallback, "plant"].map(plant_link)
     out.loc[fallback & out["gem_location_id"].notna(), "map_source"] = "crosswalk-plant"
@@ -2536,6 +2559,7 @@ def build_npp_unit_map(units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataF
     logger.info(
         f"unit_gem_map NPP: {len(out):,} (plant, unit) rows — "
         f"{(out['map_source'] == 'gipt-unit').sum():,} gipt-unit, "
+        f"{(out['map_source'] == REVIEWED_UNIT).sum():,} reviewed, "
         f"{(out['map_source'] == 'crosswalk-plant').sum():,} crosswalk-plant; "
         f"{int(excluded.sum()):,} not_in_gem; {int((~excluded).sum()) - len(out):,} unmapped"
     )

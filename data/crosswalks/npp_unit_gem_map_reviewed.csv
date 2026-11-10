@@ -1,0 +1,14 @@
+plant,unit,gem_location_id,gem_unit_ids,evidence,reviewed_by,reviewed_on
+NIGRI TPP,Unit 1,L100000102338,G100000105007,"Jaypee Nigrie Unit 1 (660 MW, 2014); the plant's crosswalk link. GIPT lists G100000107382 (Newari), which is not a GEM unit",proposed,2026-11-10
+NIGRI TPP,Unit 2,L100000102338,G100000105008,"Jaypee Nigrie Unit 2 (660 MW, 2015); GIPT lists G100000107383 (Newari), which is not a GEM unit",proposed,2026-11-10
+MEENAKSHI ENERGY LTD,Unit 1,L100000102053,G100000106792,"THAMMINAPATNAM TPS renamed in DGR from 2026-01 (old name ends 2026-01, new starts 2026-01); same unit as GIPT's THAMMINAPATNAM TPS Unit 1",proposed,2026-11-10
+MEENAKSHI ENERGY LTD,Unit 2,L100000102053,G100000106793,"Rename of THAMMINAPATNAM TPS; GIPT's Unit 2",proposed,2026-11-10
+MEENAKSHI ENERGY LTD,Unit 3,L100000102053,G100000106794,"Rename of THAMMINAPATNAM TPS; GIPT's Unit 3",proposed,2026-11-10
+MEENAKSHI ENERGY LTD,Unit 4,L100000102053,G100000106795,"Rename of THAMMINAPATNAM TPS; GIPT's Unit 4",proposed,2026-11-10
+JSW Mahanadi Power Company Limited,Unit 1,L100000102159,G100000105989,"AKALTARA TPS renamed in DGR from 2026-02 (old name ends 2026-02, new starts 2026-02); same unit as GIPT's AKALTARA TPS Unit 1",proposed,2026-11-10
+JSW Mahanadi Power Company Limited,Unit 2,L100000102159,G100000105986,"Rename of AKALTARA TPS; GIPT's Unit 2 (= GEM Unit 1)",proposed,2026-11-10
+JSW Mahanadi Power Company Limited,Unit 3,L100000102159,G100000105987,"Rename of AKALTARA TPS; GIPT's Unit 3 (= GEM Unit 2)",proposed,2026-11-10
+JSW Mahanadi Power Company Limited,Unit 4,L100000102159,G100000105988,"Rename of AKALTARA TPS; GIPT's Unit 4 (= GEM Unit 3)",proposed,2026-11-10
+TELANGANA STPP,Unit 2,L100000102602,G100000108471,"Earlier DGR name of TELANGANA STPP PH-1 (until 2023-10); GIPT maps PH-1 Unit 2 to Ramagundam Stage IV Unit 9",proposed,2026-11-10
+Tulsyan NEC Limited,Unit 1,L100000102550,G100000103239,"Tulsyan Steel Gummidipoondi Unit 1 (35 MW); the plant's crosswalk link, both sides have Units 1 and 2",proposed,2026-11-10
+Tulsyan NEC Limited,Unit 2,L100000102550,G100000103240,"Tulsyan Steel Gummidipoondi Unit 2 (35 MW, 2016)",proposed,2026-11-10
