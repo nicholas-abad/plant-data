@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pandas as pd
+from loguru import logger
 
 from .utils import get_crosswalk_dir
 
@@ -220,13 +221,13 @@ def read_supplement(path: Path) -> pd.DataFrame:
     return df[TABLE_COLUMNS]
 
 
-def eia_generator_info_frame(
-    path: Path, supplement: Path | None = None, edition: int = BASE_EDITION
-) -> pd.DataFrame:
+def eia_generator_info_frame(path: Path, supplement: Path | None, edition: int = BASE_EDITION) -> pd.DataFrame:
     """The base edition's generators plus the retired ones older editions add.
 
     ``path`` is the base edition's workbook, ``supplement`` the committed CSV
-    of older retired generators (None: the base edition alone). A supplement
+    of older retired generators. It has no default: the base edition alone
+    (None) is the incomplete register that lost 46 retired coal units, so a
+    caller has to ask for it. A supplement
     row whose generator the base edition has is dropped, so a newer base
     edition can never produce a second row for a generator, and an Operable
     generator is never overridden.
@@ -238,6 +239,11 @@ def eia_generator_info_frame(
         older = read_supplement(supplement)
         base_keys = set(zip(df["plant_code"], _with_key(df)))
         absent = [(p, k) not in base_keys for p, k in zip(older["plant_code"], _with_key(older))]
+        if not all(absent):
+            logger.info(
+                f"eia_generator_info: {len(absent) - sum(absent)} rows of {supplement.name} are in the "
+                f"Form 860 {edition} edition by now and are not added"
+            )
         df = pd.concat([df, older[absent]], ignore_index=True)
         _fail_on_shared_keys(df, f"Form 860 {edition} with {supplement.name}")
     return df[TABLE_COLUMNS].reset_index(drop=True)

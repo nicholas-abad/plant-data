@@ -17,6 +17,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -155,7 +156,7 @@ def _atomic_replace_table(
             raise RuntimeError(f"{staging}: expected {len(df):,} rows, found {n:,}")
         grants = _table_grants(conn, table)
         if restore_review_view:  # read before the DROP ... CASCADE below removes the view
-            view_before = (_relation_owner(conn, REVIEW_VIEW), _table_grants(conn, REVIEW_VIEW))
+            view_before = ReviewViewState(_relation_owner(conn, REVIEW_VIEW), _table_grants(conn, REVIEW_VIEW))
         conn.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
         conn.execute(text(f"ALTER TABLE {staging} RENAME TO {table}"))
         for sql in post_load_sql:
@@ -218,11 +219,15 @@ def _relation_owner(conn, relation: str) -> str | None:
     ).scalar()
 
 
-def _restore_review_view(conn, before: tuple[str | None, list[tuple[str, str]]]) -> None:
-    """Re-create plant_crosswalk_review after the eia_generator_info swap dropped it.
+class ReviewViewState(NamedTuple):
+    """plant_crosswalk_review as it was before a swap dropped it."""
 
-    ``before`` is the view's (owner, grants) read before the swap; (None, [])
-    when it was not there.
+    owner: str | None  # None: the view did not exist
+    grants: list[tuple[str, str]]  # (quoted grantee, privileges), as _table_grants returns them
+
+
+def _restore_review_view(conn, before: ReviewViewState) -> None:
+    """Re-create plant_crosswalk_review after the eia_generator_info swap dropped it.
 
     The view reads eia_generator_info, so the swap's DROP ... CASCADE removes
     it, and until now only the next crosswalk load brought it back. It is
@@ -237,10 +242,9 @@ def _restore_review_view(conn, before: tuple[str | None, list[tuple[str, str]]])
     if crosswalk_owner is None:
         print(f"  INFO  {REVIEW_VIEW}: not re-created (no plant_crosswalk yet)")
         return
-    owner, grants = before
     for sql in REVIEW_VIEW_SQL:
         conn.execute(text(sql))
-    owner = owner or crosswalk_owner
+    owner, grants = before.owner or crosswalk_owner, before.grants
     if owner != conn.execute(text("SELECT current_user")).scalar():
         conn.execute(text(f"ALTER VIEW {REVIEW_VIEW} OWNER TO {_quoted(owner)}"))
     for grantee, privileges in grants:

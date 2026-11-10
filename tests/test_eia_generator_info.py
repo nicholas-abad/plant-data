@@ -58,7 +58,7 @@ def test_retired_generators_join_the_operable_ones(tmp_path):
             [9998, "B", COAL, "ST", "SUB", 400.0, "IP"],  # never built
         ],
     )
-    df = eia_generator_info_frame(path)
+    df = eia_generator_info_frame(path, None)
     assert df[["plant_code", "generator_id", "status"]].values.tolist() == [
         ["3122", "1", "OP"],
         ["3122", "2", "RE"],
@@ -67,7 +67,7 @@ def test_retired_generators_join_the_operable_ones(tmp_path):
 
 def test_keys_are_strings_like_the_generation_tables(tmp_path):
     path = _workbook(tmp_path, [[6137, 1, COAL, "ST", "BIT", 265.0, "OP"]], [])
-    row = eia_generator_info_frame(path).iloc[0]
+    row = eia_generator_info_frame(path, None).iloc[0]
     assert (row.plant_code, row.generator_id) == ("6137", "1")
 
 
@@ -75,12 +75,12 @@ def test_a_generator_on_both_sheets_fails_loudly(tmp_path):
     row = [3122, "1", COAL, "ST", "BIT", 660.0]
     path = _workbook(tmp_path, [row + ["OP"]], [row + ["RE"]])
     with pytest.raises(ValueError, match="share a"):
-        eia_generator_info_frame(path)
+        eia_generator_info_frame(path, None)
 
 
 @pytest.mark.skipif(not REAL_FILE.exists(), reason="Form 860 workbook not downloaded")
 def test_real_workbook_loads_with_retired_coal():
-    df = eia_generator_info_frame(REAL_FILE)
+    df = eia_generator_info_frame(REAL_FILE, None)
     retired = df[df.status == "RE"]
     assert len(retired) > 4000
     # Homer City (3122) retired all its coal units in 2023.
@@ -219,14 +219,14 @@ def test_two_spellings_of_one_generator_in_one_edition_fail_loudly(tmp_path):
         tmp_path, [[3122, "1", COAL, "ST", "BIT", 660.0, "OP"], [3122, "01", COAL, "ST", "BIT", 660.0, "OP"]], []
     )
     with pytest.raises(ValueError, match="share a"):
-        eia_generator_info_frame(path)
+        eia_generator_info_frame(path, None)
 
 
 def test_plant_56032_keeps_0001_and_001_as_two_generators(tmp_path):
     path = _workbook(
         tmp_path, [[56032, "0001", GAS, "GT", "NG", 5.0, "OP"], [56032, "001", GAS, "GT", "NG", 5.0, "OP"]], []
     )
-    assert eia_generator_info_frame(path)["generator_id"].tolist() == ["0001", "001"]
+    assert eia_generator_info_frame(path, None)["generator_id"].tolist() == ["0001", "001"]
 
 
 def test_a_supplement_row_with_an_operating_status_is_refused(tmp_path):
@@ -265,7 +265,7 @@ def test_committed_supplement_holds_retired_coal_the_base_edition_lost():
 
 @pytest.mark.skipif(not REAL_FILE.exists(), reason="Form 860 workbook not downloaded")
 def test_real_register_is_the_base_edition_plus_the_supplement():
-    base = eia_generator_info_frame(REAL_FILE)
+    base = eia_generator_info_frame(REAL_FILE, None)
     df = eia_generator_info_frame(REAL_FILE, register.SUPPLEMENT_FILE)
     assert len(df) == len(base) + 877
     # Every base row is untouched, in place: nothing Operable changed, nothing replaced.
@@ -277,8 +277,12 @@ def test_real_register_is_the_base_edition_plus_the_supplement():
 
 
 @pytest.mark.skipif(
-    not (REAL_FILE.exists() and all((EDITIONS_DIR / str(y)).exists() for y in register.SUPPLEMENT_EDITIONS)),
-    reason="Form 860 workbooks 2019-2024 not downloaded (scripts/build_eia860_supplement.py)",
+    # Every archive must be there: build() downloads a missing one, and a test must not.
+    not (
+        REAL_FILE.exists()
+        and all((EDITIONS_DIR / str(y) / f"eia860{y}.zip").exists() for y in register.SUPPLEMENT_EDITIONS)
+    ),
+    reason="Form 860 archives 2019-2023 or the 2024 workbook not downloaded (scripts/build_eia860_supplement.py)",
 )
 def test_committed_supplement_is_what_the_workbooks_give(monkeypatch):
     import json
@@ -286,6 +290,24 @@ def test_committed_supplement_is_what_the_workbooks_give(monkeypatch):
     monkeypatch.syspath_prepend(str(REAL_FILE.parent.parent.parent / "scripts"))
     import build_eia860_supplement as build
 
-    supplement, manifest = build.build()
-    assert build.csv_text(supplement.rows) == register.SUPPLEMENT_FILE.read_text()
-    assert manifest == json.loads(register.SUPPLEMENT_MANIFEST.read_text())
+    built = build.build()
+    assert build.csv_text(built.supplement.rows) == register.SUPPLEMENT_FILE.read_text()
+    assert built.manifest == json.loads(register.SUPPLEMENT_MANIFEST.read_text())
+
+
+def test_a_leftover_workbook_is_replaced_by_the_one_in_the_archive(tmp_path, monkeypatch):
+    """The manifest pins the zip; a different workbook beside it must not be what gets read."""
+    import zipfile
+
+    monkeypatch.syspath_prepend(str(REAL_FILE.parent.parent.parent / "scripts"))
+    import build_eia860_supplement as build
+
+    folder = tmp_path / "2021"
+    folder.mkdir()
+    with zipfile.ZipFile(folder / "eia8602021.zip", "w") as bundle:
+        bundle.writestr("3_1_Generator_Y2021.xlsx", b"from the archive")
+    (folder / "3_1_Generator_Y2021.xlsx").write_bytes(b"left over from another download")
+
+    _, workbook = build.fetch_workbook(2021, tmp_path)
+
+    assert workbook.read_bytes() == b"from the archive"

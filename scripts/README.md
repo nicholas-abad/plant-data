@@ -46,7 +46,8 @@ uv run python scripts/bootstrap_neon_db.py --data-only        # 3. swap into Neo
 |---|---|
 | `verify_crosswalk.py` | Regression gates on a freshly built parquet. Run **before** every production swap. |
 | `fetch_hjks_units.py` | Refresh `data/crosswalks/hjks_units.csv` (Japanese unit rated outputs). Commit the result. |
-| `bootstrap_neon_db.py` | Load reference data into Neon. Flags: `--schema-only`, `--data-only` (crosswalk, generator info, GCPT metadata and the unit map), `--generator-info-only`, `--gcpt-only`, `--gem-ids-only`, `--unit-map-only` (`unit_gem_map` + view `gem_unit_monthly`), `--ct-gem-only`, `--test-only`. |
+| `bootstrap_neon_db.py` | Load reference data into Neon. Flags: `--schema-only`, `--data-only` (crosswalk, generator info, GCPT metadata and the unit map; warns and keeps the register in the database when the Form 860 workbook is not downloaded), `--generator-info-only` (the Form 860 register, 2024 edition plus `eia860_retired_2019_2023.csv`; fails without the 2024 workbook; re-creates `plant_crosswalk_review`), `--gcpt-only`, `--gem-ids-only`, `--unit-map-only` (`unit_gem_map` + view `gem_unit_monthly`), `--ct-gem-only`, `--test-only`. |
+| `build_eia860_supplement.py` | Rebuild `data/crosswalks/eia860_retired_2019_2023.csv` and its manifest: the generators retired in Form 860 2019–2023 that the 2024 edition no longer lists. Downloads the five archives into `data/eia860/` when missing; `--check` fails if the committed files differ. Commit the result. |
 | `build_gcpt_crosswalks.py` | **Legacy.** Produces per-source parquets nothing downstream consumes any more. |
 | `test_npp_llm.py` | Spot-check LLM matching on India names. |
 | `drop_old_reference_tables.sql` | One-off cleanup of retired reference tables. |

@@ -31,6 +31,7 @@ import sys
 import urllib.request
 import zipfile
 from pathlib import Path
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -65,15 +66,27 @@ def fetch_workbook(year: int, editions_dir: Path) -> tuple[Path, Path]:
         request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (plant-data build)"})
         with urllib.request.urlopen(request, timeout=120) as response:
             archive.write_bytes(response.read())
+    # Always from the archive: a workbook left over from another download would
+    # otherwise be read beside a zip whose sha256 still matches the manifest.
     workbook = folder / workbook_name(year)
-    if not workbook.exists():
-        with zipfile.ZipFile(archive) as bundle:
-            workbook.write_bytes(bundle.read(workbook_name(year)))
+    with zipfile.ZipFile(archive) as bundle:
+        content = bundle.read(workbook_name(year))
+    if not workbook.exists() or workbook.read_bytes() != content:
+        workbook.write_bytes(content)
     return archive, workbook
 
 
-def build(editions_dir: Path = EDITIONS_DIR, base_workbook: Path = register.BASE_WORKBOOK):
-    """(supplement, manifest dict) from the workbooks on disk."""
+class SupplementBuild(NamedTuple):
+    """The supplement derived from the workbooks, and the manifest describing its sources."""
+
+    supplement: register.RetiredSupplement
+    manifest: dict
+
+
+def build(
+    editions_dir: Path = EDITIONS_DIR, base_workbook: Path = register.BASE_WORKBOOK
+) -> SupplementBuild:
+    """The supplement and its manifest, from the archives on disk (downloaded when missing)."""
     base = register.base_frame(base_workbook)
     older, editions = {}, {}
     for year in register.SUPPLEMENT_EDITIONS:
@@ -105,7 +118,7 @@ def build(editions_dir: Path = EDITIONS_DIR, base_workbook: Path = register.BASE
         "rows": len(supplement.rows),
         "coal_rows": int(supplement.rows["technology"].isin(register.COAL_TECHNOLOGIES).sum()),
     }
-    return supplement, manifest
+    return SupplementBuild(supplement, manifest)
 
 
 def csv_text(rows) -> str:
@@ -126,7 +139,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    supplement, manifest = build()
+    supplement, manifest = build()  # downloads missing archives
     if len(supplement.technology_changes):
         print(f"\n{len(supplement.technology_changes)} generators change technology between editions:")
         print(supplement.technology_changes.to_string(index=False))
