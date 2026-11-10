@@ -93,9 +93,9 @@ def build_occto_unit_map(
             }
         )
     matched = pd.DataFrame(rows, columns=COLUMNS)
-    # An automatic match must not hand one GEM unit to two OCCTO plants (both
-    # Hibikinada names sit on a site with one GEM unit), counting reviewed
-    # claims too: the automatic one waits for review, the reviewed one stays.
+    # An automatic match must not hand one GEM unit to two OCCTO plants (until
+    # 2026-11 both Hibikinada names sat on a site with one GEM unit), counting
+    # reviewed claims too: the automatic one waits for review, the reviewed one stays.
     each = matched.assign(unit=matched["gem_unit_ids"].str.split()).explode("unit")
     plants_per_unit = each.groupby("unit")["plant_key"].nunique()
     shared = set(plants_per_unit[plants_per_unit > 1].index)
