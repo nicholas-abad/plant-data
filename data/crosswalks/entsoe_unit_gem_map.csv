@@ -57,3 +57,4 @@ ETU2_G24__,L100000101807,G100000110384,"Tušimice II G24 = GEM Unit 4 (200 MW): 
 ETU2_G24___,L100000101807,G100000110384,Other padding of ETU2_G24__ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
 VOELKLINGEN_HKV,L100000101976,G100000110652,"Völklingen HKV (Heizkraftwerk Fenne, 1982) = GEM Phase B Unit 1 (233 MW, 1982)",proposed,2026-11-10
 VOELKLINGEN_MKV,L100000101976,G100000110653,"Völklingen MKV (Modellkraftwerk, 1989) = GEM Phase C Unit 1 (233 MW, 1989)",proposed,2026-11-10
+EME2_G10,L100000101800,G100000106850,"Mělník II G10 = GEM Phase 2 Unit 4 (110 MW, operating): ENTSO-E peak 100 MW and generating in 2026; the other Phase 2 unit (Unit 3) retired 2020",proposed,2026-11-10
