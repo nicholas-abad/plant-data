@@ -8,6 +8,9 @@
   power station (its HJKS code is that unit's FIT ID).
 """
 
+import importlib.util
+from pathlib import Path
+
 import pandas as pd
 import pytest
 
@@ -52,6 +55,25 @@ def test_karn_links_to_gems_coal_location(karn_gem):
     m = manifest_rows()["EIA|1702"]
     assert (m["old_gem_location_id"], m["old_decided_by"]) == ("", "legacy-pipeline")
     assert m["gem_location_id"] == review["1702"]["gem_location_id"] == KARN_COAL
+
+
+def test_review_file_keeps_karn_once_the_manifest_is_applied(karn_gem):
+    """After the manifest the live link IS the accepted one; regenerating the
+    review file must keep the reviewed row, which the unit map still reads."""
+    path = Path(__file__).resolve().parents[1] / "scripts" / "eia_gem_id_review.py"
+    spec = importlib.util.spec_from_file_location("eia_gem_id_review", path)
+    review_script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(review_script)
+    old = ids.load_review()
+    live = pd.DataFrame(
+        [("1702", "Dan E Karn", KARN_COAL, "manual", old["1702"]["reviewed_by"], False, "MI")],
+        columns=["plant_code", "plant_name", "gem_location_id", "matching_method",
+                 "decided_by", "not_in_gem", "eia_state"],
+    )  # fmt: skip
+    out = review_script.build_review(live, {"1702": {KARN_COAL, KARN_GAS}}, old)
+    (row,) = out.to_dict("records")
+    assert (row["verdict"], row["gem_location_id"]) == ("accept", KARN_COAL)
+    assert row["reviewed_by"] == old["1702"]["reviewed_by"]
 
 
 def test_karn_coal_generators_land_on_gems_coal_units():
@@ -107,8 +129,8 @@ def test_hibikinada_plants_split_onto_their_own_gem_plants():
     )
     gem = pd.DataFrame(
         [("G100000103883", HIBIKINIDA_BIOMASS, "GCPT", "--", "operating"),
-         ("G100000113920", HIBIKINADA_THERMAL, "GCPT", "1, timepoint 1", "retired"),
-         ("G100000202486", HIBIKINADA_THERMAL, "GBPT", "1, timepoint 2", "planned")],
+         ("G100000113920", HIBIKINADA_THERMAL, "GCPT", "1, timepoint 1", "mothballed"),
+         ("G100000202486", HIBIKINADA_THERMAL, "GBPT", "1, timepoint 2", "operating")],
         columns=["gem_unit_id", "gem_location_id", "tracker", "unit_name", "status"],
     )  # fmt: skip
     reviewed = pd.read_csv(OCCTO_REVIEWED, dtype=str, keep_default_na=False)
