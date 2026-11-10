@@ -1,0 +1,878 @@
+plant_code,generator_id,technology,prime_mover,energy_source_1,nameplate_capacity_mw,status,source_edition
+127,1,Conventional Steam Coal,ST,SUB,720,RE,2020
+329,1,Natural Gas Steam Turbine,ST,NG,65.3,RE,2020
+329,2,Natural Gas Steam Turbine,ST,NG,82,RE,2020
+329,30,Natural Gas Fired Combined Cycle,CA,NG,120,RE,2020
+329,31,Natural Gas Fired Combined Cycle,CT,NG,85,RE,2020
+329,32,Natural Gas Fired Combined Cycle,CT,NG,85,RE,2020
+329,40,Natural Gas Fired Combined Cycle,CA,NG,120,RE,2020
+329,41,Natural Gas Fired Combined Cycle,CT,NG,85,RE,2020
+329,42,Natural Gas Fired Combined Cycle,CT,NG,85,RE,2020
+330,1,Natural Gas Steam Turbine,ST,NG,156.2,RE,2021
+330,2,Natural Gas Steam Turbine,ST,NG,156.2,RE,2021
+330,3,Natural Gas Steam Turbine,ST,NG,342.0,RE,2021
+330,4,Natural Gas Steam Turbine,ST,NG,342.0,RE,2021
+331,1,Natural Gas Steam Turbine,ST,NG,123,RE,2020
+331,2,Natural Gas Steam Turbine,ST,NG,123,RE,2020
+331,3,Natural Gas Steam Turbine,ST,NG,333,RE,2020
+331,4,Natural Gas Steam Turbine,ST,NG,333,RE,2020
+331,5,Natural Gas Fired Combustion Turbine,GT,NG,138.1,RE,2020
+345,1,Natural Gas Steam Turbine,ST,NG,218,RE,2020
+345,2,Natural Gas Steam Turbine,ST,NG,218,RE,2020
+345,03,Natural Gas Fired Combustion Turbine,GT,NG,138,RE,2020
+356,5,Natural Gas Steam Turbine,ST,NG,163.2,RE,2023
+356,6,Natural Gas Steam Turbine,ST,NG,163.2,RE,2023
+356,7,Natural Gas Steam Turbine,ST,NG,495.0,RE,2023
+356,8,Natural Gas Steam Turbine,ST,NG,495.0,RE,2023
+473,1,Conventional Hydroelectric,HY,WAT,1.5,RE,2022
+473,2,Conventional Hydroelectric,HY,WAT,1.5,RE,2022
+491,3,Petroleum Liquids,IC,DFO,0.5,RE,2021
+491,5,Petroleum Liquids,IC,DFO,1.0,RE,2021
+506,1,Petroleum Liquids,IC,DFO,0.6,RE,2020
+506,2,Petroleum Liquids,IC,DFO,0.7,RE,2020
+506,3,Petroleum Liquids,IC,DFO,0.4,RE,2020
+506,4,Petroleum Liquids,IC,DFO,1,RE,2020
+506,5,Petroleum Liquids,IC,DFO,1.2,RE,2020
+506,6,Petroleum Liquids,IC,DFO,3,RE,2020
+506,7,Petroleum Liquids,IC,DFO,3.5,RE,2020
+506,8,Petroleum Liquids,IC,DFO,3.5,RE,2020
+506,9,Petroleum Liquids,IC,DFO,5.1,RE,2020
+563,11,Petroleum Liquids,GT,KER,41.8,RE,2023
+563,12,Petroleum Liquids,GT,KER,41.8,RE,2023
+563,13,Petroleum Liquids,GT,KER,41.8,RE,2023
+563,14,Petroleum Liquids,GT,KER,41.8,RE,2023
+856,1,Conventional Steam Coal,ST,SUB,136.0,RE,2022
+856,2,Conventional Steam Coal,ST,SUB,280.5,RE,2022
+856,3,Conventional Steam Coal,ST,SUB,363.8,RE,2022
+860,1,Natural Gas Fired Combustion Turbine,GT,NG,18.0,RE,2022
+860,2,Natural Gas Fired Combustion Turbine,GT,NG,18.0,RE,2022
+887,1,Conventional Steam Coal,ST,RC,183.3,RE,2022
+887,2,Conventional Steam Coal,ST,RC,183.3,RE,2022
+887,3,Conventional Steam Coal,ST,RC,183.3,RE,2022
+887,4,Conventional Steam Coal,ST,RC,183.3,RE,2022
+887,5,Conventional Steam Coal,ST,RC,183.3,RE,2022
+887,6,Conventional Steam Coal,ST,RC,183.3,RE,2022
+940,IC5,Petroleum Liquids,IC,DFO,2.4,RE,2020
+940,IC6,Petroleum Liquids,IC,DFO,2.4,RE,2020
+940,IC7,Petroleum Liquids,IC,DFO,2.7,RE,2020
+955,3,Petroleum Liquids,IC,DFO,1.8,RE,2023
+955,4,Natural Gas Steam Turbine,ST,NG,7.5,RE,2023
+955,IC1,Petroleum Liquids,IC,DFO,6.3,RE,2023
+955,IC2,Petroleum Liquids,IC,DFO,1.8,RE,2023
+955,IC3,Petroleum Liquids,IC,DFO,1.8,RE,2023
+1060,1,Nuclear,ST,NUC,679.5,RE,2020
+1201,1,Petroleum Liquids,IC,DFO,0.1,RE,2019
+1201,2,Petroleum Liquids,IC,DFO,0.5,RE,2019
+1201,3,Petroleum Liquids,IC,DFO,0.2,RE,2019
+1201,4,Petroleum Liquids,IC,DFO,1.1,RE,2019
+1374,1,Conventional Steam Coal,ST,BIT,163.2,RE,2020
+1374,2,Conventional Steam Coal,ST,BIT,282.1,RE,2020
+1466,1,Petroleum Liquids,IC,DFO,2,RE,2019
+1466,2,Petroleum Liquids,IC,DFO,2,RE,2019
+1466,3,Petroleum Liquids,IC,DFO,2,RE,2019
+1466,4,Petroleum Liquids,IC,DFO,2,RE,2019
+1468,1,Petroleum Liquids,IC,DFO,1,RE,2019
+1468,2,Petroleum Liquids,IC,DFO,1,RE,2019
+1468,3,Petroleum Liquids,IC,DFO,2,RE,2019
+1472,HL01,Conventional Hydroelectric,HY,WAT,0.6,RE,2020
+1472,HL02,Conventional Hydroelectric,HY,WAT,0.6,RE,2020
+1472,HL03,Conventional Hydroelectric,HY,WAT,0.6,RE,2020
+1474,IC1,Petroleum Liquids,IC,DFO,2,RE,2019
+1474,IC2,Petroleum Liquids,IC,DFO,2,RE,2019
+1474,IC3,Petroleum Liquids,IC,DFO,2,RE,2019
+1474,IC4,Petroleum Liquids,IC,DFO,2,RE,2019
+1513,1,Petroleum Liquids,ST,RFO,7.5,RE,2020
+1513,CD2,Petroleum Liquids,IC,DFO,2.7,RE,2020
+1513,CD3,Petroleum Liquids,IC,DFO,2.7,RE,2020
+1513,CD4,Petroleum Liquids,IC,DFO,1,RE,2020
+1513,CD5,Petroleum Liquids,IC,DFO,1.2,RE,2020
+1513,CH1,Conventional Hydroelectric,HY,WAT,0.4,RE,2020
+1513,CH2,Conventional Hydroelectric,HY,WAT,0.4,RE,2020
+1513,ST2,Petroleum Liquids,ST,RFO,11.5,RE,2020
+1514,FID1,Petroleum Liquids,IC,DFO,2,RE,2020
+1514,FID2,Petroleum Liquids,IC,DFO,2,RE,2020
+1514,FID3,Petroleum Liquids,IC,DFO,2,RE,2020
+1570,11,Conventional Steam Coal,ST,BIT,75,RE,2020
+1570,9,Conventional Steam Coal,ST,BIT,34.5,RE,2020
+1572,2,Conventional Steam Coal,ST,BIT,196,RE,2020
+1572,3,Conventional Steam Coal,ST,BIT,196,RE,2020
+1572,ST1,Conventional Steam Coal,ST,BIT,196,RE,2020
+1590,1,Nuclear,ST,NUC,670,RE,2019
+1606,1,Conventional Steam Coal,ST,BIT,136,RE,2020
+1631,DORE,Petroleum Liquids,GT,KER,21.1,RE,2022
+1642,3,Natural Gas Steam Turbine,ST,NG,113.6,RE,2022
+1642,GT-1,Natural Gas Fired Combustion Turbine,GT,NG,60.0,RE,2022
+1642,GT-2,Natural Gas Fired Combustion Turbine,GT,NG,60.0,RE,2022
+1642,WS1,Petroleum Liquids,ST,RFO,51.0,RE,2022
+1642,WS10,Petroleum Liquids,GT,KER,17.0,RE,2022
+1642,WS2,Petroleum Liquids,ST,RFO,51.0,RE,2022
+1643,WOOD,Petroleum Liquids,GT,KER,20.4,RE,2022
+1818,1,Petroleum Liquids,IC,DFO,0.5,RE,2019
+1818,2,Petroleum Liquids,IC,DFO,0.5,RE,2019
+1818,3,Petroleum Liquids,IC,DFO,0.4,RE,2019
+1818,4,Petroleum Liquids,IC,DFO,0.4,RE,2019
+1818,5,Petroleum Liquids,IC,DFO,0.4,RE,2019
+1818,6,Petroleum Liquids,IC,DFO,2,RE,2019
+1825,3,Conventional Steam Coal,ST,BIT,80,RE,2020
+1826,1,Natural Gas Internal Combustion Engine,IC,NG,7,RE,2020
+1826,2,Petroleum Liquids,IC,RFO,2.7,RE,2020
+1826,5,Petroleum Liquids,IC,DFO,3,RE,2020
+1826,6,Natural Gas Internal Combustion Engine,IC,NG,2.7,RE,2020
+1826,7,Petroleum Liquids,IC,RFO,5.5,RE,2020
+1846,1,Petroleum Liquids,IC,DFO,3.0,RE,2023
+1846,2,Petroleum Liquids,IC,DFO,0.7,RE,2023
+1846,4,Petroleum Liquids,IC,DFO,1.8,RE,2023
+2018,1A,Conventional Steam Coal,ST,SUB,4.0,RE,2023
+2018,5,Natural Gas Steam Turbine,ST,NG,7.5,RE,2023
+2018,6,Natural Gas Steam Turbine,ST,NG,18.7,RE,2023
+2113,1,Petroleum Liquids,IC,DFO,2.1,RE,2019
+2113,2,Petroleum Liquids,IC,DFO,1,RE,2019
+2113,3,Petroleum Liquids,IC,DFO,0.7,RE,2019
+2113,IC5,Petroleum Liquids,IC,DFO,1.2,RE,2019
+2113,IC6,Petroleum Liquids,IC,DFO,1.2,RE,2019
+2146,1,Petroleum Liquids,IC,DFO,0.7,RE,2021
+2146,10,Petroleum Liquids,IC,DFO,1.6,RE,2021
+2146,11,Petroleum Liquids,IC,DFO,1.8,RE,2021
+2146,12,Petroleum Liquids,IC,DFO,1.8,RE,2021
+2146,2,Petroleum Liquids,IC,DFO,1.3,RE,2021
+2146,3,Natural Gas Internal Combustion Engine,IC,NG,1.1,RE,2021
+2146,4,Natural Gas Internal Combustion Engine,IC,NG,1.1,RE,2021
+2146,5,Petroleum Liquids,IC,DFO,2.0,RE,2021
+2146,6,Natural Gas Internal Combustion Engine,IC,NG,2.0,RE,2021
+2146,7,Natural Gas Internal Combustion Engine,IC,NG,2.2,RE,2021
+2146,8,Petroleum Liquids,IC,DFO,1.6,RE,2021
+2146,9,Petroleum Liquids,IC,DFO,1.6,RE,2021
+2216,1,Petroleum Liquids,IC,DFO,0.5,RE,2022
+2216,2A,Petroleum Liquids,IC,DFO,0.1,RE,2022
+2216,3,Petroleum Liquids,IC,DFO,0.2,RE,2022
+2216,4,Petroleum Liquids,IC,DFO,0.3,RE,2022
+2297,1,Petroleum Liquids,IC,DFO,1.1,RE,2023
+2297,3,Petroleum Liquids,IC,DFO,0.9,RE,2023
+2297,4,Petroleum Liquids,IC,DFO,1.2,RE,2023
+2297,5,Petroleum Liquids,IC,DFO,1.8,RE,2023
+2378,1,Conventional Steam Coal,ST,BIT,136,RE,2019
+2378,2,Conventional Steam Coal,ST,BIT,163.2,RE,2019
+2378,3,Petroleum Liquids,ST,RFO,176.4,RE,2019
+2378,IC1,Petroleum Liquids,IC,DFO,2,RE,2019
+2378,IC2,Petroleum Liquids,IC,DFO,2,RE,2019
+2378,IC3,Petroleum Liquids,IC,DFO,2,RE,2019
+2378,IC4,Petroleum Liquids,IC,DFO,2,RE,2019
+2385,GT1,Petroleum Liquids,GT,DFO,53,RE,2019
+2385,GT2,Petroleum Liquids,GT,DFO,53,RE,2019
+2385,GT3,Petroleum Liquids,GT,DFO,53,RE,2019
+2385,GT4,Petroleum Liquids,GT,DFO,53,RE,2019
+2397,1,Petroleum Liquids,GT,KER,21.2,RE,2022
+2397,2,Petroleum Liquids,GT,KER,21.0,RE,2022
+2400,11,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2400,12,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2400,13,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2400,14,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2400,21,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2400,22,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2400,23,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2400,24,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2400,31,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2400,32,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2400,33,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2400,34,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2401,101,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2401,102,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2401,103,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2401,104,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2401,111,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2401,112,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2401,113,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2401,114,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2401,121,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2401,122,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2401,123,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2401,124,Natural Gas Fired Combustion Turbine,GT,NG,41.8,RE,2022
+2401,9,Natural Gas Fired Combustion Turbine,GT,NG,93.6,RE,2022
+2403,1,Natural Gas Steam Turbine,ST,NG,454.7,RE,2022
+2403,2,Natural Gas Steam Turbine,ST,NG,659.7,RE,2022
+2403,3,Petroleum Liquids,GT,KER,115.2,RE,2022
+2408,1,Conventional Steam Coal,ST,BIT,326.4,RE,2022
+2408,2,Conventional Steam Coal,ST,BIT,326.4,RE,2022
+2408,3,Petroleum Liquids,GT,DFO,115.2,RE,2022
+2409,1,Petroleum Liquids,GT,KER,18.5,RE,2022
+2497,2,Nuclear,ST,NUC,1299,RE,2020
+2535,1,Conventional Steam Coal,ST,BIT,155.3,RE,2019
+2535,2,Conventional Steam Coal,ST,BIT,167.2,RE,2019
+2554,1,Conventional Steam Coal,ST,SUB,96.0,RE,2022
+2554,2,Conventional Steam Coal,ST,SUB,96.0,RE,2022
+2554,3,Conventional Steam Coal,ST,SUB,217.6,RE,2022
+2554,ST4,Conventional Steam Coal,ST,SUB,217.6,RE,2022
+2629,3,Natural Gas Steam Turbine,ST,NG,69,RE,2020
+2629,4,Conventional Steam Coal,ST,BIT,179.5,RE,2020
+2629,5,Conventional Steam Coal,ST,BIT,200.6,RE,2020
+2835,5,Conventional Steam Coal,ST,SUB,256,RE,2020
+2835,6,Conventional Steam Coal,ST,BIT,46,RE,2020
+2835,7,Conventional Steam Coal,ST,BIT,46,RE,2020
+2835,8,Conventional Steam Coal,ST,BIT,46,RE,2020
+2835,9,Conventional Steam Coal,ST,BIT,46,RE,2020
+2836,10,Petroleum Liquids,GT,DFO,32.1,RE,2022
+2836,6,Natural Gas Steam Turbine,ST,NG,75.0,RE,2022
+2836,7,Conventional Steam Coal,ST,BIT,86.0,RE,2022
+2836,9,Conventional Steam Coal,ST,BIT,680.0,RE,2022
+2837,1,Conventional Steam Coal,ST,SUB,123,RE,2020
+2837,2,Conventional Steam Coal,ST,SUB,123,RE,2020
+2837,3,Conventional Steam Coal,ST,SUB,123,RE,2020
+2837,4,Conventional Steam Coal,ST,SUB,208,RE,2020
+2837,5,Conventional Steam Coal,ST,BIT,680,RE,2020
+2837,6,Petroleum Liquids,GT,DFO,32,RE,2020
+2838,18,Conventional Steam Coal,ST,SUB,256,RE,2020
+2838,IC1,Petroleum Liquids,IC,DFO,2,RE,2020
+2838,IC2,Petroleum Liquids,IC,DFO,2,RE,2020
+2840,1,Conventional Steam Coal,ST,BIT,148.0,RE,2021
+2840,2,Conventional Steam Coal,ST,BIT,136.0,RE,2021
+2840,3,Conventional Steam Coal,ST,BIT,161.5,RE,2021
+2840,4,Conventional Steam Coal,ST,BIT,841.5,RE,2021
+2840,5,Conventional Steam Coal,ST,BIT,443.9,RE,2021
+2840,6,Conventional Steam Coal,ST,BIT,443.9,RE,2021
+2843,5,Conventional Steam Coal,ST,BIT,106.2,RE,2021
+2857,4,Natural Gas Steam Turbine,ST,NG,113.6,RE,2020
+2857,CTA,Petroleum Liquids,GT,DFO,28.8,RE,2020
+2857,CTB,Petroleum Liquids,GT,DFO,28.8,RE,2020
+2860,CTA,Petroleum Liquids,GT,DFO,27,RE,2020
+2860,CTB,Petroleum Liquids,GT,DFO,27,RE,2020
+2864,1,Conventional Steam Coal,ST,BIT,62.5,RE,2020
+2864,2,Conventional Steam Coal,ST,BIT,62.5,RE,2020
+2864,3,Conventional Steam Coal,ST,BIT,103.4,RE,2020
+2864,4,Conventional Steam Coal,ST,BIT,156.2,RE,2020
+2864,5,Conventional Steam Coal,ST,BIT,156.2,RE,2020
+2864,A1,Petroleum Liquids,IC,DFO,2.5,RE,2020
+2864,B1,Petroleum Liquids,IC,DFO,2.5,RE,2020
+2864,B2,Petroleum Liquids,IC,DFO,2.5,RE,2020
+2866,1,Conventional Steam Coal,ST,BIT,190.4,RE,2023
+2866,2,Conventional Steam Coal,ST,BIT,190.4,RE,2023
+2866,3,Conventional Steam Coal,ST,BIT,190.4,RE,2023
+2866,4,Conventional Steam Coal,ST,BIT,190.4,RE,2023
+2866,5,Conventional Steam Coal,ST,BIT,334.0,RE,2023
+2866,6,Conventional Steam Coal,ST,BIT,680.0,RE,2023
+2866,7,Conventional Steam Coal,ST,BIT,680.0,RE,2023
+2866,A1,Petroleum Liquids,IC,DFO,2.5,RE,2023
+2866,B1,Petroleum Liquids,IC,DFO,2.5,RE,2023
+2866,B2,Petroleum Liquids,IC,DFO,2.5,RE,2023
+2866,B3,Petroleum Liquids,IC,DFO,2.5,RE,2023
+2866,B4,Petroleum Liquids,IC,DFO,2.5,RE,2023
+2867,5,Conventional Steam Coal,ST,BIT,35,RE,2020
+2867,6,Conventional Steam Coal,ST,BIT,69,RE,2020
+2867,7,Conventional Steam Coal,ST,BIT,69,RE,2020
+2872,1,Conventional Steam Coal,ST,BIT,219.6,RE,2021
+2872,2,Conventional Steam Coal,ST,BIT,219.6,RE,2021
+2872,3,Conventional Steam Coal,ST,BIT,237.5,RE,2021
+2872,4,Conventional Steam Coal,ST,BIT,237.5,RE,2021
+2872,5,Conventional Steam Coal,ST,BIT,615.2,RE,2021
+2877,2,Conventional Steam Coal,ST,BIT,72,RE,2020
+2902,1,Petroleum Liquids,IC,DFO,0.7,RE,2022
+2902,2,Petroleum Liquids,IC,DFO,0.5,RE,2022
+2921,1,Petroleum Liquids,IC,DFO,0.7,RE,2019
+2921,3,Petroleum Liquids,IC,DFO,1.2,RE,2019
+2921,4,Petroleum Liquids,IC,DFO,1.2,RE,2019
+2921,5,Petroleum Liquids,IC,DFO,2,RE,2019
+2921,6,Petroleum Liquids,IC,DFO,3,RE,2019
+2921,7,Petroleum Liquids,GT,DFO,6,RE,2019
+2921,8,Petroleum Liquids,IC,DFO,5.6,RE,2019
+2921,9,Petroleum Liquids,GT,DFO,14,RE,2019
+3098,1,Conventional Steam Coal,ST,BIT,100.0,RE,2022
+3098,2,Conventional Steam Coal,ST,BIT,100.0,RE,2022
+3098,3,Conventional Steam Coal,ST,BIT,125.0,RE,2022
+3098,4,Conventional Steam Coal,ST,BIT,185.0,RE,2022
+3099,1,Conventional Steam Coal,ST,BIT,69.0,RE,2022
+3099,2,Conventional Steam Coal,ST,BIT,81.0,RE,2022
+3099,3,Conventional Steam Coal,ST,BIT,81.0,RE,2022
+3099,4,Conventional Steam Coal,ST,BIT,179.0,RE,2022
+3134,A,Petroleum Liquids,GT,DFO,53,RE,2019
+3178,1,Conventional Steam Coal,ST,BIT,163.2,RE,2020
+3178,2,Conventional Steam Coal,ST,BIT,163.2,RE,2020
+3179,1,Conventional Steam Coal,ST,BIT,576,RE,2020
+3179,2,Conventional Steam Coal,ST,BIT,576,RE,2020
+3179,3,Conventional Steam Coal,ST,BIT,576,RE,2020
+3181,1,Petroleum Liquids,ST,DFO,74.7,RE,2020
+3181,2,Petroleum Liquids,ST,DFO,74.7,RE,2020
+3181,3,Conventional Steam Coal,ST,BIT,299.2,RE,2020
+3182,7,Petroleum Liquids,ST,RFO,74.7,RE,2020
+3182,8,Petroleum Liquids,ST,DFO,140.6,RE,2020
+3627,1,Natural Gas Steam Turbine,ST,NG,16.5,RE,2023
+3627,2,Natural Gas Steam Turbine,ST,NG,16.5,RE,2023
+3627,3,Natural Gas Steam Turbine,ST,NG,38.0,RE,2023
+3947,1,Conventional Steam Coal,ST,BIT,237.5,RE,2021
+3947,2,Conventional Steam Coal,ST,BIT,237.5,RE,2021
+3947,3,Conventional Steam Coal,ST,BIT,237.5,RE,2021
+4259,1,Conventional Steam Coal,ST,BIT,55,RE,2020
+4259,2,Petroleum Liquids,IC,DFO,1.6,RE,2020
+4259,3,Petroleum Liquids,IC,DFO,1.6,RE,2020
+6016,1,Conventional Steam Coal,ST,RC,441.0,RE,2022
+6019,ST1,Conventional Steam Coal,ST,RC,1425.6,RE,2022
+6082,1,Conventional Steam Coal,ST,BIT,655.1,RE,2020
+6094,1,Conventional Steam Coal,ST,RC,913.7,RE,2020
+6094,2,Conventional Steam Coal,ST,RC,913.7,RE,2020
+6094,3,Conventional Steam Coal,ST,RC,913.7,RE,2020
+6136,1,Conventional Steam Coal,ST,SUB,453.5,RE,2019
+7337,1,Petroleum Liquids,GT,DFO,4.6,RE,2020
+7337,2,Petroleum Liquids,GT,DFO,4.6,RE,2020
+7393,LK1,Natural Gas Internal Combustion Engine,IC,NG,4.4,RE,2019
+7513,GEN1,Wood/Wood Waste Biomass,ST,WDS,37.5,RE,2019
+7737,1,Wood/Wood Waste Biomass,ST,WDS,99.2,RE,2023
+7832,1,Landfill Gas,IC,LFG,2.1,RE,2021
+7832,2,Landfill Gas,IC,LFG,2.1,RE,2021
+7832,3,Landfill Gas,IC,LFG,2.1,RE,2021
+7832,4,Landfill Gas,IC,LFG,2.1,RE,2021
+7832,5,Landfill Gas,IC,LFG,2.1,RE,2021
+7832,7,Landfill Gas,CT,LFG,10.0,RE,2021
+7832,8,Landfill Gas,CT,LFG,10.0,RE,2021
+7832,9,Landfill Gas,CA,LFG,6.0,RE,2021
+7858,1,Natural Gas Fired Combustion Turbine,GT,NG,64.5,RE,2022
+7858,2,Natural Gas Fired Combustion Turbine,GT,NG,64.5,RE,2022
+7858,3,Natural Gas Fired Combustion Turbine,GT,NG,64.5,RE,2022
+7858,4,Natural Gas Fired Combustion Turbine,GT,NG,54.0,RE,2022
+7858,5,Natural Gas Fired Combustion Turbine,GT,NG,54.0,RE,2022
+7898,1,Petroleum Liquids,IC,DFO,1.1,RE,2022
+7922,6,Petroleum Liquids,IC,DFO,2.0,RE,2021
+7970,1,Petroleum Liquids,IC,DFO,1.8,RE,2020
+7970,2,Petroleum Liquids,IC,DFO,1.8,RE,2020
+7970,3,Petroleum Liquids,IC,DFO,1.8,RE,2020
+7970,4,Petroleum Liquids,IC,DFO,1.8,RE,2020
+7970,5,Petroleum Liquids,IC,DFO,1.8,RE,2020
+7970,6,Petroleum Liquids,IC,DFO,1.8,RE,2020
+7970,7,Petroleum Liquids,IC,DFO,1.8,RE,2020
+7970,8,Petroleum Liquids,IC,DFO,1.8,RE,2020
+7970,9,Petroleum Liquids,IC,DFO,1.8,RE,2020
+8226,1,Conventional Steam Coal,ST,BIT,637.0,RE,2022
+8227,1,Natural Gas Fired Combustion Turbine,GT,NG,20,RE,2019
+8227,2,Natural Gas Fired Combustion Turbine,GT,NG,20,RE,2019
+8227,3,Natural Gas Fired Combustion Turbine,GT,NG,19.6,RE,2019
+8227,4,Natural Gas Fired Combustion Turbine,GT,NG,20,RE,2019
+8227,5,Natural Gas Fired Combustion Turbine,GT,NG,20,RE,2019
+8227,6,Natural Gas Fired Combustion Turbine,GT,NG,20,RE,2019
+8227,7,Natural Gas Fired Combustion Turbine,GT,NG,20,RE,2019
+8227,8,Natural Gas Fired Combustion Turbine,GT,NG,20,RE,2019
+8907,3,Nuclear,ST,NUC,1012.0,RE,2021
+10012,1,Municipal Solid Waste,ST,MSW,13.5,RE,2019
+10027,EXIS,Onshore Wind Turbine,WT,WND,9.4,RE,2019
+10033,GEN1,Municipal Solid Waste,ST,MSW,68.4,RE,2019
+10043,GEN1,Conventional Steam Coal,ST,BIT,242.3,RE,2022
+10051,GEN1,Conventional Hydroelectric,HY,WAT,0.6,RE,2023
+10051,GEN2,Conventional Hydroelectric,HY,WAT,0.6,RE,2023
+10059,1575,Conventional Hydroelectric,HY,WAT,1.6,RE,2023
+10059,500,Conventional Hydroelectric,HY,WAT,0.5,RE,2023
+10062,GEN1,Municipal Solid Waste,ST,MSW,38.5,RE,2023
+10062,GEN2,Municipal Solid Waste,ST,MSW,38.5,RE,2023
+10099,GEN1,Natural Gas Fired Combined Cycle,CT,NG,95.2,RE,2022
+10099,GEN2,Natural Gas Fired Combined Cycle,CA,NG,45.0,RE,2022
+10110,GEN1,Natural Gas Fired Combustion Turbine,GT,NG,6.0,RE,2022
+10120,GEN5,Wood/Wood Waste Biomass,ST,WDS,7.1,RE,2023
+10120,GEN6,Wood/Wood Waste Biomass,ST,WDS,2.0,RE,2023
+10148,GEN1,Natural Gas Steam Turbine,ST,NG,20,RE,2020
+10148,GEN2,Natural Gas Steam Turbine,ST,NG,20,RE,2020
+10148,GEN3,Natural Gas Steam Turbine,ST,NG,20,RE,2020
+10250,GEN1,Municipal Solid Waste,ST,MSW,13.6,RE,2021
+10346,GEN1,Wood/Wood Waste Biomass,ST,WDS,22.0,RE,2022
+10356,GEN1,Wood/Wood Waste Biomass,ST,WDS,39.6,RE,2019
+10377,GEN1,Conventional Steam Coal,ST,BIT,57.4,RE,2019
+10377,GEN2,Conventional Steam Coal,ST,BIT,57.4,RE,2019
+10378,GEN1,Wood/Wood Waste Biomass,ST,WDS,67.5,RE,2021
+10378,GEN2,Wood/Wood Waste Biomass,ST,WDS,67.5,RE,2021
+10379,GEN1,Wood/Wood Waste Biomass,ST,WDS,67.5,RE,2021
+10384,GEN1,Conventional Steam Coal,ST,BIT,57.4,RE,2019
+10384,GEN2,Conventional Steam Coal,ST,BIT,57.4,RE,2019
+10439,GEN1,Solar Thermal without Energy Storage,ST,SUN,34.2,RE,2021
+10440,GEN1,Solar Thermal without Energy Storage,ST,SUN,34.2,RE,2021
+10441,GEN1,Solar Thermal without Energy Storage,ST,SUN,34.2,RE,2021
+10442,GEN1,Solar Thermal without Energy Storage,ST,SUN,35.0,RE,2021
+10443,GEN1,Solar Thermal without Energy Storage,ST,SUN,35.0,RE,2021
+10476,GEN4,Conventional Steam Coal,ST,SUB,4.1,RE,2023
+10478,GEN1,Natural Gas Fired Combined Cycle,CT,NG,20.9,RE,2023
+10478,GEN2,Natural Gas Fired Combined Cycle,CA,NG,7.4,RE,2023
+10549,2,Landfill Gas,IC,LFG,0.8,RE,2022
+10549,3,Landfill Gas,IC,LFG,0.8,RE,2022
+10549,3010,Landfill Gas,IC,LFG,0.8,RE,2022
+10553,3622,Petroleum Liquids,IC,DFO,0.1,RE,2021
+10553,6033,Petroleum Liquids,IC,DFO,0.3,RE,2021
+10553,6035,Petroleum Liquids,IC,DFO,0.3,RE,2021
+10553,6046,Petroleum Liquids,IC,DFO,0.3,RE,2021
+10566,GEN1,Conventional Steam Coal,ST,BIT,285.0,RE,2022
+10601,GEN1,All Other,ST,WH,34.0,RE,2022
+10612,GEN1,Wood/Wood Waste Biomass,ST,BLQ,67.7,RE,2021
+10612,GEN2,Natural Gas Steam Turbine,ST,NG,60.0,RE,2021
+10623,GEN1,Natural Gas Fired Combined Cycle,CT,NG,22.1,RE,2023
+10623,GEN2,Natural Gas Fired Combined Cycle,CA,NG,12.4,RE,2023
+10641,GEN1,Conventional Steam Coal,ST,WC,98,RE,2019
+10648,GEN1,Landfill Gas,IC,LFG,1.8,RE,2019
+10648,GEN2,Landfill Gas,IC,LFG,1.8,RE,2019
+10648,GEN3,Landfill Gas,IC,LFG,1.8,RE,2019
+10673,GEN1,Conventional Steam Coal,ST,SUB,203.0,RE,2022
+10698,GEN1,Natural Gas Steam Turbine,ST,NG,10.0,RE,2022
+10698,GEN2,Natural Gas Steam Turbine,ST,NG,1.8,RE,2022
+10739,AC3M,Wood/Wood Waste Biomass,ST,WDS,3,RE,2019
+10739,W750,Wood/Wood Waste Biomass,ST,WDS,0.7,RE,2019
+10796,GEN1,Conventional Steam Coal,ST,BIT,3,RE,2020
+10796,GEN2,Conventional Steam Coal,ST,BIT,3,RE,2020
+10796,GEN3,Conventional Steam Coal,ST,BIT,3,RE,2020
+10796,GEN4,Conventional Steam Coal,ST,BIT,3.4,RE,2020
+50041,GEN1,Natural Gas Steam Turbine,ST,NG,2.5,RE,2023
+50041,GEN2,Natural Gas Steam Turbine,ST,NG,3.1,RE,2023
+50074,GEN1,Natural Gas Fired Combustion Turbine,GT,NG,50.5,RE,2019
+50111,GEN1,Wood/Wood Waste Biomass,ST,WDS,20.0,RE,2021
+50157,1,Conventional Hydroelectric,HY,WAT,1.2,RE,2020
+50157,2,Conventional Hydroelectric,HY,WAT,1.2,RE,2020
+50157,3,Conventional Hydroelectric,HY,WAT,1.2,RE,2020
+50158,1,Conventional Hydroelectric,HY,WAT,2.4,RE,2020
+50158,2,Conventional Hydroelectric,HY,WAT,2.4,RE,2020
+50159,1,Conventional Hydroelectric,HY,WAT,1.2,RE,2020
+50160,1,Conventional Hydroelectric,HY,WAT,1.2,RE,2020
+50231,TG1,Wood/Wood Waste Biomass,ST,WDS,3.5,RE,2021
+50231,TG2,Wood/Wood Waste Biomass,ST,WDS,5.0,RE,2021
+50231,TG3,Wood/Wood Waste Biomass,ST,WDS,5.0,RE,2021
+50244,GEN8,Wood/Wood Waste Biomass,ST,BLQ,7.5,RE,2023
+50244,GEN9,Wood/Wood Waste Biomass,ST,BLQ,7.5,RE,2023
+50244,GN10,Wood/Wood Waste Biomass,ST,BLQ,7.5,RE,2023
+50244,GN11,Wood/Wood Waste Biomass,ST,BLQ,7.5,RE,2023
+50244,GN12,Wood/Wood Waste Biomass,ST,BLQ,10.0,RE,2023
+50244,GN13,Wood/Wood Waste Biomass,ST,BLQ,12.5,RE,2023
+50273,DLV1,Municipal Solid Waste,ST,MSW,9.4,RE,2022
+50276,EXIS,Onshore Wind Turbine,WT,WND,5.9,RE,2022
+50282,GEN1,Conventional Steam Coal,ST,BIT,35,RE,2019
+50282,GEN2,Conventional Steam Coal,ST,BIT,30,RE,2019
+50318,38-1,Natural Gas Fired Combustion Turbine,GT,NG,2.8,RE,2020
+50344,SW1,Landfill Gas,IC,LFG,0.7,RE,2020
+50344,SW2,Landfill Gas,IC,LFG,0.7,RE,2020
+50345,OB1,Landfill Gas,IC,LFG,0.7,RE,2020
+50345,OB2,Landfill Gas,IC,LFG,0.7,RE,2020
+50346,ON1,Landfill Gas,IC,LFG,0.7,RE,2020
+50348,GEN5,Landfill Gas,IC,LFG,0.7,RE,2020
+50348,GEN6,Landfill Gas,IC,LFG,0.7,RE,2020
+50348,OS1,Landfill Gas,IC,LFG,0.7,RE,2020
+50348,OS2,Landfill Gas,IC,LFG,0.7,RE,2020
+50348,OS3,Landfill Gas,IC,LFG,0.7,RE,2020
+50348,OS4,Landfill Gas,IC,LFG,0.7,RE,2020
+50371,MI34,All Other,ST,WH,40.5,RE,2019
+50385,GEN1,Natural Gas Fired Combined Cycle,CT,NG,55.0,RE,2022
+50385,GEN2,Natural Gas Fired Combined Cycle,CT,NG,55.0,RE,2022
+50385,GEN3,Natural Gas Fired Combined Cycle,CA,NG,42.0,RE,2022
+50407,GEN3,Conventional Steam Coal,ST,BIT,12.5,RE,2019
+50407,GEN5,Wood/Wood Waste Biomass,ST,WDS,61,RE,2019
+50407,GEN6,Wood/Wood Waste Biomass,ST,WDS,35.7,RE,2019
+50424,GEN1,All Other,ST,PUR,10.6,RE,2023
+50466,GEN2,Wood/Wood Waste Biomass,ST,BLQ,7.8,RE,2023
+50466,GEN3,Wood/Wood Waste Biomass,ST,BLQ,7.5,RE,2023
+50466,GEN4,Wood/Wood Waste Biomass,ST,BLQ,16.9,RE,2023
+50466,GEN5,Wood/Wood Waste Biomass,ST,BLQ,11.0,RE,2023
+50466,GEN6,Wood/Wood Waste Biomass,ST,BLQ,29.8,RE,2023
+50498,GTG,Natural Gas Fired Combined Cycle,CT,NG,39.8,RE,2021
+50498,STG,Natural Gas Fired Combined Cycle,CA,NG,30.7,RE,2021
+50620,GEN1,Wood/Wood Waste Biomass,ST,WDS,5.7,RE,2021
+50623,GENA,Natural Gas Fired Combustion Turbine,GT,NG,3.5,RE,2020
+50623,GENB,Natural Gas Fired Combustion Turbine,GT,NG,3.5,RE,2020
+50623,GENC,Natural Gas Fired Combustion Turbine,GT,NG,3.5,RE,2020
+50623,GEND,Natural Gas Fired Combustion Turbine,GT,NG,3.5,RE,2020
+50709,GEN1,Natural Gas Fired Combustion Turbine,GT,NG,37,RE,2019
+50722,GEN1,Natural Gas Fired Combustion Turbine,GT,NG,8.3,RE,2023
+50774,GEN1,Wood/Wood Waste Biomass,ST,WDS,14,RE,2020
+50782,AM1,Landfill Gas,IC,LFG,1,RE,2020
+50782,AM2,Landfill Gas,IC,LFG,0.7,RE,2020
+50782,AM3,Landfill Gas,IC,LFG,0.7,RE,2020
+50782,AM4,Landfill Gas,IC,LFG,0.7,RE,2020
+50788,HA1,Landfill Gas,IC,LFG,0.6,RE,2020
+50788,HA2,Landfill Gas,IC,LFG,0.6,RE,2020
+50807,GEN3,Wood/Wood Waste Biomass,ST,BLQ,4.0,RE,2023
+50807,GEN4,Wood/Wood Waste Biomass,ST,BLQ,10.0,RE,2023
+50807,GEN6,Wood/Wood Waste Biomass,ST,WDS,20.0,RE,2023
+50852,GEN1,Natural Gas Fired Combined Cycle,CT,NG,66.6,RE,2021
+50852,GEN2,Natural Gas Fired Combined Cycle,CA,NG,22.9,RE,2021
+50876,GEN1,Natural Gas Fired Combined Cycle,CT,NG,23,RE,2019
+50876,GEN2,Natural Gas Fired Combined Cycle,CA,NG,7.7,RE,2019
+50904,RU3,Natural Gas Internal Combustion Engine,IC,NG,1.1,RE,2019
+50904,RU4,Natural Gas Internal Combustion Engine,IC,NG,1.1,RE,2019
+50920,1,Other Gases,ST,OG,2.5,RE,2020
+50937,GENA,Petroleum Liquids,IC,DFO,1.9,RE,2022
+50937,GENB,Petroleum Liquids,IC,DFO,1.9,RE,2022
+50942,1,Natural Gas Internal Combustion Engine,IC,NG,1.0,RE,2023
+50942,2,Natural Gas Internal Combustion Engine,IC,NG,1.0,RE,2023
+50942,3,Natural Gas Internal Combustion Engine,IC,NG,1.0,RE,2023
+50952,GEN1,Natural Gas Internal Combustion Engine,IC,NG,0.8,RE,2022
+50952,GEN2,Natural Gas Internal Combustion Engine,IC,NG,0.8,RE,2022
+50955,GEN1,Natural Gas Steam Turbine,ST,NG,1.5,RE,2023
+50955,GEN2,Natural Gas Steam Turbine,ST,NG,1.5,RE,2023
+50955,GEN3,Natural Gas Steam Turbine,ST,NG,3.7,RE,2023
+50990,P1-1,Petroleum Liquids,IC,DFO,0.4,RE,2021
+50990,P1-2,Petroleum Liquids,IC,DFO,0.4,RE,2021
+50990,P2-3,Petroleum Liquids,IC,DFO,0.9,RE,2021
+50990,P2-4,Petroleum Liquids,IC,DFO,0.9,RE,2021
+50990,P3-5,Petroleum Liquids,IC,DFO,0.7,RE,2021
+51035,GEN1,Natural Gas Internal Combustion Engine,IC,NG,1.1,RE,2019
+51035,GEN2,Natural Gas Internal Combustion Engine,IC,NG,1.1,RE,2019
+52031,GEN1,Other Gases,OT,OG,6.0,RE,2021
+52031,GEN2,Other Gases,ST,OG,19.0,RE,2021
+52056,GT1,Natural Gas Fired Combined Cycle,CT,NG,43.0,RE,2022
+52056,ST1,Natural Gas Fired Combined Cycle,CA,NG,12.0,RE,2022
+52069,GEN1,Natural Gas Steam Turbine,ST,NG,16,RE,2019
+52069,GEN2,Natural Gas Steam Turbine,ST,NG,16,RE,2019
+52069,GEN3,Natural Gas Steam Turbine,ST,NG,16,RE,2019
+52069,GEN4,Natural Gas Steam Turbine,ST,NG,15.1,RE,2019
+52106,GEN1,Other Gases,ST,OG,10,RE,2019
+52106,GEN2,Other Gases,ST,OG,10,RE,2019
+52106,GEN3,Other Gases,ST,OG,10,RE,2019
+52165,WGNS,Onshore Wind Turbine,WT,WND,1.8,RE,2020
+52174,OE11,Geothermal,ST,GEO,1.2,RE,2022
+52174,OE12,Geothermal,ST,GEO,1.2,RE,2022
+52174,OE13,Geothermal,ST,GEO,1.2,RE,2022
+52174,OE21,Geothermal,ST,GEO,1.5,RE,2022
+52174,OEC1,Geothermal,ST,GEO,3.5,RE,2022
+52174,OEC2,Geothermal,ST,GEO,3.5,RE,2022
+52174,OEC3,Geothermal,ST,GEO,3.5,RE,2022
+52174,OEC4,Geothermal,ST,GEO,3.5,RE,2022
+52174,OEC5,Geothermal,ST,GEO,3.5,RE,2022
+52174,OEC6,Geothermal,ST,GEO,3.5,RE,2022
+52204,OTA1,Landfill Gas,IC,LFG,1.8,RE,2019
+52204,OTA2,Landfill Gas,IC,LFG,1.8,RE,2019
+52204,OTA3,Landfill Gas,IC,LFG,3.7,RE,2019
+52204,OTA5,Landfill Gas,IC,LFG,1.6,RE,2019
+52204,OTA6,Landfill Gas,IC,LFG,1.6,RE,2019
+54056,GEN1,Natural Gas Fired Combined Cycle,CT,NG,41.8,RE,2021
+54056,GEN2,Natural Gas Fired Combined Cycle,CA,NG,27.0,RE,2021
+54085,GEN1,Natural Gas Steam Turbine,ST,NG,25.0,RE,2023
+54085,GEN2,Natural Gas Steam Turbine,ST,NG,25.0,RE,2023
+54085,GEN3,Natural Gas Steam Turbine,ST,NG,30.0,RE,2023
+54265,1,Natural Gas Steam Turbine,ST,NG,2.0,RE,2022
+54265,2,Natural Gas Steam Turbine,ST,NG,2.0,RE,2022
+54304,1,Conventional Steam Coal,ST,BIT,258.3,RE,2021
+54337,0001,Natural Gas Internal Combustion Engine,IC,NG,0.8,RE,2020
+54337,0002,Natural Gas Internal Combustion Engine,IC,NG,0.8,RE,2020
+54424,EDG1,Petroleum Liquids,IC,DFO,1.2,RE,2019
+54424,EDG2,Petroleum Liquids,IC,DFO,1.2,RE,2019
+54424,GT1,Natural Gas Fired Combined Cycle,CT,NG,57.4,RE,2019
+54424,GT2,Natural Gas Fired Combined Cycle,CT,NG,57.4,RE,2019
+54424,ST1,Natural Gas Fired Combined Cycle,CA,NG,26.5,RE,2019
+54526,STG,Wood/Wood Waste Biomass,ST,WDS,21.1,RE,2019
+54531,1S72,Natural Gas Fired Combustion Turbine,GT,NG,2.5,RE,2019
+54564,GEN1,Natural Gas Fired Combustion Turbine,GT,NG,3.8,RE,2020
+54607,GEN1,Natural Gas Internal Combustion Engine,IC,NG,3.5,RE,2019
+54650,EXI2,Onshore Wind Turbine,WT,WND,9.1,RE,2021
+54650,EXIS,Onshore Wind Turbine,WT,WND,9.6,RE,2021
+54693,GT#1,Natural Gas Fired Combined Cycle,CT,NG,8.3,RE,2021
+54693,GT#2,Natural Gas Fired Combined Cycle,CT,NG,8.3,RE,2021
+54693,GT#3,Natural Gas Fired Combined Cycle,CT,NG,8.3,RE,2021
+54693,GT#4,Natural Gas Fired Combined Cycle,CT,NG,8.3,RE,2021
+54693,GT#5,Natural Gas Fired Combined Cycle,CT,NG,8.3,RE,2021
+54693,GT#6,Natural Gas Fired Combined Cycle,CT,NG,8.3,RE,2021
+54693,ST#1,Natural Gas Fired Combined Cycle,CA,NG,9.5,RE,2021
+54693,ST#2,Natural Gas Fired Combined Cycle,CA,NG,9.5,RE,2021
+54781,SU1,Landfill Gas,IC,LFG,0.8,RE,2022
+54781,SU2,Landfill Gas,IC,LFG,0.8,RE,2022
+54781,SU3,Landfill Gas,IC,LFG,0.8,RE,2022
+54781,SU4,Landfill Gas,IC,LFG,0.8,RE,2022
+54842,G1,Landfill Gas,IC,LFG,1.6,RE,2021
+54842,G2,Landfill Gas,IC,LFG,1.6,RE,2021
+54842,G3,Landfill Gas,IC,LFG,1.6,RE,2021
+54842,G4,Landfill Gas,IC,LFG,1.6,RE,2021
+54842,GEN1,Landfill Gas,IC,LFG,0.8,RE,2021
+54842,GEN2,Landfill Gas,IC,LFG,0.8,RE,2021
+54842,GEN3,Landfill Gas,IC,LFG,0.8,RE,2021
+54857,1ST,Conventional Steam Coal,ST,BIT,2.5,RE,2023
+54857,2ST,Conventional Steam Coal,ST,BIT,9.3,RE,2023
+54880,SDT1,Natural Gas Fired Combustion Turbine,GT,NG,2,RE,2020
+54880,SDT2,Natural Gas Fired Combustion Turbine,GT,NG,2,RE,2020
+54880,SDT3,Natural Gas Fired Combustion Turbine,GT,NG,2,RE,2020
+54880,TUR1,Natural Gas Fired Combustion Turbine,GT,NG,1,RE,2020
+54880,WP1,Petroleum Liquids,IC,DFO,1.1,RE,2020
+54880,WPH1,Petroleum Liquids,IC,DFO,1.1,RE,2020
+54880,WPH2,Petroleum Liquids,IC,DFO,1.2,RE,2020
+54880,WPH3,Petroleum Liquids,IC,DFO,1,RE,2020
+54882,GEN1,Petroleum Liquids,IC,DFO,1.0,RE,2022
+54882,GEN2,Petroleum Liquids,IC,DFO,1.0,RE,2022
+54934,NO 1,Landfill Gas,IC,LFG,0.8,RE,2021
+54934,NO 2,Landfill Gas,IC,LFG,0.8,RE,2021
+54934,NO 3,Landfill Gas,IC,LFG,0.8,RE,2021
+54934,NO 4,Landfill Gas,IC,LFG,0.8,RE,2021
+54934,NO 5,Landfill Gas,IC,LFG,0.8,RE,2021
+54934,NO 6,Landfill Gas,IC,LFG,0.8,RE,2021
+54934,NO 7,Landfill Gas,IC,LFG,0.8,RE,2021
+54945,NO 5,Municipal Solid Waste,ST,MSW,45.0,RE,2023
+54945,NO 6,Municipal Solid Waste,ST,MSW,45.0,RE,2023
+54987,FM01,Natural Gas Internal Combustion Engine,IC,NG,1.5,RE,2021
+55025,GEN1,Natural Gas Fired Combustion Turbine,GT,NG,2.8,RE,2020
+55025,GEN2,Natural Gas Fired Combustion Turbine,GT,NG,2.8,RE,2020
+55099,01,Natural Gas Fired Combustion Turbine,GT,NG,25,RE,2020
+55099,10,Natural Gas Fired Combustion Turbine,GT,NG,16,RE,2020
+55099,02,Natural Gas Fired Combustion Turbine,GT,NG,25,RE,2020
+55099,03,Natural Gas Fired Combustion Turbine,GT,NG,25,RE,2020
+55099,04,Natural Gas Fired Combustion Turbine,GT,NG,25,RE,2020
+55099,06,Natural Gas Fired Combustion Turbine,GT,NG,21.8,RE,2020
+55099,07,Natural Gas Fired Combustion Turbine,GT,NG,28.7,RE,2020
+55099,08,Natural Gas Fired Combustion Turbine,GT,NG,25,RE,2020
+55099,09,Natural Gas Fired Combustion Turbine,GT,NG,17,RE,2020
+55104,CTG1,Natural Gas Fired Combined Cycle,CT,NG,37.4,RE,2020
+55104,CTG2,Natural Gas Fired Combined Cycle,CT,NG,37.4,RE,2020
+55104,STG,Natural Gas Fired Combined Cycle,CA,NG,31.7,RE,2020
+55156,UNT1,Landfill Gas,IC,LFG,0.9,RE,2023
+55156,UNT2,Landfill Gas,IC,LFG,0.9,RE,2023
+55156,UNT3,Landfill Gas,IC,LFG,1.6,RE,2023
+55156,UNT4,Landfill Gas,IC,LFG,1.6,RE,2023
+55156,UNT5,Landfill Gas,IC,LFG,1.6,RE,2023
+55163,UNT1,Landfill Gas,IC,LFG,0.9,RE,2019
+55163,UNT2,Landfill Gas,IC,LFG,0.9,RE,2019
+55163,UNT3,Landfill Gas,IC,LFG,0.9,RE,2019
+55203,EXIS,Onshore Wind Turbine,WT,WND,5.2,RE,2019
+55243,10,Petroleum Liquids,GT,KER,23.8,RE,2023
+55243,11,Petroleum Liquids,GT,KER,23.8,RE,2023
+55243,12,Petroleum Liquids,GT,KER,23.8,RE,2023
+55243,13,Petroleum Liquids,GT,KER,23.8,RE,2023
+55243,2-1,Natural Gas Fired Combustion Turbine,GT,NG,41.9,RE,2023
+55243,2-2,Natural Gas Fired Combustion Turbine,GT,NG,41.9,RE,2023
+55243,2-3,Natural Gas Fired Combustion Turbine,GT,NG,41.9,RE,2023
+55243,2-4,Natural Gas Fired Combustion Turbine,GT,NG,41.9,RE,2023
+55243,3-1,Natural Gas Fired Combustion Turbine,GT,NG,41.9,RE,2023
+55243,3-2,Natural Gas Fired Combustion Turbine,GT,NG,41.9,RE,2023
+55243,3-3,Natural Gas Fired Combustion Turbine,GT,NG,41.9,RE,2023
+55243,3-4,Natural Gas Fired Combustion Turbine,GT,NG,41.9,RE,2023
+55243,4-1,Natural Gas Fired Combustion Turbine,GT,NG,41.9,RE,2023
+55243,4-2,Natural Gas Fired Combustion Turbine,GT,NG,41.9,RE,2023
+55243,4-3,Natural Gas Fired Combustion Turbine,GT,NG,41.9,RE,2023
+55243,4-4,Natural Gas Fired Combustion Turbine,GT,NG,41.9,RE,2023
+55243,5,Petroleum Liquids,GT,KER,16.3,RE,2023
+55243,7,Petroleum Liquids,GT,KER,16.3,RE,2023
+55243,8,Petroleum Liquids,GT,KER,16.3,RE,2023
+55243,9,Petroleum Liquids,GT,KER,19.2,RE,2023
+55245,TG1,Natural Gas Steam Turbine,ST,NG,6.0,RE,2021
+55245,TG2,Natural Gas Steam Turbine,ST,NG,6.0,RE,2021
+55245,TG3,Natural Gas Steam Turbine,ST,NG,6.0,RE,2021
+55367,01,Onshore Wind Turbine,WT,WND,75,RE,2019
+55396,WGNS,Onshore Wind Turbine,WT,WND,16.5,RE,2023
+55488,BB1,Landfill Gas,IC,LFG,1.0,RE,2023
+55488,BB2,Landfill Gas,IC,LFG,1.0,RE,2023
+55488,BB3,Landfill Gas,IC,LFG,0.9,RE,2023
+55598,1,Landfill Gas,CT,LFG,5,RE,2019
+55598,2,Landfill Gas,CT,LFG,5,RE,2019
+55598,3,Landfill Gas,CA,LFG,6.6,RE,2019
+55600,1,Natural Gas Fired Combustion Turbine,GT,NG,47.7,RE,2021
+55601,UNT1,Landfill Gas,IC,LFG,3.0,RE,2022
+55601,UNT2,Landfill Gas,IC,LFG,3.0,RE,2022
+55603,UNT1,Landfill Gas,IC,LFG,3,RE,2020
+55618,GEN1,Landfill Gas,GT,LFG,4.9,RE,2019
+55618,GEN2,Landfill Gas,GT,LFG,4.9,RE,2019
+55759,RX1,Landfill Gas,IC,LFG,1.1,RE,2020
+55759,RX2,Landfill Gas,IC,LFG,1.1,RE,2020
+55759,RX3,Landfill Gas,IC,LFG,1.1,RE,2020
+55759,RX4,Landfill Gas,IC,LFG,1.1,RE,2020
+55760,ST1,Landfill Gas,IC,LFG,1.1,RE,2020
+55761,DO1,Landfill Gas,IC,LFG,1.1,RE,2020
+55761,DO2,Landfill Gas,IC,LFG,1.1,RE,2020
+55761,DO3,Landfill Gas,IC,LFG,1.1,RE,2020
+55761,DO4,Landfill Gas,IC,LFG,1.1,RE,2020
+55761,DO5,Landfill Gas,IC,LFG,1.1,RE,2020
+55762,BR1,Landfill Gas,IC,LFG,1.1,RE,2020
+55762,BR2,Landfill Gas,IC,LFG,1.1,RE,2020
+55762,BR3,Landfill Gas,IC,LFG,1.1,RE,2020
+55762,BR5,Landfill Gas,IC,LFG,1.1,RE,2020
+55763,DX1,Landfill Gas,IC,LFG,1.1,RE,2020
+55763,DX2,Landfill Gas,IC,LFG,1.1,RE,2020
+55763,DX3,Landfill Gas,IC,LFG,1.1,RE,2020
+55763,DX4,Landfill Gas,IC,LFG,1.1,RE,2020
+55764,UR1,Landfill Gas,IC,LFG,1.1,RE,2020
+55764,UR2,Landfill Gas,IC,LFG,1.1,RE,2020
+55764,UR3,Landfill Gas,IC,LFG,1.1,RE,2020
+55764,UR4,Landfill Gas,IC,LFG,1.1,RE,2020
+55767,RO1,Landfill Gas,IC,LFG,1.1,RE,2020
+55768,CH1,Landfill Gas,IC,LFG,1.1,RE,2020
+55768,CH2,Landfill Gas,IC,LFG,1.1,RE,2020
+55768,CH3,Landfill Gas,IC,LFG,1.1,RE,2020
+55770,GEN1,Landfill Gas,IC,LFG,0.8,RE,2019
+55770,GEN2,Landfill Gas,IC,LFG,0.8,RE,2019
+55770,GEN3,Landfill Gas,IC,LFG,0.8,RE,2019
+55770,GEN4,Landfill Gas,IC,LFG,1.6,RE,2019
+55770,GEN5,Landfill Gas,IC,LFG,0.8,RE,2019
+55770,GEN6,Landfill Gas,IC,LFG,0.8,RE,2019
+55770,GEN7,Landfill Gas,IC,LFG,0.8,RE,2019
+55773,CS1,Landfill Gas,IC,LFG,1.4,RE,2020
+55773,CS10,Landfill Gas,GT,LFG,3.2,RE,2020
+55773,CS2,Landfill Gas,IC,LFG,1.4,RE,2020
+55773,CS3,Landfill Gas,IC,LFG,1.4,RE,2020
+55773,CS4,Landfill Gas,IC,LFG,1.4,RE,2020
+55773,CS5,Landfill Gas,IC,LFG,1.4,RE,2020
+55773,CS6,Landfill Gas,IC,LFG,1.4,RE,2020
+55773,CS7,Landfill Gas,GT,LFG,3.2,RE,2020
+55773,CS8,Landfill Gas,GT,LFG,3.2,RE,2020
+55773,CS9,Landfill Gas,GT,LFG,3.2,RE,2020
+55774,MO1,Landfill Gas,IC,LFG,1.4,RE,2020
+55774,MO2,Landfill Gas,IC,LFG,1.4,RE,2020
+55774,MO3,Landfill Gas,IC,LFG,1.4,RE,2020
+55774,MO4,Landfill Gas,IC,LFG,1.1,RE,2020
+55774,MO5,Landfill Gas,IC,LFG,1.1,RE,2020
+55776,BA1,Landfill Gas,IC,LFG,0.5,RE,2020
+55776,BA2,Landfill Gas,IC,LFG,0.5,RE,2020
+55779,MA1,Landfill Gas,IC,LFG,0.7,RE,2020
+55779,MA2,Landfill Gas,IC,LFG,0.7,RE,2020
+55830,M2S1,Wood/Wood Waste Biomass,ST,WDS,15.6,RE,2019
+55830,M2S2,Wood/Wood Waste Biomass,ST,WDS,15.6,RE,2019
+55830,M2S3,Wood/Wood Waste Biomass,ST,WDS,30.2,RE,2019
+55853,1,Natural Gas Fired Combined Cycle,CS,NG,409.5,RE,2020
+55853,2,Natural Gas Fired Combined Cycle,CS,NG,409.5,RE,2020
+55885,CAT35,Landfill Gas,IC,LFG,1.6,RE,2021
+55885,GEJGC,Landfill Gas,IC,LFG,0.8,RE,2021
+55944,BAY,Onshore Wind Turbine,WT,WND,1.8,RE,2023
+55961,WM1,Petroleum Liquids,IC,DFO,1,RE,2020
+55961,WM2,Petroleum Liquids,IC,DFO,1,RE,2020
+55999,GEN1,Natural Gas Internal Combustion Engine,IC,NG,2.9,RE,2020
+55999,GEN2,Natural Gas Internal Combustion Engine,IC,NG,2.9,RE,2020
+56079,STEC,Other Waste Biomass,ST,OBS,18.0,RE,2021
+56123,1,Onshore Wind Turbine,WT,WND,11.5,RE,2022
+56182,Kato,Wood/Wood Waste Biomass,ST,WDS,2,RE,2020
+56183,1,Petroleum Liquids,IC,DFO,1.6,RE,2020
+56183,2,Petroleum Liquids,IC,DFO,1.8,RE,2020
+56183,3,Petroleum Liquids,IC,DFO,1.6,RE,2020
+56183,4,Petroleum Liquids,IC,DFO,1.6,RE,2020
+56183,5,Petroleum Liquids,IC,DFO,1.8,RE,2020
+56183,6,Petroleum Liquids,IC,DFO,1.6,RE,2020
+56183,7,Petroleum Liquids,IC,DFO,1.6,RE,2020
+56183,8,Petroleum Liquids,IC,DFO,1.6,RE,2020
+56183,9,Petroleum Liquids,IC,DFO,1.6,RE,2020
+56223,LOKI,Natural Gas Fired Combustion Turbine,GT,NG,10.9,RE,2021
+56284,EPG,Other Gases,ST,OG,5.5,RE,2022
+56572,1,Landfill Gas,GT,LFG,5.5,RE,2019
+56602,SNY1,Onshore Wind Turbine,WT,WND,63.0,RE,2022
+56646,1,Onshore Wind Turbine,WT,WND,2.0,RE,2021
+56779,1,Onshore Wind Turbine,WT,WND,150.0,RE,2021
+56834,1,Onshore Wind Turbine,WT,WND,10,RE,2020
+56863,1,Landfill Gas,IC,LFG,1.4,RE,2023
+56863,2,Landfill Gas,IC,LFG,1.4,RE,2023
+56937,GEN7,Petroleum Liquids,IC,DFO,3.1,RE,2021
+56937,IPE,Petroleum Liquids,IC,DFO,1.5,RE,2021
+56978,1,Conventional Hydroelectric,HY,WAT,0.4,RE,2021
+56978,2,Conventional Hydroelectric,HY,WAT,0.4,RE,2021
+56978,3,Conventional Hydroelectric,HY,WAT,0.3,RE,2021
+56978,4,Conventional Hydroelectric,HY,WAT,0.3,RE,2021
+57076,GEN1,Other Waste Biomass,IC,OBG,1.8,RE,2023
+57076,GEN2,Other Waste Biomass,IC,OBG,1.8,RE,2023
+57099,STG1,Wood/Wood Waste Biomass,ST,BLQ,64.0,RE,2023
+57154,1209,Wood/Wood Waste Biomass,ST,WDS,18.1,RE,2022
+57173,1,Other Waste Biomass,IC,OBG,0.6,RE,2021
+57173,2,Other Waste Biomass,IC,OBG,0.6,RE,2021
+57258,1,Onshore Wind Turbine,WT,WND,0.7,RE,2023
+57258,2,Onshore Wind Turbine,WT,WND,0.6,RE,2023
+57258,3,Onshore Wind Turbine,WT,WND,0.6,RE,2023
+57259,1,Onshore Wind Turbine,WT,WND,2.5,RE,2019
+57259,2,Onshore Wind Turbine,WT,WND,2.5,RE,2019
+57259,3,Onshore Wind Turbine,WT,WND,2.5,RE,2019
+57310,1,Solar Photovoltaic,PV,SUN,1.3,RE,2022
+57323,UNIT1,Solar Thermal without Energy Storage,ST,SUN,7.5,RE,2020
+57344,GS1,Other Waste Biomass,IC,OBG,0.8,RE,2020
+57344,GS2,Other Waste Biomass,IC,OBG,0.8,RE,2020
+57344,GS3,Other Waste Biomass,IC,OBG,0.8,RE,2020
+57419,0001,Other Waste Biomass,FC,OBG,3,RE,2019
+57420,0001,Other Natural Gas,FC,NG,1.5,RE,2019
+57425,1,Other Waste Biomass,IC,OBG,1.5,RE,2019
+57425,2,Other Waste Biomass,IC,OBG,1.5,RE,2019
+57425,3,Other Waste Biomass,IC,OBG,1.5,RE,2019
+57433,1,Landfill Gas,IC,LFG,1.6,RE,2019
+57433,2,Landfill Gas,IC,LFG,1.6,RE,2019
+57433,3,Landfill Gas,IC,LFG,1.6,RE,2019
+57467,TG1,Wood/Wood Waste Biomass,ST,WDS,13.0,RE,2023
+57492,GEN1,Landfill Gas,IC,LFG,1.6,RE,2021
+57492,GEN2,Landfill Gas,IC,LFG,1.6,RE,2021
+57492,GEN3,Landfill Gas,IC,LFG,1.6,RE,2021
+57492,GEN4,Landfill Gas,IC,LFG,1.6,RE,2021
+57492,GEN5,Landfill Gas,IC,LFG,1.6,RE,2021
+57492,GEN6,Landfill Gas,IC,LFG,1.6,RE,2021
+57519,GEN1,Solar Photovoltaic,PV,SUN,1.9,RE,2023
+57637,1,Onshore Wind Turbine,WT,WND,1.0,RE,2023
+57638,1,Onshore Wind Turbine,WT,WND,1.0,RE,2023
+57685,1,Solar Photovoltaic,PV,SUN,10.0,RE,2021
+57693,ALSTO,Onshore Wind Turbine,WT,WND,3,RE,2019
+57735,UCSD,Other Natural Gas,FC,NG,3.0,RE,2022
+57741,SP111,Onshore Wind Turbine,WT,WND,2.1,RE,2021
+57741,SP95,Onshore Wind Turbine,WT,WND,2.1,RE,2021
+57741,SP97,Onshore Wind Turbine,WT,WND,2.1,RE,2021
+57770,SBFC,Other Natural Gas,FC,NG,1.5,RE,2022
+57793,FC-1,Other Natural Gas,FC,NG,1.4,RE,2020
+57829,GLEN1,Landfill Gas,IC,LFG,1.4,RE,2020
+57829,GLEN2,Landfill Gas,IC,LFG,1.4,RE,2020
+57843,GEN1,Landfill Gas,IC,LFG,1.9,RE,2020
+57845,UNIT1,Landfill Gas,IC,LFG,1.6,RE,2021
+57845,UNIT2,Landfill Gas,IC,LFG,1.9,RE,2021
+57845,UNIT3,Landfill Gas,IC,LFG,1.9,RE,2021
+57846,UNIT1,Landfill Gas,IC,LFG,1.6,RE,2020
+57846,UNIT2,Landfill Gas,IC,LFG,1.6,RE,2020
+57847,UNIT1,Landfill Gas,IC,LFG,1.5,RE,2020
+57847,UNIT2,Landfill Gas,IC,LFG,1.5,RE,2020
+57847,UNIT3,Landfill Gas,IC,LFG,1.5,RE,2020
+57847,UNIT4,Landfill Gas,IC,LFG,1.5,RE,2020
+57847,UNIT5,Landfill Gas,IC,LFG,1.5,RE,2020
+57914,1,Conventional Steam Coal,ST,LIG,2.0,RE,2023
+57914,2,Conventional Steam Coal,ST,LIG,2.0,RE,2023
+57940,G3,Conventional Steam Coal,ST,BIT,7.5,RE,2020
+57952,GEN1,Natural Gas Internal Combustion Engine,IC,NG,1.0,RE,2023
+57952,GEN2,Natural Gas Internal Combustion Engine,IC,NG,1.0,RE,2023
+57952,GEN3,Natural Gas Internal Combustion Engine,IC,NG,1.0,RE,2023
+58083,GTG1,Natural Gas Fired Combined Cycle,CT,NG,19,RE,2020
+58083,STG1,Natural Gas Fired Combined Cycle,CA,NG,2,RE,2020
+58129,GEN1,Natural Gas Internal Combustion Engine,IC,NG,1.1,RE,2022
+58142,CHP1,Other Waste Biomass,IC,OBG,1.6,RE,2022
+58142,CHP2,Other Waste Biomass,IC,OBG,1.6,RE,2022
+58170,GEN1,Solar Photovoltaic,PV,SUN,1.3,RE,2023
+58200,GEN1,Natural Gas Steam Turbine,ST,NG,4,RE,2020
+58200,GEN2,Natural Gas Steam Turbine,ST,NG,4,RE,2020
+58200,GEN3,Natural Gas Steam Turbine,ST,NG,4,RE,2020
+58219,1426,Other Waste Biomass,IC,OBG,1.4,RE,2021
+58219,633,Other Waste Biomass,IC,OBG,0.6,RE,2021
+58424,1,Onshore Wind Turbine,WT,WND,9.0,RE,2021
+58440,9560,Other Natural Gas,FC,NG,0.4,RE,2023
+58440,9580,Other Natural Gas,FC,NG,0.4,RE,2023
+58440,9581,Other Natural Gas,FC,NG,0.4,RE,2023
+58440,9583,Other Natural Gas,FC,NG,0.4,RE,2023
+58440,9585,Other Natural Gas,FC,NG,0.4,RE,2023
+58440,9587,Other Natural Gas,FC,NG,0.4,RE,2023
+58472,1,Wood/Wood Waste Biomass,ST,WDS,22.5,RE,2021
+58475,BOU,Batteries,BA,MWH,4.0,RE,2023
+58555,95100,Other Waste Biomass,IC,OBG,1.4,RE,2019
+58595,GEN1,Wood/Wood Waste Biomass,ST,WDS,16.0,RE,2021
+58613,STG,Natural Gas Steam Turbine,ST,NG,21.9,RE,2019
+58663,GEN1,Other Waste Biomass,IC,OBG,0.6,RE,2020
+58663,GEN2,Other Waste Biomass,IC,OBG,0.6,RE,2020
+58815,1,Natural Gas Internal Combustion Engine,IC,NG,1.8,RE,2023
+58823,STG,All Other,ST,WH,5,RE,2019
+58945,GEN 1,Natural Gas Internal Combustion Engine,IC,NG,0.6,RE,2020
+58945,GEN 2,Natural Gas Internal Combustion Engine,IC,NG,0.6,RE,2020
+58945,GEN 3,Natural Gas Internal Combustion Engine,IC,NG,0.6,RE,2020
+58993,3201,Landfill Gas,IC,LFG,1.1,RE,2021
+58993,3202,Landfill Gas,IC,LFG,1.1,RE,2021
+58993,3203,Landfill Gas,IC,LFG,1.1,RE,2021
+59022,1,Onshore Wind Turbine,WT,WND,2.0,RE,2022
+59023,GEN 1,Onshore Wind Turbine,WT,WND,2.0,RE,2022
+59072,WRE 1,Other Waste Biomass,IC,OBG,1.0,RE,2021
+59151,CHP 1,Other Waste Biomass,IC,OBG,1.6,RE,2020
+59151,CHP 2,Other Waste Biomass,IC,OBG,1.6,RE,2020
+59196,IC1,Petroleum Liquids,IC,DFO,1.8,RE,2021
+59447,00001,Other Waste Biomass,IC,OBG,1,RE,2019
+59559,GEN#1,Other Waste Biomass,IC,OBG,1,RE,2020
+59559,GEN#2,Other Waste Biomass,IC,OBG,1,RE,2020
+59931,GEN1,Other Waste Biomass,IC,OBG,1.1,RE,2023
+59931,GEN2,Other Waste Biomass,IC,OBG,1.1,RE,2023
+59959,WCBS,Batteries,BA,MWH,19.8,RE,2022
+59960,JBS,Batteries,BA,MWH,19.8,RE,2022
+60120,MB-16,Other Natural Gas,FC,NG,1.4,RE,2022
+60213,MPSHG,Batteries,BA,MWH,2,RE,2020
+60321,EXIS2,Onshore Wind Turbine,WT,WND,16.1,RE,2019
+60506,BOB,Batteries,BA,MWH,4.0,RE,2023
+60618,1,Batteries,BA,MWH,2.0,RE,2021
+60803,DBPIS,Solar Photovoltaic,PV,SUN,1.0,RE,2022
+60804,DBGAT,Solar Photovoltaic,PV,SUN,1.3,RE,2023
+61027,PESCT,Natural Gas Fired Combustion Turbine,GT,NG,4.8,RE,2020
+61160,MILL1,Solar Photovoltaic,PV,SUN,1.4,RE,2023
+61491,FCB,Solar Photovoltaic,PV,SUN,1.5,RE,2019
+61632,GREMC,Natural Gas Fired Combustion Turbine,GT,NG,4.3,RE,2019
+61848,WT1,Onshore Wind Turbine,WT,WND,10.0,RE,2023
+62019,GEN 1,Other Waste Biomass,IC,OBG,0.5,RE,2020
+62019,GEN 2,Other Waste Biomass,IC,OBG,0.5,RE,2020
+62782,PEMWT,Onshore Wind Turbine,WT,WND,1.0,RE,2022
+63097,EP-01,Petroleum Liquids,IC,DFO,2.0,RE,2021
+63097,EP-02,Petroleum Liquids,IC,DFO,2.0,RE,2021
+63097,EP-03,Petroleum Liquids,IC,DFO,2.0,RE,2021
+63097,EP-04,Petroleum Liquids,IC,DFO,2.0,RE,2021
+63097,EP-05,Petroleum Liquids,IC,DFO,2.0,RE,2021
+63097,EP-06,Petroleum Liquids,IC,DFO,2.0,RE,2021
+63097,EP-07,Petroleum Liquids,IC,DFO,2.0,RE,2021
+63097,EP-08,Petroleum Liquids,IC,DFO,2.0,RE,2021
+63098,EP-09,Petroleum Liquids,IC,DFO,2.0,RE,2021
+63099,EP-10,Petroleum Liquids,IC,DFO,2.0,RE,2021
+64756,EQX05,Other Natural Gas,FC,NG,1.1,RE,2022

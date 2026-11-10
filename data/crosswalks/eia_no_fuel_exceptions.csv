@@ -1,0 +1,19 @@
+plant_code,generator_id,plant_name,form_860_technology,reason
+1571,ST1,Chalk Point,Conventional Steam Coal,"Operable in Form 860 2020, then on no sheet of any later edition (never listed as retired); coal, 0.38 TWh 2019-2020 not counted as coal"
+1571,ST2,Chalk Point,Conventional Steam Coal,"Operable in Form 860 2020, then on no sheet of any later edition (never listed as retired); coal, 0.28 TWh 2019-2020 not counted as coal"
+59073,5STA,Cove Point LNG Terminal,Natural Gas Steam Turbine,"Operable in Form 860 2020, then on no sheet of any later edition"
+59073,5STB,Cove Point LNG Terminal,Natural Gas Steam Turbine,"Operable in Form 860 2020, then on no sheet of any later edition"
+62192,IS,Blue Water Energy Center,Natural Gas Fired Combined Cycle,Form 923 spells the steam turbine IS; Form 860 has 1S
+2963,1S,Northeastern,Natural Gas Fired Combined Cycle,Form 923 reports 1S (the unit code NE1S); Form 860 has generator 1
+56565,6A/B,J Lamar Stall Unit,Natural Gas Fired Combined Cycle,Form 923 reports turbines 6A and 6B as one row 6A/B
+55641,STG2,Riverside Energy Center,Natural Gas Fired Combined Cycle,"Only on the Proposed sheet of Form 860 2019; generation since 2020-08, never on an Operable sheet under this plant code"
+55641,CTG3,Riverside Energy Center,Natural Gas Fired Combined Cycle,"Only on the Proposed sheet of Form 860 2019; generation since 2020-08, never on an Operable sheet under this plant code"
+55641,CTG4,Riverside Energy Center,Natural Gas Fired Combined Cycle,"Only on the Proposed sheet of Form 860 2019; generation since 2020-08, never on an Operable sheet under this plant code"
+63479,1,Traverse Wind Project,Onshore Wind Turbine,Form 923 reports 1; Form 860 has GEN1. Plant not linked to GEM on 2026-11-10; listed so linking it cannot fail the guard
+63919,SS17,POET Biorefining - Corning,Natural Gas Steam Turbine,Form 923 reports SS17; Form 860 has generator 1. Plant not linked to GEM on 2026-11-10; listed so linking it cannot fail the guard
+50230,WEG,Robbins Lumber,Wood/Wood Waste Biomass,Only on the Proposed sheet of Form 860 2019. Plant not linked to GEM on 2026-11-10; listed so linking it cannot fail the guard
+302,ST1,Encina,,"Plant on no sheet of Form 860 2019-2024 (retired 2018); zero generation reported for 2019-01. Plant not linked to GEM on 2026-11-10"
+302,2,Encina,,"Plant on no sheet of Form 860 2019-2024 (retired 2018); zero generation reported for 2019-01. Plant not linked to GEM on 2026-11-10"
+302,3,Encina,,"Plant on no sheet of Form 860 2019-2024 (retired 2018); zero generation reported for 2019-01. Plant not linked to GEM on 2026-11-10"
+302,4,Encina,,"Plant on no sheet of Form 860 2019-2024 (retired 2018); zero generation reported for 2019-01. Plant not linked to GEM on 2026-11-10"
+302,5,Encina,,"Plant on no sheet of Form 860 2019-2024 (retired 2018); zero generation reported for 2019-01. Plant not linked to GEM on 2026-11-10"

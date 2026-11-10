@@ -29,18 +29,24 @@ link, so the tracker still shows their generation on the right plant.
 
 from __future__ import annotations
 
+import datetime as dt
+from dataclasses import dataclass
+from pathlib import Path
+
 import pandas as pd
 from loguru import logger
 from sqlalchemy import text
 
 from . import eia_gem_ids
+from .eia_generator_info import COAL_TECHNOLOGIES
 from .gem_external_ids import SNAPSHOT_FILE
 from .unit_gem_map import COLUMNS, with_fallback
+from .utils import get_crosswalk_dir
 
 METHOD = "gem-eia-id"
 NEVER_RAN = {"planned", "cancelled"}
-# The tracker's coal technologies (EIA_COAL_TECHNOLOGIES) and the coal review query's.
-COAL_TECHNOLOGIES = {"Conventional Steam Coal", "Coal Integrated Gasification Combined Cycle", "Petroleum Coke"}
+# Generators known to have generation but no Form 860 row (see no_fuel_findings).
+NO_FUEL_EXCEPTIONS_FILE = get_crosswalk_dir() / "eia_no_fuel_exceptions.csv"
 
 
 def gem_candidates(ids: pd.DataFrame) -> pd.DataFrame:
@@ -216,3 +222,70 @@ def build_from_db(
         f"{(out['map_source'] != METHOD).sum():,} fallback rows at their plant's GEM plant"
     )
     return out, miss
+
+
+@dataclass(frozen=True)
+class NoFuelFindings:
+    """US unit-map generators without a Form 860 technology, by what to do about them.
+
+    Each entry reads "plant_code/generator_id (first generation YYYY-MM)".
+    """
+
+    # Generation starts within the loaded register's years and nothing explains
+    # the missing row: the register is incomplete, and the unit would silently
+    # count as "not coal". The gate fails.
+    failing: list[str]
+    # Generation starts after the loaded register's year: commissioned since,
+    # expected every year until the next Form 860 is loaded. Warn only.
+    new: list[str]
+    # Listed in eia_no_fuel_exceptions.csv: known, with a written reason.
+    skipped: list[str]
+    # Listed there but has a technology by now: the row can go. Warn only.
+    stale: list[str]
+
+
+def load_no_fuel_exceptions(path: Path = NO_FUEL_EXCEPTIONS_FILE) -> set[tuple[str, str]]:
+    """(plant_code, generator key) of every generator the no-fuel guard skips.
+
+    ``generator_id`` in the file is the generation key (unit_gem_map.unit_key),
+    which is not always Form 860's spelling: Blue Water is "IS" in Form 923.
+    """
+    df = pd.read_csv(path, dtype=str, keep_default_na=False)
+    blank = df[(df["reason"].str.strip() == "") | (df["plant_code"] == "") | (df["generator_id"] == "")]
+    if len(blank):
+        raise ValueError(f"{path.name}: {len(blank)} rows lack a plant_code, generator_id or reason")
+    dup = df[df.duplicated(["plant_code", "generator_id"])]
+    if len(dup):
+        raise ValueError(f"{path.name}: listed twice: {dup[['plant_code', 'generator_id']].values.tolist()}")
+    return set(zip(df["plant_code"], df["generator_id"]))
+
+
+def no_fuel_findings(
+    eia_rows: pd.DataFrame,
+    first_month: dict[tuple[str, str], dt.date],
+    exceptions: set[tuple[str, str]],
+    register_year_end: dt.date,
+) -> NoFuelFindings:
+    """Sort the US unit-map rows that have no fuel (see NoFuelFindings).
+
+    ``eia_rows``: unit_gem_map's EIA rows (plant_key, unit_key, fuel).
+    ``first_month``: each generator's first month in mv_eia_unit_monthly.
+    A listed generator that is not in the map at all is not reported: its
+    plant is simply not linked to GEM (yet).
+    """
+    failing, new, skipped, stale = [], [], [], []
+    for plant, unit, fuel in zip(eia_rows["plant_key"], eia_rows["unit_key"], eia_rows["fuel"]):
+        key = (plant, unit)
+        first = first_month.get(key)
+        label = f"{plant}/{unit} (first generation {first:%Y-%m})" if first else f"{plant}/{unit}"
+        if isinstance(fuel, str) and fuel:
+            if key in exceptions:
+                stale.append(label)
+        elif key in exceptions:
+            skipped.append(label)
+        elif first is not None and first > register_year_end:
+            new.append(label)
+        else:
+            # Unknown first month counts as old: never excuse what cannot be dated.
+            failing.append(label)
+    return NoFuelFindings(sorted(failing), sorted(new), sorted(skipped), sorted(stale))
