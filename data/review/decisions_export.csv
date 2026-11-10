@@ -272,10 +272,15 @@ ENTSOE,,CETBrazi__BRAZ5_CA,Romania,L100000400629,,False,legacy,legacy-pipeline,2
 ENTSOE,,CETBrazi__BRAZ6,Romania,L100000400629,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Petrom Brazi power station',,Petrom Brazi power station,Romania
 ENTSOE,,CETBrazi__BRAZ6_CA,Romania,L100000400629,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Petrom Brazi power station',,Petrom Brazi power station,Romania
 ENTSOE,,CET_MINT2,Romania,L100000103297,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Mintia-Deva power station',,Mintia-Deva power station,Romania
+ENTSOE,,CET_MINT2_CA,Romania,L100000103297,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Mintia-Deva power station,Romania
 ENTSOE,,CET_MINT3,Romania,L100000103297,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Mintia-Deva power station',,Mintia-Deva power station,Romania
+ENTSOE,,CET_MINT3_CA,Romania,L100000103297,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Mintia-Deva power station,Romania
 ENTSOE,,CET_MINT4,Romania,L100000103297,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Mintia-Deva power station',,Mintia-Deva power station,Romania
+ENTSOE,,CET_MINT4_CA,Romania,L100000103297,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Mintia-Deva power station,Romania
 ENTSOE,,CET_MINT5,Romania,L100000103297,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Mintia-Deva power station',,Mintia-Deva power station,Romania
+ENTSOE,,CET_MINT5_CA,Romania,L100000103297,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Mintia-Deva power station,Romania
 ENTSOE,,CET_MINT6,Romania,L100000103297,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Mintia-Deva power station',,Mintia-Deva power station,Romania
+ENTSOE,,CET_MINT6_CA,Romania,L100000103297,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Mintia-Deva power station,Romania
 ENTSOE,,CET_Paroseni_CA,Romania,L100000103298,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Paroseni power station',,Paroseni power station,Romania
 ENTSOE,,CNQPS-1,United Kingdom,L100000400734,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered llm match to GEM ""Connah's Quay power station""",,Connah's Quay power station,United Kingdom
 ENTSOE,,CNQPS-2,United Kingdom,L100000400734,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered llm match to GEM ""Connah's Quay power station""",,Connah's Quay power station,United Kingdom
@@ -288,6 +293,7 @@ ENTSOE,,CORB-1,United Kingdom,L100000400739,,False,legacy,legacy-pipeline,2026-0
 ENTSOE,,CPCU-CogeVitry–GP,France,L100000406385,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Vitry-sur-Seine cogeneration power station',,Vitry-sur-Seine cogeneration power station,France
 ENTSOE,,CPCU-StOuen-GP,France,L100000407655,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Saint-Ouen-sur-Seine power station',,Saint-Ouen-sur-Seine power station,France
 ENTSOE,,CTCOMPO 3,Spain,L100000103507,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Compostilla power station',,Compostilla power station,Spain
+ENTSOE,,CTE_Rovinari_ROVI3_CA,Romania,L100000103294,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Rovinari power station,Romania
 ENTSOE,,CTE_Rovinari_ROVI4_CA,Romania,L100000103294,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Rovinari power station',,Rovinari power station,Romania
 ENTSOE,,CTE_Rovinari_ROVI5_CA,Romania,L100000103294,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Rovinari power station',,Rovinari power station,Romania
 ENTSOE,,CTE_Rovinari_ROVI6_CA,Romania,L100000103294,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Rovinari power station',,Rovinari power station,Romania
@@ -302,13 +308,16 @@ ENTSOE,,CetGalati_GALA5,Romania,,,False,legacy,legacy-pipeline,2026-08-30,grandf
 ENTSOE,,CetGalati_GALA6,Romania,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Galati power station'; GEM name did not resolve to one location — review,,,
 ENTSOE,,Chorzów B1,Poland,L100000103257,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chorzow Elcho power station',,Chorzow Elcho power station,Poland
 ENTSOE,,Chorzów B2,Poland,L100000103257,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Chorzow Elcho power station',,Chorzow Elcho power station,Poland
+ENTSOE,,CteTurceni_TURC1_CA,Romania,L100000103296,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Turceni power station,Romania
+ENTSOE,,CteTurceni_TURC3_CA,Romania,L100000103296,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Turceni power station,Romania
 ENTSOE,,CteTurceni_TURC4_CA,Romania,L100000103296,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Turceni power station',,Turceni power station,Romania
 ENTSOE,,CteTurceni_TURC5_CA,Romania,L100000103296,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Turceni power station',,Turceni power station,Romania
+ENTSOE,,CteTurceni_TURC6_CA,Romania,L100000103296,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Turceni power station,Romania
+ENTSOE,,CteTurceni_TURC7_CA,Romania,L100000103296,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Turceni power station,Romania
 ENTSOE,,Cushaling Unit 1,Ireland,L100000407711,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Cushaling power station',,Cushaling power station,Ireland
 ENTSOE,,Cushaling Unit 2,Ireland,L100000407711,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Cushaling power station',,Cushaling power station,Ireland
 ENTSOE,,DEFARGE____1____,Germany,L100000101896,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Bremen-Farge power station',,Bremen-Farge power station,Germany
 ENTSOE,,DEWHV______1____,Germany,L100000101920,,False,manual,entsoe-gem-2026-10,2026-10-29,"DEWHV = Wilhelmshaven (Engie/Onyx), as DEWHV______1_____; not Stade Dow; was L100000400251 (legacy). Flagged by blind review 2026-10-26, verified against sister units by N. Abad (applied by N. Abad)",,Wilhelmshaven Engie power station,Germany
-ENTSOE,,DEWHV______1_____ ,Germany,L100000101920,,False,manual,entsoe-gem-2026-10,2026-10-29,"Wilhelmshaven (Engie), the spelling production's feed uses since Dec 2025, with a trailing space; the review CSV strips keys and cannot address it. N. Abad 2026-10-26 (applied by N. Abad)",,Wilhelmshaven Engie power station,Germany
 ENTSOE,,DEZOLLI____1____,Germany,L100000101885,,False,manual,N. Abad,2026-10-29,name code ZOLLI; matcher top candidate (62.5) (blind-checked by Claude + Codex review seats 2026-10-26),,Zolling power station,Germany
 ENTSOE,,DIDCB5,United Kingdom,L100000401457,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Didcot B'),,,
 ENTSOE,,DIDCB6,United Kingdom,L100000401457,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Didcot B'),,,
@@ -329,32 +338,21 @@ ENTSOE,,EC Wrotków B1,Poland,L100000400813,,False,legacy,legacy-pipeline,2026-0
 ENTSOE,,EC Żerań 2 B20,Poland,L100000103236,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'EC Żerań'),,,
 ENTSOE,,EC Żerań BGP,Poland,L100000103236,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'EC Żerań'),,,
 ENTSOE,,ECHV_G1___,Czech Republic,L100000101794,,False,manual,N. Abad,2026-10-29,ČEZ code ECHV = Chvaletice; G1-G4 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Chvaletice power station,Czech Republic
-ENTSOE,,ECHV_G1____,Czech Republic,L100000101794,,False,manual,N. Abad,2026-10-29,ČEZ code ECHV = Chvaletice; G1-G4 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Chvaletice power station,Czech Republic
 ENTSOE,,ECHV_G2___,Czech Republic,L100000101794,,False,manual,N. Abad,2026-10-29,ČEZ code ECHV = Chvaletice; G1-G4 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Chvaletice power station,Czech Republic
-ENTSOE,,ECHV_G2____,Czech Republic,L100000101794,,False,manual,N. Abad,2026-10-29,ČEZ code ECHV = Chvaletice; G1-G4 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Chvaletice power station,Czech Republic
 ENTSOE,,ECHV_G3___,Czech Republic,L100000101794,,False,manual,N. Abad,2026-10-29,ČEZ code ECHV = Chvaletice; G1-G4 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Chvaletice power station,Czech Republic
-ENTSOE,,ECHV_G3____,Czech Republic,L100000101794,,False,manual,N. Abad,2026-10-29,ČEZ code ECHV = Chvaletice; G1-G4 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Chvaletice power station,Czech Republic
 ENTSOE,,ECHV_G4___,Czech Republic,L100000101794,,False,manual,N. Abad,2026-10-29,ČEZ code ECHV = Chvaletice; G1-G4 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Chvaletice power station,Czech Republic
-ENTSOE,,ECHV_G4____,Czech Republic,L100000101794,,False,manual,N. Abad,2026-10-29,ČEZ code ECHV = Chvaletice; G1-G4 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Chvaletice power station,Czech Republic
 ENTSOE,,ECT3TV1,Spain,L100000400680,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Escatrón 3 power station',,Escatrón 3 power station,Spain
 ENTSOE,,EDET_G1___,Czech Republic,L100000101786,,False,manual,N. Abad,2026-10-29,ČEZ code EDET = Dětmarovice; EDET_G4____ already linked here (blind-checked by Claude + Codex review seats 2026-10-26),,Detmarovice power station,Czech Republic
 ENTSOE,,EDET_G2___,Czech Republic,L100000101786,,False,manual,N. Abad,2026-10-29,ČEZ code EDET = Dětmarovice; EDET_G4____ already linked here (blind-checked by Claude + Codex review seats 2026-10-26),,Detmarovice power station,Czech Republic
-ENTSOE,,EDET_G2____,Czech Republic,L100000101786,,False,manual,N. Abad,2026-10-29,ČEZ code EDET = Dětmarovice; EDET_G4____ already linked here (blind-checked by Claude + Codex review seats 2026-10-26),,Detmarovice power station,Czech Republic
 ENTSOE,,EDET_G3___,Czech Republic,L100000101786,,False,manual,entsoe-gem-2026-10,2026-10-29,"ČEZ code EDET = Dětmarovice, as sisters EDET_G1-G4; not Kladno; was L100000101799 (gppd-geo). Flagged by blind review 2026-10-26, verified against sister units by N. Abad (applied by N. Abad)",,Detmarovice power station,Czech Republic
-ENTSOE,,EDET_G3____,Czech Republic,L100000101786,,False,manual,N. Abad,2026-10-29,ČEZ code EDET = Dětmarovice; EDET_G4____ already linked here (blind-checked by Claude + Codex review seats 2026-10-26),,Detmarovice power station,Czech Republic
 ENTSOE,,EDET_G4___,Czech Republic,L100000101786,,False,manual,N. Abad,2026-10-29,ČEZ code EDET = Dětmarovice; EDET_G4____ already linked here (blind-checked by Claude + Codex review seats 2026-10-26),,Detmarovice power station,Czech Republic
-ENTSOE,,EDET_G4____,Czech Republic,L100000101786,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Detmarovice power station'),,,
 ENTSOE,,EDF Luminus Seraing GT1,Belgium,L100000400035,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Seraing power station',,Seraing power station,Belgium
 ENTSOE,,EDF Luminus Seraing GT2,Belgium,L100000400035,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Seraing power station',,Seraing power station,Belgium
 ENTSOE,,EECK_G4___,Czech Republic,L100000101799,,False,manual,N. Abad,2026-10-29,ECK = Energetické centrum Kladno; G4/G5/G7 = GEM TG4/TG5/TG7 (blind-checked by Claude + Codex review seats 2026-10-26),,Kladno power station,Czech Republic
-ENTSOE,,EECK_G4____,Czech Republic,L100000101799,,False,manual,N. Abad,2026-10-29,ECK = Energetické centrum Kladno; G4/G5/G7 = GEM TG4/TG5/TG7 (blind-checked by Claude + Codex review seats 2026-10-26),,Kladno power station,Czech Republic
 ENTSOE,,EECK_G5___,Czech Republic,L100000101799,,False,manual,N. Abad,2026-10-29,ECK = Energetické centrum Kladno; G4/G5/G7 = GEM TG4/TG5/TG7 (blind-checked by Claude + Codex review seats 2026-10-26),,Kladno power station,Czech Republic
-ENTSOE,,EECK_G5____,Czech Republic,L100000101799,,False,manual,N. Abad,2026-10-29,ECK = Energetické centrum Kladno; G4/G5/G7 = GEM TG4/TG5/TG7 (blind-checked by Claude + Codex review seats 2026-10-26),,Kladno power station,Czech Republic
 ENTSOE,,EECK_G7___,Czech Republic,L100000101799,,False,manual,N. Abad,2026-10-29,ECK = Energetické centrum Kladno; G4/G5/G7 = GEM TG4/TG5/TG7 (blind-checked by Claude + Codex review seats 2026-10-26),,Kladno power station,Czech Republic
-ENTSOE,,EECK_G7____,Czech Republic,L100000101799,,False,manual,N. Abad,2026-10-29,ECK = Energetické centrum Kladno; G4/G5/G7 = GEM TG4/TG5/TG7 (blind-checked by Claude + Codex review seats 2026-10-26),,Kladno power station,Czech Republic
 ENTSOE,,ELED_G4,Czech Republic,L100000101803,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Ledvice power station',,Ledvice power station,Czech Republic
 ENTSOE,,ELED_G6___,Czech Republic,L100000101803,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Ledvice power station'),,,
-ENTSOE,,ELED_G6____,Czech Republic,L100000101803,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Ledvice power station',,Ledvice power station,Czech Republic
 ENTSOE,,ELPEDISON,Greece,L100000400299,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Thisvi Elpedison power station',,Thisvi Elpedison power station,Greece
 ENTSOE,,EME2_G10,Czech Republic,L100000101800,,False,manual,N. Abad,2026-10-29,ČEZ code EME = Mělník (blind-checked by Claude + Codex review seats 2026-10-26),,Melnik power station,Czech Republic
 ENTSOE,,EME2_G9,Czech Republic,L100000101800,,False,manual,N. Abad,2026-10-29,ČEZ code EME = Mělník (blind-checked by Claude + Codex review seats 2026-10-26),,Melnik power station,Czech Republic
@@ -363,32 +361,20 @@ ENTSOE,,EMILE HUCHET 6,France,L100000400098,,False,legacy,legacy-pipeline,2026-0
 ENTSOE,,EMILE HUCHET 7,France,L100000400098,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered rapidfuzz match to GEM 'Emile Huchet power station'; pipeline reproduces the match, values frozen",,Emile Huchet power station,France
 ENTSOE,,EMILE HUCHET 8,France,L100000400098,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered rapidfuzz match to GEM 'Emile Huchet power station'; pipeline reproduces the match, values frozen",,Emile Huchet power station,France
 ENTSOE,,EPC1_G2___,Czech Republic,L100000101804,,False,manual,N. Abad,2026-10-29,ČEZ code EPC1 = Počerady; units G2-G6 (blind-checked by Claude + Codex review seats 2026-10-26),,Pocerady power station,Czech Republic
-ENTSOE,,EPC1_G2____,Czech Republic,L100000101804,,False,manual,N. Abad,2026-10-29,ČEZ code EPC1 = Počerady; units G2-G6 (blind-checked by Claude + Codex review seats 2026-10-26),,Pocerady power station,Czech Republic
 ENTSOE,,EPC1_G3___,Czech Republic,L100000101804,,False,manual,N. Abad,2026-10-29,ČEZ code EPC1 = Počerady; units G2-G6 (blind-checked by Claude + Codex review seats 2026-10-26),,Pocerady power station,Czech Republic
-ENTSOE,,EPC1_G3____,Czech Republic,L100000101804,,False,manual,N. Abad,2026-10-29,ČEZ code EPC1 = Počerady; units G2-G6 (blind-checked by Claude + Codex review seats 2026-10-26),,Pocerady power station,Czech Republic
 ENTSOE,,EPC1_G4___,Czech Republic,L100000101804,,False,manual,N. Abad,2026-10-29,ČEZ code EPC1 = Počerady; units G2-G6 (blind-checked by Claude + Codex review seats 2026-10-26),,Pocerady power station,Czech Republic
-ENTSOE,,EPC1_G4____,Czech Republic,L100000101804,,False,manual,N. Abad,2026-10-29,ČEZ code EPC1 = Počerady; units G2-G6 (blind-checked by Claude + Codex review seats 2026-10-26),,Pocerady power station,Czech Republic
 ENTSOE,,EPC1_G5___,Czech Republic,L100000101804,,False,manual,N. Abad,2026-10-29,ČEZ code EPC1 = Počerady; units G2-G6 (blind-checked by Claude + Codex review seats 2026-10-26),,Pocerady power station,Czech Republic
-ENTSOE,,EPC1_G5____,Czech Republic,L100000101804,,False,manual,N. Abad,2026-10-29,ČEZ code EPC1 = Počerady; units G2-G6 (blind-checked by Claude + Codex review seats 2026-10-26),,Pocerady power station,Czech Republic
 ENTSOE,,EPC1_G6___,Czech Republic,L100000101804,,False,manual,N. Abad,2026-10-29,ČEZ code EPC1 = Počerady; units G2-G6 (blind-checked by Claude + Codex review seats 2026-10-26),,Pocerady power station,Czech Republic
-ENTSOE,,EPC1_G6____,Czech Republic,L100000101804,,False,manual,N. Abad,2026-10-29,ČEZ code EPC1 = Počerady; units G2-G6 (blind-checked by Claude + Codex review seats 2026-10-26),,Pocerady power station,Czech Republic
 ENTSOE,,EPR2_G23__,Czech Republic,L100000101805,,False,manual,N. Abad,2026-10-29,ČEZ code EPR2 = Prunéřov II; G23-G25 = GEM B23-B25 retrofit (blind-checked by Claude + Codex review seats 2026-10-26),,Prunerov power station,Czech Republic
-ENTSOE,,EPR2_G23___,Czech Republic,L100000101805,,False,manual,N. Abad,2026-10-29,ČEZ code EPR2 = Prunéřov II; G23-G25 = GEM B23-B25 retrofit (blind-checked by Claude + Codex review seats 2026-10-26),,Prunerov power station,Czech Republic
 ENTSOE,,EPR2_G24__,Czech Republic,L100000101805,,False,manual,N. Abad,2026-10-29,ČEZ code EPR2 = Prunéřov II; G23-G25 = GEM B23-B25 retrofit (blind-checked by Claude + Codex review seats 2026-10-26),,Prunerov power station,Czech Republic
-ENTSOE,,EPR2_G24___,Czech Republic,L100000101805,,False,manual,N. Abad,2026-10-29,ČEZ code EPR2 = Prunéřov II; G23-G25 = GEM B23-B25 retrofit (blind-checked by Claude + Codex review seats 2026-10-26),,Prunerov power station,Czech Republic
 ENTSOE,,EPR2_G25__,Czech Republic,L100000101805,,False,manual,N. Abad,2026-10-29,ČEZ code EPR2 = Prunéřov II; G23-G25 = GEM B23-B25 retrofit (blind-checked by Claude + Codex review seats 2026-10-26),,Prunerov power station,Czech Republic
-ENTSOE,,EPR2_G25___,Czech Republic,L100000101805,,False,manual,N. Abad,2026-10-29,ČEZ code EPR2 = Prunéřov II; G23-G25 = GEM B23-B25 retrofit (blind-checked by Claude + Codex review seats 2026-10-26),,Prunerov power station,Czech Republic
 ENTSOE,,ESC6TV,Spain,L100000400680,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'ESCATRON'),,,
 ENTSOE,,ESCCC3,Spain,L100000103497,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Escucha power station',,Escucha power station,Spain
 ENTSOE,,ETI2.G6,Czech Republic,L100000101782,,False,manual,N. Abad,2026-10-29,EIC 27W-PU-ETI2 = Tisová II (blind-checked by Claude + Codex review seats 2026-10-26),,Tisova power station,Czech Republic
 ENTSOE,,ETU2_G21__,Czech Republic,L100000101807,,False,manual,N. Abad,2026-10-29,ČEZ code ETU2 = Tušimice II; G21-G24 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Tusimice power station,Czech Republic
-ENTSOE,,ETU2_G21___,Czech Republic,L100000101807,,False,manual,N. Abad,2026-10-29,ČEZ code ETU2 = Tušimice II; G21-G24 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Tusimice power station,Czech Republic
 ENTSOE,,ETU2_G22__,Czech Republic,L100000101807,,False,manual,N. Abad,2026-10-29,ČEZ code ETU2 = Tušimice II; G21-G24 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Tusimice power station,Czech Republic
-ENTSOE,,ETU2_G22___,Czech Republic,L100000101807,,False,manual,N. Abad,2026-10-29,ČEZ code ETU2 = Tušimice II; G21-G24 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Tusimice power station,Czech Republic
 ENTSOE,,ETU2_G23__,Czech Republic,L100000101807,,False,manual,N. Abad,2026-10-29,ČEZ code ETU2 = Tušimice II; G21-G24 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Tusimice power station,Czech Republic
-ENTSOE,,ETU2_G23___,Czech Republic,L100000101807,,False,manual,N. Abad,2026-10-29,ČEZ code ETU2 = Tušimice II; G21-G24 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Tusimice power station,Czech Republic
 ENTSOE,,ETU2_G24__,Czech Republic,L100000101807,,False,manual,N. Abad,2026-10-29,ČEZ code ETU2 = Tušimice II; G21-G24 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Tusimice power station,Czech Republic
-ENTSOE,,ETU2_G24___,Czech Republic,L100000101807,,False,manual,N. Abad,2026-10-29,ČEZ code ETU2 = Tušimice II; G21-G24 = GEM units 1-4 (blind-checked by Claude + Codex review seats 2026-10-26),,Tusimice power station,Czech Republic
 ENTSOE,,Edenderry Unit 1,Ireland,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Edenderry power station'; GEM name did not resolve to one location — review,,,
 ENTSOE,,Eemshaven 10,Netherlands,L100000400541,,False,manual,entsoe-gem-2026-10,2026-10-29,"gas units 10/20/30 are Magnum (Eemshaven); coal units are Eemshaven A/B; was L100000103088 (rapidfuzz). Flagged by blind review 2026-10-26, verified against sister units by N. Abad (applied by N. Abad)",,Magnum (Eemshaven) power station,Netherlands
 ENTSOE,,Eemshaven 20,Netherlands,L100000400541,,False,manual,entsoe-gem-2026-10,2026-10-29,"gas units 10/20/30 are Magnum (Eemshaven); coal units are Eemshaven A/B; was L100000103088 (rapidfuzz). Flagged by blind review 2026-10-26, verified against sister units by N. Abad (applied by N. Abad)",,Magnum (Eemshaven) power station,Netherlands
@@ -447,6 +433,8 @@ ENTSOE,,Iernut_IERN4,Romania,L100000400622,,False,legacy,legacy-pipeline,2026-08
 ENTSOE,,Iernut_IERN4_CA,Romania,L100000400622,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Iernut power station',,Iernut power station,Romania
 ENTSOE,,Iernut_IERN5,Romania,L100000400622,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Iernut power station',,Iernut power station,Romania
 ENTSOE,,Iernut_IERN5_CA,Romania,L100000400622,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Iernut power station',,Iernut power station,Romania
+ENTSOE,,Isalnita_ISAL7_CA,Romania,L100000103291,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Isalnita power station,Romania
+ENTSOE,,Isalnita_ISAL8_CA,Romania,L100000103291,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Isalnita power station,Romania
 ENTSOE,,Jaworzno 2 B7,Poland,L100000103261,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Jaworzno II'),,,
 ENTSOE,,Jaworzno 3 B1,Poland,L100000103261,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 1.84km + name-verified vs GEM 'Jaworzno power station' (old GPPD match: 'Jaworzno III'),,Jaworzno power station,Poland
 ENTSOE,,Jaworzno 3 B2,Poland,L100000103261,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 1.84km + name-verified vs GEM 'Jaworzno power station' (old GPPD match: 'Jaworzno III'),,Jaworzno power station,Poland
@@ -689,6 +677,7 @@ ENTSOE,,TE_KAKANJ_G6,Bosnia and Herzegovina,L100000100097,,False,legacy,legacy-p
 ENTSOE,,TE_KAKANJ_G7,Bosnia and Herzegovina,L100000100097,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kakanj Thermal Power Plant',,Kakanj Thermal Power Plant,Bosnia and Herzegovina
 ENTSOE,,TE_STANARI_G1,Bosnia and Herzegovina,L100000100103,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Stanari Thermal Power Plant',,Stanari Thermal Power Plant,Bosnia and Herzegovina
 ENTSOE,,TE_TUZLA,Bosnia and Herzegovina,L100000100100,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Tuzla Thermal Power Plant',,Tuzla Thermal Power Plant,Bosnia and Herzegovina
+ENTSOE,,TE_TUZLA_G3,Bosnia and Herzegovina,L100000100100,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Tuzla Thermal Power Plant,Bosnia and Herzegovina
 ENTSOE,,TE_TUZLA_G4,Bosnia and Herzegovina,L100000100100,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Tuzla Thermal Power Plant',,Tuzla Thermal Power Plant,Bosnia and Herzegovina
 ENTSOE,,TE_TUZLA_G5,Bosnia and Herzegovina,L100000100100,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Tuzla Thermal Power Plant',,Tuzla Thermal Power Plant,Bosnia and Herzegovina
 ENTSOE,,TE_TUZLA_G6,Bosnia and Herzegovina,L100000100100,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Tuzla Thermal Power Plant',,Tuzla Thermal Power Plant,Bosnia and Herzegovina
@@ -741,6 +730,7 @@ ENTSOE,,UFARRU1,Spain,L100000400652,,False,legacy,legacy-pipeline,2026-08-30,gra
 ENTSOE,,UP_ALTOMONTE_1,Italy,L100000400339,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Altomonte power station',,Altomonte power station,Italy
 ENTSOE,,UP_AZOTATI_5,Italy,L100000400349,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Azotati power station',,Azotati power station,Italy
 ENTSOE,,UP_BRNDSSUDCE_1,Italy,L100000102842,,False,manual,N. Abad,2026-10-29,Terna code BRNDSSUD; matcher top candidate (59) (blind-checked by Claude + Codex review seats 2026-10-26),,Brindisi Sud power station,Italy
+ENTSOE,,UP_BRNDSSUDCE_2,Italy,L100000102842,,False,manual,N. Abad,2026-11-09,Terna code BRNDSSUD; matcher top candidate (59) (blind-checked by Claude + Codex review seats 2026-10-26),,Brindisi Sud power station,Italy
 ENTSOE,,UP_BRNDSSUDCE_3,Italy,L100000102842,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Brindisi Sud power station'),,,
 ENTSOE,,UP_BRNDSSUDCE_4,Italy,L100000102842,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Brindisi Sud power station',,Brindisi Sud power station,Italy
 ENTSOE,,UP_BUSSI_1,Italy,L100000400358,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Bussi power station',,Bussi power station,Italy
@@ -750,12 +740,18 @@ ENTSOE,,UP_CHIVASSO_2,Italy,L100000400367,,False,legacy,legacy-pipeline,2026-08-
 ENTSOE,,UP_DUINO_1,Italy,L100000400371,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Duino Mill power station',,Duino Mill power station,Italy
 ENTSOE,,UP_FIUMESANT_3,Italy,L100000102856,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 2.65km + name-verified vs GEM 'Fiume Santo power station' (old GPPD match: 'Fiumesanto'),,Fiume Santo power station,Italy
 ENTSOE,,UP_FIUMESANT_4,Italy,L100000102856,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 2.65km + name-verified vs GEM 'Fiume Santo power station' (old GPPD match: 'Fiumesanto'),,Fiume Santo power station,Italy
+ENTSOE,,UP_FUSINA_T_1,Italy,L100000102860,,False,manual,N. Abad,2026-11-09,Enel Fusina = 'Andrea Palladio' (blind-checked by Claude + Codex review seats 2026-10-26),,Andrea Palladio power station,Italy
+ENTSOE,,UP_FUSINA_T_2,Italy,L100000102860,,False,manual,N. Abad,2026-11-09,Enel Fusina = 'Andrea Palladio' (blind-checked by Claude + Codex review seats 2026-10-26),,Andrea Palladio power station,Italy
+ENTSOE,,UP_FUSINA_T_3,Italy,L100000102860,,False,manual,N. Abad,2026-11-09,Enel Fusina = 'Andrea Palladio' (blind-checked by Claude + Codex review seats 2026-10-26),,Andrea Palladio power station,Italy
+ENTSOE,,UP_FUSINA_T_4,Italy,L100000102860,,False,manual,N. Abad,2026-11-09,Enel Fusina = 'Andrea Palladio' (blind-checked by Claude + Codex review seats 2026-10-26),,Andrea Palladio power station,Italy
 ENTSOE,,UP_GISSI_1,Italy,L100000400380,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Gissi power station',,Gissi power station,Italy
 ENTSOE,,UP_GISSI_2,Italy,L100000400380,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Gissi power station',,Gissi power station,Italy
 ENTSOE,,UP_ISABENERGY_3,Italy,L100000407552,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'ISAB Energy Priolo power station',,ISAB Energy Priolo power station,Italy
 ENTSOE,,UP_LEINI_1,Italy,L100000400391,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Leini power station',,Leini power station,Italy
 ENTSOE,,UP_MILAZZO_1,Italy,L100000400399,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Milazzo power station',,Milazzo power station,Italy
 ENTSOE,,UP_MONCALRPW_2,Italy,L100000400401,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Moncalieri power station',,Moncalieri power station,Italy
+ENTSOE,,UP_MONFALCO_1,Italy,L100000102846,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Monfalcone power station,Italy
+ENTSOE,,UP_MONFALCO_2,Italy,L100000102846,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Monfalcone power station,Italy
 ENTSOE,,UP_NCTLVRNFRR_1,Italy,L100000407550,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Livorno Ferraris power station',,Livorno Ferraris power station,Italy
 ENTSOE,,UP_NPWRBRNDSI_10,Italy,L100000102841,,False,manual,entsoe-gem-2026-10,2026-10-29,"EniPower Brindisi gas units 8/9/10 are GEM Brindisi Nord, not Enel's Brindisi Sud; was L100000102842 (legacy). Flagged by blind review 2026-10-26, verified against sister units by N. Abad (applied by N. Abad)",,Brindisi Nord power station,Italy
 ENTSOE,,UP_NPWRBRNDSI_8,Italy,L100000102841,,False,manual,entsoe-gem-2026-10,2026-10-29,"EniPower Brindisi gas units 8/9/10 are GEM Brindisi Nord, not Enel's Brindisi Sud; was L100000102842 (gppd-geo). Flagged by blind review 2026-10-26, verified against sister units by N. Abad (applied by N. Abad)",,Brindisi Nord power station,Italy
@@ -777,6 +773,7 @@ ENTSOE,,UP_SBARBARA_3,Italy,L100000400436,,False,legacy,legacy-pipeline,2026-08-
 ENTSOE,,UP_SERMIDE_4,Italy,L100000400446,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Sermide power station',,Sermide power station,Italy
 ENTSOE,,UP_SMRICRICHI_1,Italy,L100000400452,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Simeri Crichi power station',,Simeri Crichi power station,Italy
 ENTSOE,,UP_SPARANISE_2,Italy,L100000400454,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Sparanise power station',,Sparanise power station,Italy
+ENTSOE,,UP_SPEZIA_CE_3,Italy,L100000102849,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,La Spezia power station,Italy
 ENTSOE,,UP_SULCIS_CEN_2,Italy,L100000102844,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Sulcis power station',,Sulcis power station,Italy
 ENTSOE,,UP_SULCIS_CE_3,Italy,L100000102844,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Sulcis power station',,Sulcis power station,Italy
 ENTSOE,,UP_TAVAZZANO_1,Italy,L100000400457,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Tavazzano power station',,Tavazzano power station,Italy
@@ -804,6 +801,7 @@ ENTSOE,,VOELKLINGEN_MKV,Germany,L100000101976,,False,legacy,legacy-pipeline,2026
 ENTSOE,,Vojany TG5,Slovakia,L100000103410,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Vojany I power station',,Vojany I power station,Slovakia
 ENTSOE,,Vojany TG6,Slovakia,L100000103410,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Vojany I power station',,Vojany I power station,Slovakia
 ENTSOE,,WALSUM_10,Germany,L100000101934,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 0.51km + name-verified vs GEM 'Duisburg-Walsum power station' (old GPPD match: 'KW Walsum'),,Duisburg-Walsum power station,Germany
+ENTSOE,,WALSUM_9,Germany,L100000101934,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Duisburg-Walsum power station,Germany
 ENTSOE,,WBUGT-1,United Kingdom,L100000103762,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'West Burton power station',,West Burton power station,United Kingdom
 ENTSOE,,WBUGT-4,United Kingdom,L100000103762,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'West Burton power station',,West Burton power station,United Kingdom
 ENTSOE,,WBURB-2,United Kingdom,L100000103762,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'West Burton power station',,West Burton power station,United Kingdom
@@ -816,6 +814,8 @@ ENTSOE,,Wrocław Bl2,Poland,L100000103211,,False,legacy,legacy-pipeline,2026-08-
 ENTSOE,,Wrocław Bl3,Poland,L100000103211,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Wroclaw power station',,Wroclaw power station,Poland
 ENTSOE,,Zandvliet Power,Belgium,L100000400038,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Zandvliet power station',,Zandvliet power station,Belgium
 ENTSOE,,Łagisza B10,Poland,L100000103264,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Łagisza'),,,
+ENTSOE,,Łagisza B6,Poland,L100000103264,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Lagisza power station,Poland
+ENTSOE,,Łagisza B7,Poland,L100000103264,,False,manual,N. Abad,2026-11-09,name (blind-checked by Claude + Codex review seats 2026-10-26),,Lagisza power station,Poland
 ENTSOE,,Łaziska 3 B09,Poland,L100000103265,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Łaziska'),,,
 ENTSOE,,Łaziska 3 B10,Poland,L100000103265,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Łaziska'),,,
 ENTSOE,,Łaziska 3 B11,Poland,L100000103265,,False,gppd-geo,gppd-migration-2026-09,2026-09-15,GPPD purge: geo-linked at 1.0 km to GEM (was GPPD 'Łaziska'),,,
@@ -833,6 +833,7 @@ NPP,,GMR Energy Ltd - Kakinada,India,L100000401507,,False,legacy,legacy-pipeline
 NPP,,HAZIRA CCPP,India,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered rapidfuzz match to GEM 'Hazira (Essar) power station'; GEM name did not resolve to one location — review,,,
 NPP,,HAZIRA CCPP EXT,India,,,False,legacy,legacy-pipeline,2026-08-30,grandfathered rapidfuzz match to GEM 'Hazira (Essar) power station'; GEM name did not resolve to one location — review,,,
 NPP,,IB VALLEY TPS,India,L100000102467,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered direct match to GEM 'Ib Valley Thermal Power Station'; pipeline reproduces the match, values frozen",,Ib Valley Thermal Power Station,India
+NPP,,ICCL IMP,India,,G100000101560,True,manual,N. Abad,2026-11-09,"grid-export meter of the captive Choudwar plant, not the plant; tracker uses Climate TRACE whole-plant data (C. Shearer, tracker #51)",,,
 NPP,,JSW Mahanadi Power Company Limited,India,L100000102159,,False,manual,N. Abad (Claude-assisted),2026-09-29,"JSW Energy acquired KSK Mahanadi Power (Chhattisgarh) in 2025 and renamed it JSW Mahanadi Power Company; DGR units 2-4 average ~463 MW since 2026-02, consistent with GEM 600 MW units. To confirm with Christine.",,KSK Mahanadi Power Project,India
 NPP,,KONDAPALLI EXTN CCPP .,India,L100000401494,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Kondapalli Combined Cycle power plant',,Kondapalli Combined Cycle power plant,India
 NPP,,LANCO BABANDH TPP,India,L100000102445,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Babandh power station',,Babandh power station,India
@@ -843,11 +844,12 @@ NPP,,METTUR TPS - II,India,L100000102561,G100000106897,False,legacy,legacy-pipel
 NPP,,METTUR TPS-II,India,L100000102561,G100000106897,False,legacy,legacy-pipeline,2026-08-30,"grandfathered direct match to GEM 'Mettur Thermal Power Station'; pipeline reproduces the match, values frozen",,Mettur Thermal Power Station,India
 NPP,,MUNDRA TPS-III,India,L100000102217,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered direct match to GEM 'Mundra Thermal Power Project (Adani)'; pipeline reproduces the match, values frozen",,Mundra Thermal Power Project (Adani),India
 NPP,,Malibrahamani TPP,India,L100000102480,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered rapidfuzz match to GEM 'Malibrahmani power station'; pipeline reproduces the match, values frozen",,Malibrahmani power station,India
+NPP,,NALCO IMP,India,,G100000100216,True,manual,N. Abad,2026-11-09,"grid-export meter of the captive Angul Smelter plant, not the plant; tracker uses Climate TRACE whole-plant data (C. Shearer, tracker #51)",,,
 NPP,,NEYVELI ( EXT) TPS,India,L100000102566,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered direct match to GEM 'Neyveli Thermal Power Station I'; pipeline reproduces the match, values frozen",,Neyveli Thermal Power Station I,India
 NPP,,NEYVELI TPS-II EXP,India,L100000102567,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered direct match to GEM 'Neyveli Thermal Power Station II'; pipeline reproduces the match, values frozen",,Neyveli Thermal Power Station II,India
 NPP,,NIGRI TPP,India,L100000102338,,False,manual,Claude scan 2026-09-15 (geo+name verified),2026-09-15,GPPD-purge scan: geo 0.0km + name-verified vs GEM 'Jaypee Nigrie Super Thermal Power Project' (old GPPD match: 'NIGRI'),,Jaypee Nigrie Super Thermal Power Project,India
 NPP,,NORTH CHENNAI TPS STAGE 3,India,L100000102569,G100000107505,False,legacy,legacy-pipeline,2026-08-30,"grandfathered direct match to GEM 'North Chennai Thermal Power Station'; pipeline reproduces the match, values frozen",,North Chennai Thermal Power Station,India
-NPP,,OBRA HPS,India,L100000102644,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered rapidfuzz match to GEM 'Obra Thermal Power Station'; pipeline reproduces the match, values frozen",,Obra Thermal Power Station,India
+NPP,,OBRA HPS,India,,,True,manual,N. Abad,2026-11-09,"Obra hydro station, not the coal plant (tracker #51)",,,
 NPP,,OBRA-C STPP,India,L100000102644,,False,legacy,legacy-pipeline,2026-08-30,"grandfathered direct match to GEM 'Obra Thermal Power Station'; pipeline reproduces the match, values frozen",,Obra Thermal Power Station,India
 NPP,,PATHADI STAGE II,India,L100000102162,G100000106147,False,legacy,legacy-pipeline,2026-08-30,"grandfathered direct match to GEM 'Korba Power Thermal Power Plant (Adani)'; pipeline reproduces the match, values frozen",,Korba Power Thermal Power Plant (Adani),India
 NPP,,PEGUTHAN CCPP,India,L100000102220,,False,legacy,legacy-pipeline,2026-08-30,grandfathered llm match to GEM 'Paguthan power station',,Paguthan power station,India
