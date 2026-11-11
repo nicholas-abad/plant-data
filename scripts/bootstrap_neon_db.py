@@ -17,6 +17,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -108,7 +109,9 @@ def create_schema(engine) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _atomic_replace_table(engine, df, table: str, post_load_sql: list[str]):
+def _atomic_replace_table(
+    engine, df, table: str, post_load_sql: list[str], restore_review_view: bool = False
+):
     """Replace `table` with `df` without a window where it is missing or broken.
 
     The old drop-then-load committed the DROP first, so any failure during
@@ -119,8 +122,11 @@ def _atomic_replace_table(engine, df, table: str, post_load_sql: list[str]):
     and the previous table survives intact.
 
     Note: dropping the old table still uses CASCADE, so dependent views are
-    destroyed by a SUCCESSFUL swap; plant_crosswalk_review is therefore
-    re-created in post_load_sql after every swap (PLANT_CROSSWALK_GUARDS).
+    destroyed by a SUCCESSFUL swap. plant_crosswalk_review reads two swapped
+    tables: plant_crosswalk re-creates it in post_load_sql
+    (PLANT_CROSSWALK_GUARDS), and eia_generator_info passes
+    restore_review_view so a register load on its own leaves the view in
+    place, with the owner and grants it had (see _restore_review_view).
 
     Privileges survive the swap. DROP + RENAME hands the name to a brand-new
     relation carrying only the owner's implicit rights, so every GRANT on the
@@ -149,10 +155,14 @@ def _atomic_replace_table(engine, df, table: str, post_load_sql: list[str]):
         if n != len(df):
             raise RuntimeError(f"{staging}: expected {len(df):,} rows, found {n:,}")
         grants = _table_grants(conn, table)
+        if restore_review_view:  # read before the DROP ... CASCADE below removes the view
+            view_before = ReviewViewState(_relation_owner(conn, REVIEW_VIEW), _table_grants(conn, REVIEW_VIEW))
         conn.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
         conn.execute(text(f"ALTER TABLE {staging} RENAME TO {table}"))
         for sql in post_load_sql:
             conn.execute(text(sql))
+        if restore_review_view:
+            _restore_review_view(conn, view_before)
         for grantee, privileges in grants:
             conn.execute(text(f"GRANT {privileges} ON {table} TO {grantee}"))
         if grants:
@@ -190,6 +200,59 @@ def _table_grants(conn, table: str) -> list[tuple[str, str]]:
     ]
 
 
+REVIEW_VIEW = "plant_crosswalk_review"
+
+
+def _quoted(role: str) -> str:
+    return '"' + role.replace('"', '""') + '"'
+
+
+def _relation_owner(conn, relation: str) -> str | None:
+    """Owner of a public table or view, None when it does not exist."""
+    return conn.execute(
+        text(
+            "SELECT pg_get_userbyid(c.relowner) FROM pg_class c "
+            "JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "WHERE n.nspname = 'public' AND c.relname = :name AND c.relkind IN ('r', 'v', 'm')"
+        ),
+        {"name": relation},
+    ).scalar()
+
+
+class ReviewViewState(NamedTuple):
+    """plant_crosswalk_review as it was before a swap dropped it."""
+
+    owner: str | None  # None: the view did not exist
+    grants: list[tuple[str, str]]  # (quoted grantee, privileges), as _table_grants returns them
+
+
+def _restore_review_view(conn, before: ReviewViewState) -> None:
+    """Re-create plant_crosswalk_review after the eia_generator_info swap dropped it.
+
+    The view reads eia_generator_info, so the swap's DROP ... CASCADE removes
+    it, and until now only the next crosswalk load brought it back. It is
+    re-created in the swap's transaction with the owner and grants it had.
+    The register and the crosswalk can have different owners (neondb_owner
+    and etl_writer): left to the loading role, the view would change owner
+    and its readers could lose access. If the view was already gone, it gets
+    plant_crosswalk's owner, which is who creates it every week. Without a
+    plant_crosswalk (a fresh database) there is nothing to re-create.
+    """
+    crosswalk_owner = _relation_owner(conn, "plant_crosswalk")
+    if crosswalk_owner is None:
+        print(f"  INFO  {REVIEW_VIEW}: not re-created (no plant_crosswalk yet)")
+        return
+    for sql in REVIEW_VIEW_SQL:
+        conn.execute(text(sql))
+    owner, grants = before.owner or crosswalk_owner, before.grants
+    if owner != conn.execute(text("SELECT current_user")).scalar():
+        conn.execute(text(f"ALTER VIEW {REVIEW_VIEW} OWNER TO {_quoted(owner)}"))
+    for grantee, privileges in grants:
+        conn.execute(text(f"GRANT {privileges} ON {REVIEW_VIEW} TO {grantee}"))
+    granted = f", grants for {', '.join(g for g, _ in grants)}" if grants else ""
+    print(f"  INFO  {REVIEW_VIEW}: re-created, owner {owner}{granted}")
+
+
 # Guards on the GEM link columns. Re-created on every swap (the table is a new
 # relation each Sunday), like the indexes. They protect what a HUMAN writes
 # through import_decisions.py; the build's own rows are validated by
@@ -223,10 +286,14 @@ PLANT_CROSSWALK_GUARDS = [
     """,
     "CREATE TRIGGER xw_guard BEFORE INSERT OR UPDATE OF gem_location_id, override_reason, not_in_gem "
     "ON plant_crosswalk FOR EACH ROW EXECUTE FUNCTION xw_guard()",
-    # What the review team downloads: coal plants first, then rows without
-    # coordinates, with the pipeline's hints. DROP first: CREATE OR REPLACE
-    # refuses to reorder or insert columns, and the swap's CASCADE has already
-    # removed the view anyway.
+]
+
+# What the review team downloads: coal plants first, then rows without
+# coordinates, with the pipeline's hints. DROP first: CREATE OR REPLACE
+# refuses to reorder or insert columns, and the swap's CASCADE has already
+# removed the view anyway. It reads plant_crosswalk AND eia_generator_info, so
+# both loads re-create it.
+REVIEW_VIEW_SQL = [
     "DROP VIEW IF EXISTS plant_crosswalk_review",
     """
     CREATE OR REPLACE VIEW plant_crosswalk_review AS
@@ -292,6 +359,7 @@ def load_unified_crosswalk(engine):
             "ON plant_crosswalk (gem_location_id, source_system) "
             "WHERE gem_location_id IS NOT NULL",
             *PLANT_CROSSWALK_GUARDS,
+            *REVIEW_VIEW_SQL,
         ],
     )
 
@@ -624,23 +692,36 @@ EIA_REGISTER_KEY_SQL = [
 ]
 
 
-def load_eia_generator_info(engine):
+def load_eia_generator_info(engine, required: bool = True):
     """Load EIA Form 860 generator reference data: operable + retired generators.
 
-    Retired generators are included so coal history from units retired before
-    the file's year still counts as coal (see src/eia_generator_info.py);
-    `status` = 'RE' marks them.
-    """
-    path = DATA_DIR / "crosswalks" / "3_1_Generator_Y2024.xlsx"
-    if not path.exists():
-        print(f"  SKIP  {path.name} not found")
-        return
+    The base edition's workbook (gitignored, downloaded by hand) plus the
+    committed supplement of generators retired in older editions, so coal
+    history from units retired before the base year still counts as coal
+    (see src/eia_generator_info.py); `status` = 'RE' marks them.
 
+    A missing input raises: a SKIP that exits 0 looks like a finished load and
+    leaves the old register in place. `required=False` is for the combined
+    load (--data-only, full bootstrap), which reloads the crosswalk on
+    machines that never downloaded the workbook; there the register already
+    in the database stays, and that is said loudly.
+    """
     if str(SCRIPT_DIR.parent) not in sys.path:
         sys.path.insert(0, str(SCRIPT_DIR.parent))
-    from src.eia_generator_info import RETIRED_STATUS, eia_generator_info_frame
+    from src import eia_generator_info as register
 
-    df = eia_generator_info_frame(path)
+    missing = [p for p in (register.BASE_WORKBOOK, register.SUPPLEMENT_FILE) if not p.exists()]
+    if missing:
+        message = (
+            f"eia_generator_info NOT reloaded: {', '.join(p.name for p in missing)} not found in "
+            f"{register.BASE_WORKBOOK.parent} (the workbook comes from EIA's Form 860 zip, see README)"
+        )
+        if required:
+            raise FileNotFoundError(message)
+        print(f"  WARN  {message}; the register already in the database is kept")
+        return
+
+    df = register.eia_generator_info_frame(register.BASE_WORKBOOK, register.SUPPLEMENT_FILE)
 
     _atomic_replace_table(
         engine,
@@ -653,12 +734,14 @@ def load_eia_generator_info(engine):
             "ALTER TABLE eia_generator_info ADD PRIMARY KEY (plant_code, generator_id)",
             "CREATE INDEX idx_eia_gen_info_technology ON eia_generator_info (technology)",
         ],
+        restore_review_view=True,
     )
 
-    n_retired = int((df["status"] == RETIRED_STATUS).sum())
+    n_retired = int((df["status"] == register.RETIRED_STATUS).sum())
+    by_edition = ", ".join(f"{e}: {n:,}" for e, n in df["source_edition"].value_counts().sort_index().items())
     print(
         f"  OK  eia_generator_info: {len(df):,} rows "
-        f"({len(df) - n_retired:,} operable, {n_retired:,} retired)"
+        f"({len(df) - n_retired:,} operable, {n_retired:,} retired; by Form 860 edition {by_edition})"
     )
 
 
@@ -846,7 +929,7 @@ def load_ct_gem_crosswalk(engine):
 def load_all_reference_data(engine):
     """Load the unified crosswalk table, EIA generator info, GCPT coal metadata and the unit map."""
     load_unified_crosswalk(engine)
-    load_eia_generator_info(engine)
+    load_eia_generator_info(engine, required=False)
     load_gcpt_coal_metadata(engine)
     load_unit_gem_map(engine)
 

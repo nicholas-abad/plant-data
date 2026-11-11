@@ -71,6 +71,11 @@ data/crosswalks/*.csv
 !data/crosswalks/oe_unit_gem_map.csv
 !data/crosswalks/occto_unit_gem_map.csv
 !data/crosswalks/entsoe_unit_gem_map.csv
+# Generators retired in Form 860 2019-2023 that the 2024 edition no longer lists
+# (scripts/build_eia860_supplement.py): the eia_generator_info load reads it.
+!data/crosswalks/eia860_retired_2019_2023.csv
+# US generators known to have no Form 860 row: verify_crosswalk.py's no-fuel guard reads it.
+!data/crosswalks/eia_no_fuel_exceptions.csv
 data/crosswalks/*.xlsx
 
 # Crosswalk test/scratch artifacts (not the real unified_plant_crosswalk.parquet)
@@ -84,3 +89,6 @@ data/crosswalks/unit_gem_map.parquet
 
 # Environment credentials
 .env
+
+# Form 860 archives and workbooks for scripts/build_eia860_supplement.py (9-10 MB each)
+data/eia860/
