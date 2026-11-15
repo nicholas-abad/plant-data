@@ -225,6 +225,86 @@ def unit_overlaps(engine, umap: pd.DataFrame) -> str | None:
     return clash
 
 
+def _listed(labels: list[str], limit: int = 40) -> str:
+    more = f" … and {len(labels) - limit} more" if len(labels) > limit else ""
+    return ", ".join(labels[:limit]) + more
+
+
+def no_fuel_gate(engine, eia: pd.DataFrame) -> None:
+    """G-UNITMAP: every US generator in the map has a Form 860 technology, or a written reason.
+
+    A generator without an eia_generator_info row has no fuel, and the map
+    used to count that as "not coal": 46 retired coal units lost 93.6 TWh
+    that way (tracker issue #55). Now a missing fuel fails, unless
+
+    * the generator's generation starts after the loaded register's year
+      (commissioned since; recurs until the next Form 860 is loaded): warn;
+    * it is listed in eia_no_fuel_exceptions.csv: skipped, and printed.
+
+    A failure here stops the load of the rebuilt crosswalk for EVERY source
+    (the weekly job verifies before its one load step). The fix is to reload
+    the register (bootstrap_neon_db.py --generator-info-only) or, for a
+    generator Form 860 really lacks, to add it to the exceptions file.
+    """
+    from sqlalchemy import text as _sql_text
+
+    with engine.connect() as conn:
+        has_edition = conn.execute(
+            _sql_text(
+                "SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' "
+                "AND table_name = 'eia_generator_info' AND column_name = 'source_edition'"
+            )
+        ).scalar()
+        if not has_edition:
+            fail(
+                "G-UNITMAP: eia_generator_info has no source_edition column: it was loaded before the "
+                "multi-edition register. Reload it: bootstrap_neon_db.py --generator-info-only"
+            )
+            return
+        edition = conn.execute(_sql_text("SELECT MAX(source_edition) FROM eia_generator_info")).scalar()
+        first = pd.read_sql(
+            _sql_text(
+                "SELECT plant_code::text AS plant_key, generator_id AS unit_key, MIN(month)::date AS first_month "
+                "FROM mv_eia_unit_monthly GROUP BY 1, 2"
+            ),
+            conn,
+        )
+    if edition is None:
+        fail("G-UNITMAP: eia_generator_info is empty; load it: bootstrap_neon_db.py --generator-info-only")
+        return
+    year_end = pd.Timestamp(year=int(edition), month=12, day=31).date()
+    first_month = {
+        (p, u): pd.Timestamp(m).date() for p, u, m in zip(first["plant_key"], first["unit_key"], first["first_month"])
+    }
+    found = eia_unit_map.no_fuel_findings(eia, first_month, eia_unit_map.load_no_fuel_exceptions(), year_end)
+    if found.failing:
+        fail(
+            f"G-UNITMAP: {len(found.failing)} US generators with generation by {year_end} have no Form 860 "
+            f"technology and would count as not coal: {_listed(found.failing)}. Reload the register "
+            f"(bootstrap_neon_db.py --generator-info-only) or list them in {eia_unit_map.NO_FUEL_EXCEPTIONS_FILE.name}"
+        )
+    if found.new:
+        print(
+            f"warn  G-UNITMAP: {len(found.new)} US generators started after the Form 860 {edition} register "
+            f"and have no technology yet (not coal until the next edition is loaded): {_listed(found.new)}"
+        )
+    if found.skipped:
+        print(
+            f"warn  G-UNITMAP: {len(found.skipped)} US generators without a Form 860 row are skipped by "
+            f"{eia_unit_map.NO_FUEL_EXCEPTIONS_FILE.name} (no fuel, not coal): {_listed(found.skipped)}"
+        )
+    if found.stale:
+        print(
+            f"warn  G-UNITMAP: {len(found.stale)} rows of {eia_unit_map.NO_FUEL_EXCEPTIONS_FILE.name} have a "
+            f"technology by now and can be removed: {_listed(found.stale)}"
+        )
+    if not found.failing:
+        ok(
+            "G-UNITMAP: every US generator in the map has a Form 860 technology or a listed reason "
+            f"(register through {year_end})"
+        )
+
+
 def unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
     """G-UNITMAP: unit_gem_map (every source but India), when the build wrote it."""
     if not UNIT_MAP_FILE.exists():
@@ -276,6 +356,7 @@ def unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
         if fail.count == before:
             ok(f"G-UNITMAP: {len(umap):,} rows (no US rows)")
         return
+    no_fuel_gate(engine, eia)
     with engine.connect() as conn:
         gen = pd.read_sql(
             _sql_text(

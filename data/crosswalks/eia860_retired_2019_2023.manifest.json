@@ -1,0 +1,53 @@
+{
+  "description": "Form 860 generators with status RE in an older edition's 'Retired and Canceled' sheet that the base edition lists on neither sheet; newest edition wins. Built by scripts/build_eia860_supplement.py.",
+  "base_edition": {
+    "year": 2024,
+    "workbook": "3_1_Generator_Y2024.xlsx",
+    "workbook_sha256": "249607e986846dcc9326b6583cef5d376f1c2421339957a75b93546d133b76c8",
+    "rows": 31506
+  },
+  "editions": {
+    "2019": {
+      "url": "https://www.eia.gov/electricity/data/eia860/archive/xls/eia8602019.zip",
+      "zip_sha256": "6fe0d37858359c50772fbcb1a6cfca0a3fbf442423ddf4e0d33df929caa1ea7b",
+      "workbook": "3_1_Generator_Y2019.xlsx",
+      "workbook_sha256": "0f711fdb4ebb10bc1f7913d8ee3b3ecb800259bf79f5e4b4ba8e12219c7ebdc3",
+      "retired_rows": 3790,
+      "rows_added": 148
+    },
+    "2020": {
+      "url": "https://www.eia.gov/electricity/data/eia860/archive/xls/eia8602020.zip",
+      "zip_sha256": "ce519fd0b02c74b8c4231dc023bf07f922ae5f2a018fcaf88914502f61aa89ea",
+      "workbook": "3_1_Generator_Y2020.xlsx",
+      "workbook_sha256": "7cc752d051acd09bb56dbb939b39c66e5dd42d836797271aafac43baaa5487d3",
+      "retired_rows": 3947,
+      "rows_added": 282
+    },
+    "2021": {
+      "url": "https://www.eia.gov/electricity/data/eia860/archive/xls/eia8602021.zip",
+      "zip_sha256": "ac35e582335ed5f82c1177361d6e8e82cff083ae85a5ec668815d21e0aef3ee5",
+      "workbook": "3_1_Generator_Y2021.xlsx",
+      "workbook_sha256": "0d611b97f8267dfdaa7ffdcf3ab223b70aa353d07a28856dd3129e22f4b1bab2",
+      "retired_rows": 3955,
+      "rows_added": 154
+    },
+    "2022": {
+      "url": "https://www.eia.gov/electricity/data/eia860/archive/xls/eia8602022.zip",
+      "zip_sha256": "a6f6b00f480ccfb7436804f5cb9984f27c3e0c20cfcbe9b4ed057285b5a68980",
+      "workbook": "3_1_Generator_Y2022.xlsx",
+      "workbook_sha256": "02016f3766cb11b0555557df79d693b760dfa53aecc26da76b812914943d954b",
+      "retired_rows": 4111,
+      "rows_added": 148
+    },
+    "2023": {
+      "url": "https://www.eia.gov/electricity/data/eia860/archive/xls/eia8602023.zip",
+      "zip_sha256": "1447e23e608bea1523961542a90eb93ea86715067a37f211282541461049b46f",
+      "workbook": "3_1_Generator_Y2023.xlsx",
+      "workbook_sha256": "f46e55b67fb4e6c653d129d32fd58f4540d737f50b83d4bcfbdcc54fb2aba669",
+      "retired_rows": 4379,
+      "rows_added": 145
+    }
+  },
+  "rows": 877,
+  "coal_rows": 121
+}

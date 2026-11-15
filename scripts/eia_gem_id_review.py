@@ -87,13 +87,18 @@ def build_review(
             continue
         rule = ids_mod.rule_target(locs, r.eia_state)
         current = r.gem_location_id if isinstance(r.gem_location_id, str) else None
+        prev = old.get(code)
+        reviewed = prev is not None and bool(prev.get("reviewed_by"))
+        # A reviewed row stays even once the link agrees: the unit map reads
+        # its accepted location (Dan E Karn 1702, whose code GEM lists twice).
         if (
-            rule.gem_location_id is not None
+            not reviewed
+            and rule.gem_location_id is not None
             and rule.gem_location_id == current
             and code not in SUSPECT
         ):
             continue  # GEM's code confirms today's link
-        if rule.gem_location_id is None and current in locs:
+        if not reviewed and rule.gem_location_id is None and current in locs:
             continue  # today's link is one of GEM's locations for the code
         proposed = rule.gem_location_id or (min(locs) if len(locs) == 1 else "")
         verdict = "accept" if rule.gem_location_id and code not in SUSPECT else "defer"
@@ -131,8 +136,7 @@ def build_review(
             "reviewed_by": "",
             "reviewed_on": "",
         }
-        prev = old.get(code)
-        if prev is not None and prev.get("reviewed_by"):
+        if reviewed:
             for k in (
                 "verdict",
                 "note",

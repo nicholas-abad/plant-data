@@ -25,7 +25,7 @@ plant_code,plant_name,eia_state,current_gem_location_id,current_name,current_met
 1573,Morgantown Generating Plant,MD,L100000104011,Morrow Generating Plant,rapidfuzz,,L100000103967,Morgantown Generating Station,Maryland,rule holds,accept,,,
 1595,Kendall Square Station,MA,,,,,L100000402463,Kendall Square power station,Massachusetts,rule holds,accept,,,
 1682,Cleary Flood Hybrid,MA,,,,,L100000401542,Cleary Flood power station,Massachusetts,rule holds,accept,,,
-1702,Dan E Karn,MI,,,legacy,legacy-pipeline,,,,"GEM lists the code at 2 locations: L100000103981, L100000401829",defer,,,
+1702,Dan E Karn,MI,,,legacy,legacy-pipeline,L100000103981,Karn Generating Plant,Michigan,"GEM lists the code at 2 locations: L100000103981, L100000401829",accept,"EIA's coal generators 1A and 2A are GEM Karn Generating Plant Units 1 and 2 (GCPT, 258 MW each, 1959/1961, retired 2023; GEM unit-level EIA IDs 1A/2A); L100000401829 Dan E Karn power station holds only the gas/oil units 3 and 4 (GOGPT, EIA IDs 3/4). Tracker #49",N. Abad (tracker #49),2026-11-10
 1825,J B Sims,MI,,,,,L100000103979,Sims Generating Station,Michigan,rule holds,accept,,,
 1927,Riverside (MN),MN,L100000103918,Riverside (IA) power station,rapidfuzz,,L100000104694,Riverside (MN) power station,Minnesota,rule holds,accept,,,
 2094,Sibley,MO,,,,,L100000104026,Sibley Generating Station,Missouri,rule holds,accept,,,

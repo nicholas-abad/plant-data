@@ -12,7 +12,9 @@ Everything below lives in **`data/crosswalks/`**. The large ones are gitignored 
 | [GPPD](https://datasets.wri.org/dataset/globalpowerplantdatabase) (WRI) | Coordinates, capacity (fallback when GEM misses) | `global_power_plant_database.csv` | Public download from WRI |
 | [HJKS](https://hjks.jepx.or.jp/hjks/unit) (JEPX) | Japanese unit rated outputs (認可出力), keyed by 発電所コード | `hjks_units.csv` | **Committed** — refresh with `uv run python scripts/fetch_hjks_units.py` |
 | NPP–GIPT crosswalk | India plant → GEM unit mapping | `NPP_GIPT_crosswalk (1).csv` | Curated by hand; note the literal `" (1)"` in the filename |
-| EIA Form 860 | US generator metadata (`--generator-info-only`) | `3_1_Generator_Y2024.xlsx` | EIA Form 860 annual release |
+| EIA Form 860, 2024 | US generator metadata (`--generator-info-only`): operable and retired generators | `3_1_Generator_Y2024.xlsx` | Not committed. From `eia8602024.zip` on [EIA's Form 860 page](https://www.eia.gov/electricity/data/eia860/); `--generator-info-only` fails without it |
+| EIA Form 860, 2019–2023 retired generators | The 877 generators retired in an older edition that the 2024 edition no longer lists (W H Zimmer, W H Sammis, …), so their history still counts as coal | `eia860_retired_2019_2023.csv` + `.manifest.json` (archive URLs and sha256) | **Committed** — rebuild with `uv run python scripts/build_eia860_supplement.py` (downloads the five archives into `data/eia860/`); `--check` verifies it against the workbooks |
+| US generators without a Form 860 row | The generators `verify_crosswalk.py`'s no-fuel guard skips, each with a reason. `generator_id` is the generation key (`unit_gem_map.unit_key`), which is not always Form 860's spelling. It only silences the guard: these generators keep no fuel and are not counted as coal | `eia_no_fuel_exceptions.csv` | **Committed**, edited by hand |
 | EIA plant lookup | plant_code → plant name | `eia_plant_lookup.csv` | Derived; see `notebooks/eia_plant_names.ipynb` |
 | Unit map | Each source unit's GEM unit (US, India, Brazil, Chile, Australia, Japan, Europe; India's older `npp_unit_gem_map` / `npp_gem_unit_monthly` are views over it) | `unit_gem_map.parquet` | **Built** by `build_crosswalk.py` (`src/unit_gem_map.py` and one module per source; reviewed cases in `data/crosswalks/*_unit_gem_map.csv`); loaded with `bootstrap_neon_db.py --unit-map-only` (also part of `--data-only`), which re-creates the view `gem_unit_monthly` |
 | Climate TRACE → GEM links | Each CT power plant's GEM units (`G…`) and locations (`L…`), all fuels | `ct_gem_crosswalk.csv` | **Committed** — extracted from Climate TRACE's "download links" workbook (`gem_ct_crosswalk` tab) with `scripts/extract_ct_gem_crosswalk.py`; loaded with `bootstrap_neon_db.py --ct-gem-only` |
@@ -184,7 +186,7 @@ The `bootstrap_neon_db.py` script loads reference tables into Neon PostgreSQL:
 | Table | Source | Rows | Description |
 |-------|--------|------|-------------|
 | `plant_crosswalk` | Unified pipeline output | ~3,500 | Maps plant names to coordinates across all 7 sources |
-| `eia_generator_info` | EIA Form 860 (3_1_Generator_Y2024.xlsx) | ~26,800 | Generator-level technology, prime mover, capacity |
+| `eia_generator_info` | EIA Form 860: the 2024 edition (operable + retired) plus `eia860_retired_2019_2023.csv` | ~32,400 (26,855 operable, 5,528 retired) | Generator-level technology, prime mover, capacity; `status` (`RE` = retired), `source_edition` (the Form 860 year of the row) |
 | `gcpt_coal_metadata` | GCPT database | ~14,300 (1,170 USA with EIA IDs) | Coal type, combustion technology for CO2 estimation |
 
 ### CLI Flags
@@ -193,7 +195,7 @@ The `bootstrap_neon_db.py` script loads reference tables into Neon PostgreSQL:
 uv run python scripts/bootstrap_neon_db.py                    # Full bootstrap
 uv run python scripts/bootstrap_neon_db.py --schema-only      # Schema only
 uv run python scripts/bootstrap_neon_db.py --data-only        # All reference data
-uv run python scripts/bootstrap_neon_db.py --generator-info-only  # EIA Form 860 only
+uv run python scripts/bootstrap_neon_db.py --generator-info-only  # EIA Form 860 only (fails without the 2024 workbook; re-creates plant_crosswalk_review)
 uv run python scripts/bootstrap_neon_db.py --gcpt-only        # GCPT coal metadata only
 uv run python scripts/bootstrap_neon_db.py --test-only        # NPP LLM test data only
 ```

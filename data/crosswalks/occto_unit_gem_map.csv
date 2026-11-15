@@ -8,3 +8,5 @@ plant,unit,gem_location_id,gem_unit_ids,evidence,reviewed_by,reviewed_on
 松浦発電所,２号機,L100000102939,G100000106743,"Kyushu Matsuura Unit 2; OCCTO peak 956 MW vs GEM 1000 MW",proposed,2026-10-17
 名古屋発電所,1号機,L100000102873,G100000107185,"Nakayama Nagoya Unit 1; OCCTO peak 138 MW vs GEM 149 MW",proposed,2026-10-17
 名古屋第二発電所,1号機,L100000102873,G100000107186,"Nakayama Nagoya No. 2 = GEM Unit 2 (local name 'Nakayama Nagoya power station 2 (Unit 2)'); OCCTO peak 104 MW vs GEM 110 MW",proposed,2026-10-17
+ひびき灘石炭・バイオマス発電所,単独,L100000102934,G100000103883,"Hibikinada Energy Park coal/biomass, HJKS code OA32915H40 = GEM's FIT ID for unit G100000103883 (Hibikinida Biomass power station, 112 MW, 2018); OCCTO 112 MW",proposed,2026-11-10
+響灘火力発電所,1号機,L100000104537,G100000113920,"Hibikinada Thermal Power Station unit 1 (Daiwa House, 112 MW, 2019); GEM lists it twice after its coal-to-biomass conversion: GCPT 1 timepoint 1 (this, mothballed) and GBPT 1 timepoint 2 (G100000202486); the coal record is used as for converted EIA units (tracker #10)",proposed,2026-11-10
