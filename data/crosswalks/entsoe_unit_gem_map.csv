@@ -11,9 +11,9 @@ DEWHV______1_____,L100000101920,G100000110939,"Wilhelmshaven's only GEM coal uni
 DEWHV______1____,L100000101920,G100000110939,"Empty 2018 spelling of DEWHV______1_____ (no generation); same unit",proposed,2026-10-26
 DEZOLLI____1_____,L100000101885,G100000111745,"Zolling's only GEM coal unit (Unit 5, 474 MW, retired); ENTSO-E reports it under two paddings (…1____ one empty month in 2018, …1_____ 2019–2025)",proposed,2026-10-26
 DEZOLLI____1____,L100000101885,G100000111745,"Empty 2018 spelling of DEZOLLI____1_____ (no generation); same unit",proposed,2026-10-26
-Bełchatów B01,L100000103216,G100000100724,"Bełchatów B01 = GEM Phase 1 Unit 1 (370 MW, retired 2019); B01 last generated 2019-05; B02-B12 are already Phase 1 Units 2-12, and the number 1 also matches Phase 2 Unit 1 (B14)",proposed,2026-11-10
+Bełchatów B01,L100000103216,G100000100724,"Bełchatów B01 = GEM Phase 1 Unit 1 (370 MW, retired 2019); B01 last non-zero month 2019-05 (records to 2019-08); B02-B12 are already Phase 1 Units 2-12, and the number 1 also matches Phase 2 Unit 1 (B14)",proposed,2026-11-10
 HKW Reuter West Block D,L100000101889,G100000100771,"Reuter West Block D (1987) = GEM Unit A (300 MW, 1987)",proposed,2026-11-10
-HKW Reuter West Block E,L100000101889,G100000100772,"Reuter West Block E (1989) = GEM Unit B (300 MW, 1989)",proposed,2026-11-10
+HKW Reuter West Block E,L100000101889,G100000100772,"Reuter West Block E (operator: 1988) = GEM Unit B (300 MW, GEM: 1989), the later of the two units; Block D (1987) is Unit A",proposed,2026-11-10
 ECHV_G3___,L100000101794,G100000101575,"Chvaletice G3 = GEM Unit 3 (205 MW); G1, G2, G4 are already Units 1, 2, 4. ENTSO-E's Czech code numbers the unit as GEM does; the two paddings overlapping in 2025 kept the automatic match back",proposed,2026-11-10
 ECHV_G3____,L100000101794,G100000101575,Other padding of ECHV_G3___ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
 EDET_G2___,L100000101786,G100000102325,"Dětmarovice G2 = GEM Unit 2 (200 MW, retired 2025); the two paddings generating in the same months in Q1 2025 (a duplicate, fixed by the CZ source rebuild) kept the automatic match back",proposed,2026-11-10
@@ -28,7 +28,7 @@ EECK_G5___,L100000101799,G100000105794,Kladno G5 = GEM Unit TG5 (135 MW); G4 is 
 EECK_G5____,L100000101799,G100000105794,Other padding of EECK_G5___ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
 EECK_G7___,L100000101799,G100000105792,"Kladno G7 = GEM Unit TG7 (135 MW, 2014)",proposed,2026-11-10
 EECK_G7____,L100000101799,G100000105792,Other padding of EECK_G7___ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
-NLROTTETH_,L100000103095,G100000106535,"GEM's only unit at this site (800 MW, 2015); ENTSO-E peak 729 MW. NLROTTETH_ runs to 2025-12, NLROTTETH__1 from 2025-01: one unit renamed (identical values in both in 2025-01..03, a source duplicate)",proposed,2026-11-10
+NLROTTETH_,L100000103095,G100000106535,"GEM's only unit at this site (800 MW, 2015); ENTSO-E peak 729 MW. NLROTTETH_ generates to 2025-12, NLROTTETH__1 from 2026-01: one unit renamed (the Q1 2025 source duplicate under both names was removed by ETL #158)",proposed,2026-11-10
 NLROTTETH__1,L100000103095,G100000106535,Later name of NLROTTETH_ (peak 729 MW); same unit,proposed,2026-11-10
 TPP_MARITSA_3_G1,L100000100136,G100000106668,"Maritsa 3's only GEM unit (120 MW); the other name, TPP_MARITSA_3, has no generation",proposed,2026-11-10
 EME3_G11__,L100000101800,G100000106851,"Mělník III (EME3) = GEM Phase 3 Unit 1 (500 MW, retired 2021); EME3_G11 last generated 2021-02. Confirmed in Christine Shearer's review of the unmatched units (email, 15 Nov 2026)",C. Shearer,2026-11-15
@@ -55,8 +55,8 @@ ETU2_G23__,L100000101807,G100000110383,"Tušimice II G23 = GEM Unit 3 (200 MW): 
 ETU2_G23___,L100000101807,G100000110383,Other padding of ETU2_G23__ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
 ETU2_G24__,L100000101807,G100000110384,"Tušimice II G24 = GEM Unit 4 (200 MW): the source numbers the four units 21-24, GEM 1-4",proposed,2026-11-10
 ETU2_G24___,L100000101807,G100000110384,Other padding of ETU2_G24__ (Czech rows carry both until the source rebuild); same unit,proposed,2026-11-10
-VOELKLINGEN_HKV,L100000101976,G100000110652,"Völklingen HKV (Heizkraftwerk Fenne, 1982) = GEM Phase B Unit 1 (233 MW, 1982)",proposed,2026-11-10
-VOELKLINGEN_MKV,L100000101976,G100000110653,"Völklingen MKV (Modellkraftwerk, 1989) = GEM Phase C Unit 1 (233 MW, 1989)",proposed,2026-11-10
+VOELKLINGEN_HKV,L100000101976,G100000110653,"Völklingen HKV (Heizkraftwerk, commissioned 30.11.1989 per Bundesnetzagentur Altersreihung KVBG094 and the operator) = GEM Phase C Unit 1 (233 MW, 1989); GEM lists it retired; ENTSO-E records run to 2026-09",proposed,2026-11-10
+VOELKLINGEN_MKV,L100000101976,G100000110652,"Völklingen MKV (Modellkraftwerk, commissioned 15.08.1982 per Bundesnetzagentur Altersreihung KVBG093 and the operator) = GEM Phase B Unit 1 (233 MW, 1982); GEM lists it retired",proposed,2026-11-10
 EME2_G10,L100000101800,G100000106850,"Mělník II G10 = GEM Phase 2 Unit 4 (110 MW, operating): ENTSO-E peak 100 MW and generating in 2026; the other Phase 2 unit (Unit 3) is G9. Confirmed in Christine Shearer's review of the unmatched units (email, 15 Nov 2026)",C. Shearer,2026-11-15
 EME2_G9,L100000101800,G100000106849,"Mělník II G9 = GEM Phase 2 Unit 3 (110 MW): retired in 2020 in the GEM release we load (July 2026), operating in Christine's current GEM data; ENTSO-E has 0.002 TWh in 2026. G10 is Phase 2 Unit 4. Christine Shearer's review of the unmatched units (email, 15 Nov 2026)",C. Shearer,2026-11-15
 Pątnów 1 B1,L100000103220,G100000107864,"Pątnów 1 B1 = GEM Unit I-7 (222 MW, retired 2024; the data stops 2024-12); B3-B6 are Units I-3 to I-6. Christine Shearer's review of the unmatched units (email, 15 Nov 2026)",C. Shearer,2026-11-15
