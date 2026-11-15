@@ -2525,18 +2525,26 @@ def build_npp_unit_map(units: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.DataF
         gem_unit_id=gipt["GEM unit/phase ID"],
         gem_location_id=gipt["GEM unit/phase ID"].map(u2l),
     ).dropna(subset=["plant", "gem_location_id"])
+    reviewed = pd.read_csv(NPP_REVIEWED_CSV, dtype=str, keep_default_na=False)
+    check_reviewed(NPP_REVIEWED_CSV, reviewed, gemref.load_tables()["units"], ["plant", "unit"])
+    if (reviewed["gem_unit_ids"].str.split().str.len() != 1).any():
+        raise ValueError(f"{NPP_REVIEWED_CSV.name}: each DGR unit is one GEM unit")
+    reviewed_keys = pd.MultiIndex.from_frame(reviewed[["plant", "unit"]])
+    unseen = ~reviewed_keys.isin(pd.MultiIndex.from_frame(units[["plant", "unit"]]))
+    if unseen.any():
+        logger.warning(
+            f"{NPP_REVIEWED_CSV.name}: {int(unseen.sum())} reviewed (plant, unit) rows match no DGR unit "
+            f"and place nothing: {reviewed_keys[unseen].tolist()[:5]}"
+        )
+    # A reviewed row settles its unit, so GIPT's row for it is dropped before
+    # the clash check: the review can fix a GIPT unit that sits on two sites.
+    gipt = gipt[~pd.MultiIndex.from_frame(gipt[["plant", "unit"]]).isin(reviewed_keys)]
     clash = gipt.groupby(["plant", "unit"])["gem_location_id"].nunique()
     if (clash > 1).any():
         raise ValueError(
             f"GIPT maps a DGR unit to more than one GEM location: {clash[clash > 1].index.tolist()[:5]}"
         )
     gipt = gipt.drop_duplicates(["plant", "unit"])[["plant", "unit", "gem_location_id", "gem_unit_id"]]
-    reviewed = pd.read_csv(NPP_REVIEWED_CSV, dtype=str, keep_default_na=False)
-    check_reviewed(NPP_REVIEWED_CSV, reviewed, gemref.load_tables()["units"], ["plant", "unit"])
-    if (reviewed["gem_unit_ids"].str.split().str.len() != 1).any():
-        raise ValueError(f"{NPP_REVIEWED_CSV.name}: each DGR unit is one GEM unit")
-    keyed = pd.MultiIndex.from_frame(gipt[["plant", "unit"]])
-    gipt = gipt[~keyed.isin(pd.MultiIndex.from_frame(reviewed[["plant", "unit"]]))]
     gipt = pd.concat(
         [
             gipt.assign(map_source="gipt-unit"),

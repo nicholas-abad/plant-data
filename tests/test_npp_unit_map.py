@@ -153,6 +153,7 @@ def test_a_reviewed_unit_replaces_gipt_and_places_a_renamed_plant(gem):
     assert out.loc[("BARH STPS", "Unit 4"), "map_source"] == "source-id-reviewed"
     assert out.loc[("BARH STPS", "Unit 1"), "map_source"] == "gipt-unit"
     assert out.loc[("KAWAI NEW", "Unit 1"), "gem_location_id"] == "LK"
+    assert out.loc[("KAWAI NEW", "Unit 1"), "map_source"] == "source-id-reviewed"
 
 
 def test_a_reviewed_unit_at_the_wrong_gem_plant_fails(gem):
@@ -160,3 +161,34 @@ def test_a_reviewed_unit_at_the_wrong_gem_plant_fails(gem):
     units = pd.DataFrame({"plant": ["BARH STPS"], "unit": ["Unit 4"]})
     with pytest.raises(ValueError, match="G4"):
         bc.build_npp_unit_map(units, _crosswalk())
+
+
+def test_a_reviewed_unit_settles_a_gipt_unit_on_two_sites(gem):
+    gipt = pd.read_csv(bc.NPP_GIPT_CSV)
+    gipt.loc[len(gipt)] = ["coal", "BARH  STPS", "Unit 1", "G4"]
+    gipt.to_csv(bc.NPP_GIPT_CSV, index=False)
+    _review([("BARH STPS", "Unit 1", "LK", "G4", "x")])
+    units = pd.DataFrame({"plant": ["BARH STPS"], "unit": ["Unit 1"]})
+    out = bc.build_npp_unit_map(units, _crosswalk())
+    assert list(out["gem_unit_id"]) == ["G4"]
+
+
+def test_a_reviewed_row_with_two_gem_units_fails(gem):
+    _review([("BARH STPS", "Unit 4", "LK", "G4 G4", "x")])
+    units = pd.DataFrame({"plant": ["BARH STPS"], "unit": ["Unit 4"]})
+    with pytest.raises(ValueError, match="one GEM unit"):
+        bc.build_npp_unit_map(units, _crosswalk())
+
+
+def test_a_reviewed_row_matching_no_dgr_unit_is_reported(gem):
+    from loguru import logger
+
+    messages = []
+    sink = logger.add(messages.append, level="WARNING")
+    try:
+        _review([("KAWAI TYPO", "Unit 1", "LK", "G4", "x")])
+        units = pd.DataFrame({"plant": ["BARH STPS"], "unit": ["Unit 1"]})
+        bc.build_npp_unit_map(units, _crosswalk())
+    finally:
+        logger.remove(sink)
+    assert any("match no DGR unit" in str(m) for m in messages)
