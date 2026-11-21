@@ -1,0 +1,138 @@
+{
+ "asset_id": "L100000102125_G100000100471",
+ "asset_name": "BALCO Korba power station Phase 3 Unit 1",
+ "asset_type": "Coal Plant",
+ "operating_status": "operating",
+ "operating_sub_status": "operating",
+ "country": "India",
+ "state_province": "Chhattisgarh",
+ "latitude": 22.3989968,
+ "longitude": 82.7400112,
+ "capacity_value": 300.0,
+ "capacity_unit": "MW",
+ "wiki_url": "https://www.gem.wiki/BALCO_Korba_power_station",
+ "location_id": "L100000102125",
+ "unit_id": "G100000100471",
+ "unit_name": "Phase 3 Unit 1",
+ "source_id": 7,
+ "url": "/assets/L100000102125_G100000100471",
+ "ownership_graph_url": null,
+ "eventual_owners_url": null,
+ "project_name": "BALCO Korba power station",
+ "upstream_entity_count": 11,
+ "status_changes": [
+  {
+   "period": "H2 2014",
+   "value": "construction"
+  },
+  {
+   "period": "H1 2015",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2015",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2016",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2016",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2017",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2017",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2018",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2018",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2019",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2019",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2020",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2020",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2021",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2021",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2022",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2022",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2023",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2023",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2024",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2024",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2025",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2025",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2026",
+   "value": "operating"
+  }
+ ],
+ "coal_plant_fields": {
+  "start_year": "2015",
+  "retired_year": null,
+  "planned_retirement": null,
+  "status": "operating",
+  "plant_name": "BALCO Korba power station",
+  "plant_name_2": null,
+  "plant_name_3": null,
+  "coal_type": "bituminous",
+  "combustion_technology": "subcritical",
+  "capacity_megawatts": "300.0",
+  "location_accuracy": "exact",
+  "gem_location_id": "L100000102125",
+  "gem_unit_phase_id": "G100000100471",
+  "captive": "[\"aluminum\"]",
+  "captive_industry_use": "power"
+ }
+}
