@@ -1,18 +1,18 @@
 chile_plant_id,gem_location_id,gem_unit_ids,evidence,reviewed_by,reviewed_on
-376,L100000100181,G100000100194,"TER ANDINA; peak 178 MW vs GEM Andina-Hornitos Unit 1 (Andina) 177 MW",proposed,2026-10-17
-395,L100000100181,G100000100195,"TER HORNITOS; peak 178 MW vs GEM Andina-Hornitos Unit 2 (Hornitos) 178 MW",proposed,2026-10-17
-377,L100000100182,G100000100200 G100000100201,"TER ANGAMOS; peak 583 MW vs GEM Units 1-2 = 558 MW",proposed,2026-10-17
-379,L100000100183,G100000101634 G100000101635,"TER COCHRANE; peak 554 MW vs GEM Units 1-2 = 550 MW",proposed,2026-10-17
-201,L100000100188,G100000104688 G100000104689 G100000104690 G100000104691 G100000104692,"TER GUACOLDA; peak 762 MW vs GEM Units 1-5 = 760 MW",proposed,2026-10-17
-375,L100000100185,G100000107497 G100000107498,"TER NORGENER; peak 276 MW vs GEM Nueva Tocopilla Units 1-2 = 277 MW (retired 2024)",proposed,2026-10-17
-104,L100000100197,G100000108806,"TER SANTA MARIA; peak 381 MW vs GEM Unit 1 = 350 MW (Unit 2 cancelled)",proposed,2026-10-17
-76,L100000100194,G100000110579,"TER VENTANAS; peak 116 MW vs GEM Ventanas Unit 1 = 120 MW (retired 2020)",proposed,2026-10-17
-347,L100000100194,G100000110580,"TER VENTANAS II; peak 208 MW vs GEM Ventanas Unit 2 = 220 MW (retired 2023)",proposed,2026-10-17
-112,L100000100194,G100000110581,"TER NUEVA VENTANAS; peak 280 MW vs GEM Ventanas Unit 3 = 272 MW",proposed,2026-10-17
-236,L100000100194,G100000110582,"TER CAMPICHE; peak 283 MW vs GEM Ventanas Unit 4 = 272 MW",proposed,2026-10-17
-260,L100000100195,G100000100977,"TER BOCAMINA II; peak 350 MW vs GEM Bocamina Unit 2 = 350 MW (retired 2022)",proposed,2026-10-17
+376,L100000100181,G100000100194,"TER ANDINA; peak 178 MW vs GEM Andina-Hornitos Unit 1 (Andina) 177 MW",N. Abad,2026-11-21
+395,L100000100181,G100000100195,"TER HORNITOS; peak 178 MW vs GEM Andina-Hornitos Unit 2 (Hornitos) 178 MW",N. Abad,2026-11-21
+377,L100000100182,G100000100200 G100000100201,"TER ANGAMOS; peak 583 MW vs GEM Units 1-2 = 558 MW",N. Abad,2026-11-21
+379,L100000100183,G100000101634 G100000101635,"TER COCHRANE; peak 554 MW vs GEM Units 1-2 = 550 MW",N. Abad,2026-11-21
+201,L100000100188,G100000104688 G100000104689 G100000104690 G100000104691 G100000104692,"TER GUACOLDA; peak 762 MW vs GEM Units 1-5 = 760 MW",N. Abad,2026-11-21
+375,L100000100185,G100000107497 G100000107498,"TER NORGENER; peak 276 MW vs GEM Nueva Tocopilla Units 1-2 = 277 MW (retired 2024)",N. Abad,2026-11-21
+104,L100000100197,G100000108806,"TER SANTA MARIA; peak 381 MW vs GEM Unit 1 = 350 MW (Unit 2 cancelled)",N. Abad,2026-11-21
+76,L100000100194,G100000110579,"TER VENTANAS; peak 116 MW vs GEM Ventanas Unit 1 = 120 MW (retired 2020)",N. Abad,2026-11-21
+347,L100000100194,G100000110580,"TER VENTANAS II; peak 208 MW vs GEM Ventanas Unit 2 = 220 MW (retired 2023)",N. Abad,2026-11-21
+112,L100000100194,G100000110581,"TER NUEVA VENTANAS; peak 280 MW vs GEM Ventanas Unit 3 = 272 MW",N. Abad,2026-11-21
+236,L100000100194,G100000110582,"TER CAMPICHE; peak 283 MW vs GEM Ventanas Unit 4 = 272 MW",N. Abad,2026-11-21
+260,L100000100195,G100000100977,"TER BOCAMINA II; peak 350 MW vs GEM Bocamina Unit 2 = 350 MW (retired 2022)",N. Abad,2026-11-21
 488,L100000100184,G100000106833,"TER IEM (Infraestructura Energetica Mejillones); peak 403 MW vs GEM Mejillones Unit 4 (IEM) = 375 MW; GEM marks it retired but Chile reports coal through 2026-09; plant had no crosswalk link",proposed,2026-10-17
-117,L100000100195,G100000100976,"TER BOCAMINA (I), coal unit in the all-fuel data (ETL 019); peak 128 MW vs GEM Bocamina Unit 1 = 128 MW (retired 2020); 90 m from GEM's site; Enel; TER BOCAMINA II (260) is Unit 2 of the same station",proposed,2026-11-09
-378,L100000100180,G100000107855,"TER TARAPACA (CTTAR), coal unit in the all-fuel data (ETL 019); peak 146 MW vs GEM Patache Unit 1 = 154 MW (retired 2019); GEM's other name is 'Central termoeléctrica Tarapacá', 15 m from its site; Enel",proposed,2026-11-09
-386,L100000100184,G100000106831 G100000106832,"TER MEJILLONES CTM1/CTM2, coal units in the all-fuel data (ETL 019); peak 323 MW (2 units) vs GEM Mejillones Units 1-2 = 334 MW; 165 m from GEM's site; Engie; its gas unit CTM3 (peak 257 MW) is GEM's GOGPT unit 3 (245 MW) and sits at the plant; TER IEM (488) is Unit 4 of the same station",proposed,2026-11-09
-387,L100000100186,G100000110209 G100000110210 G100000110211 G100000110212,"TER TOCOPILLA U12-U15, coal units in the all-fuel data (ETL 019); peak 253 MW (3 units in 2019, Units 12-13 retired that year) vs GEM Units 14-15 = 268 MW, Units 12-15 = 441 MW; Engie (GEM Nueva Tocopilla, 700 m away, is AES's Norgener, already linked to TER NORGENER); its gas unit U16 (peak 390 MW) is GEM's GOGPT unit 16 (394 MW) and sits at the plant",proposed,2026-11-09
+117,L100000100195,G100000100976,"TER BOCAMINA (I), coal unit in the all-fuel data (ETL 019); peak 128 MW vs GEM Bocamina Unit 1 = 128 MW (retired 2020); 90 m from GEM's site; Enel; TER BOCAMINA II (260) is Unit 2 of the same station",N. Abad,2026-11-21
+378,L100000100180,G100000107855,"TER TARAPACA (CTTAR), coal unit in the all-fuel data (ETL 019); peak 146 MW vs GEM Patache Unit 1 = 154 MW (retired 2019); GEM's other name is 'Central termoeléctrica Tarapacá', 15 m from its site; Enel",N. Abad,2026-11-21
+386,L100000100184,G100000106831 G100000106832,"TER MEJILLONES CTM1/CTM2, coal units in the all-fuel data (ETL 019); peak 323 MW (2 units) vs GEM Mejillones Units 1-2 = 334 MW; 165 m from GEM's site; Engie; its gas unit CTM3 (peak 257 MW) is GEM's GOGPT unit 3 (245 MW) and sits at the plant; TER IEM (488) is Unit 4 of the same station",N. Abad,2026-11-21
+387,L100000100186,G100000110209 G100000110210 G100000110211 G100000110212,"TER TOCOPILLA U12-U15, coal units in the all-fuel data (ETL 019); peak 253 MW (3 units in 2019, Units 12-13 retired that year) vs GEM Units 14-15 = 268 MW, Units 12-15 = 441 MW; Engie (GEM Nueva Tocopilla, 700 m away, is AES's Norgener, already linked to TER NORGENER); its gas unit U16 (peak 390 MW) is GEM's GOGPT unit 16 (394 MW) and sits at the plant",N. Abad,2026-11-21
