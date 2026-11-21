@@ -66,7 +66,9 @@ class BoundarySource(StrEnum):
     NEVER_COAL = "never-coal"  # conversion_boundaries.csv, never_coal
     # Not applied by the view; G-CONVERSION reports them:
     UNRESOLVED = "unresolved"  # no twin or other_fuel for a reviewed month; no fuel for GEM's twin
-    TWIN_ELSEWHERE = "twin-elsewhere"  # GEM's twin sits at another GEM plant
+    TWIN_ELSEWHERE = (
+        "twin-elsewhere"  # GEM's twin is at another GEM plant, or not in gem_units
+    )
 
 
 # The boundaries gem_unit_monthly applies.
@@ -225,21 +227,23 @@ def _other_fuel(source: str, conversion_fuel) -> str | None:
 
 
 def gem_conversions(gem_units: pd.DataFrame) -> pd.DataFrame:
-    """Retired coal units with a GEM conversion twin, by gem_unit_id.
+    """Coal units GEM records as converted, with their twin, by gem_unit_id.
 
-    Planned conversions (a retirement year GEM marks as planned, or no
-    retirement year) are not conversions yet.
+    A conversion is real when GEM's coal unit is retired, or has a retirement
+    year GEM does not mark as planned. retired_year can be missing (July 2026:
+    Centralia 2, retired, twin known, no year); then only a reviewed month can
+    place the boundary. Planned conversions are not conversions yet.
     """
     if "conversion_to_id" not in gem_units:
         return pd.DataFrame(
             columns=["conversion_to_id", "conversion_to_fuel", "retired_year"]
         )
     planned = gem_units["retired_year_is_planned"].astype("boolean").fillna(False)
+    retired = gem_units["status"].astype(str).str.lower() == "retired"
     real = gem_units[
         (gem_units["tracker"] == "GCPT")
         & gem_units["conversion_to_id"].notna()
-        & gem_units["retired_year"].notna()
-        & ~planned
+        & (retired | (gem_units["retired_year"].notna() & ~planned))
     ]
     return real.set_index("gem_unit_id")[
         ["conversion_to_id", "conversion_to_fuel", "retired_year"]
@@ -296,6 +300,11 @@ def apply_boundaries(
                 else BoundarySource.UNRESOLVED
             )
             twin = twin if twin_here else None
+        elif conv is not None and pd.isna(conv["retired_year"]):
+            logger.info(
+                f"GEM conversion without a year, no boundary: {source} {row['plant_key']} {row['unit_key']}"
+            )
+            continue
         elif conv is not None:
             until, after = (
                 f"{int(conv['retired_year'])}-12",

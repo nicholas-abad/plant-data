@@ -298,9 +298,12 @@ def conversion_gate(engine, umap: pd.DataFrame, units: pd.DataFrame) -> None:
         )
     elsewhere = umap[umap["boundary_source"] == "twin-elsewhere"]
     if len(elsewhere) > MAX_TWINS_ELSEWHERE:
-        fail(f"G-CONVERSION: {len(elsewhere)} GEM conversion twins sit at another GEM plant")
+        fail(f"G-CONVERSION: {len(elsewhere)} GEM conversion twins at another GEM plant or not in gem_units")
     elif len(elsewhere):
-        print(f"warn  G-CONVERSION: {len(elsewhere)} GEM twins at another GEM plant, boundary not applied")
+        print(
+            f"warn  G-CONVERSION: {len(elsewhere)} GEM twins at another GEM plant or not in gem_units, boundary "
+            f"not applied: {_listed((elsewhere['plant_key'] + ' ' + elsewhere['unit_key']).tolist())}"
+        )
     where = dict(zip(units["gem_unit_id"], units["gem_location_id"]))
     twins = umap[umap["converted_gem_unit_id"].notna()]
     apart = twins[twins["converted_gem_unit_id"].map(where) != twins["gem_location_id"]]

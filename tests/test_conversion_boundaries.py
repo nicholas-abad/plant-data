@@ -48,6 +48,10 @@ UNITS = pd.DataFrame(
              "conversion_to_id", "conversion_to_fuel"],
 )  # fmt: skip
 
+# Retired where GEM's conversion is real; the planned one is still operating.
+UNITS["status"] = ["retired", "operating", "retired", "operating", "retired", "operating",
+                   "operating", "operating", "retired", "operating"]  # fmt: skip
+
 MAP = _map(
     [
         dict(source_system="EIA", plant_key="3149", unit_key="1", gem_location_id="L_MONTOUR",
@@ -282,3 +286,19 @@ def test_gems_twin_without_a_new_fuel_is_unresolved_not_elsewhere():
         _row(apply_boundaries(MAP, units, DECISIONS), "OCCTO", "鈴川").boundary_source
         == "unresolved"
     )
+
+
+def test_a_retired_unit_without_a_year_serves_a_reviewed_month_but_gets_no_gem_boundary():
+    # GEM's July 2026 release: Centralia 2 is retired with a gas twin, but no retirement year.
+    units = UNITS.copy()
+    units["status"] = "retired"
+    units.loc[
+        units["gem_unit_id"].isin(["G_MONTOUR1", "G_SUZUKAWA"]),
+        ["retired_year", "retired_year_is_planned"],
+    ] = None
+    out = apply_boundaries(MAP, units, DECISIONS)
+    assert _row(out, "EIA", "3149").boundary_source == "reviewed"  # the twin is enough
+    assert _row(out, "EIA", "3149").converted_gem_unit_id == "G_MONTOUR1_GAS"
+    assert (
+        _row(out, "OCCTO", "鈴川")[BOUNDARY_COLUMNS].isna().all()
+    )  # GEM's year rule needs a year
