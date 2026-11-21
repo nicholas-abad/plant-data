@@ -222,6 +222,65 @@ class TestDetail:
         )
         assert merged_locs.iloc[0].name_local == "A.B. Brown Generating Station"
 
+    def test_a_converted_unit_keeps_its_gem_twin_and_new_fuel(self):
+        # Real payload: Montour 1, coal until 2024, then GEM's gas unit G100001017952.
+        detail = _load("asset_detail_converted.json")
+        locs, units = build_core_frames(
+            {"GCPT": [detail], "GOGPT": [], "GBPT": []},
+            {"GCPT": "January 2026", "GOGPT": "January 2026", "GBPT": "V3"},
+            NOW,
+        )
+        units, _, _ = apply_details(
+            units, locs, {detail["asset_id"]: detail}, "January 2026"
+        )
+        u = units.set_index("gem_unit_id").loc["G100000107004"]
+        assert (u.conversion_to_id, u.conversion_to_fuel) == (
+            "G100001017952",
+            "fossil gas: natural gas",
+        )
+
+    def test_a_unit_without_a_conversion_has_no_twin(self):
+        locs, units = _core()
+        detail = _load("asset_detail.json")
+        units, _, _ = apply_details(
+            units, locs, {detail["asset_id"]: detail}, "January 2026"
+        )
+        u = units.set_index("gem_unit_id").loc["G100000100001"]
+        assert pd.isna(u.conversion_to_id) and pd.isna(u.conversion_to_fuel)
+
+    def test_the_weekly_core_only_run_keeps_the_conversion(self):
+        detail = _load("asset_detail_converted.json")
+
+        def frames():
+            return build_core_frames(
+                {"GCPT": [detail], "GOGPT": [], "GBPT": []},
+                {"GCPT": "January 2026", "GOGPT": "January 2026", "GBPT": "V3"},
+                NOW,
+            )
+
+        locs, units = frames()
+        prev_units, prev_locs, _ = apply_details(
+            units, locs, {detail["asset_id"]: detail}, "January 2026"
+        )
+        fresh_locs, fresh_units = frames()
+        merged, _ = carry_over_details(fresh_units, fresh_locs, prev_units, prev_locs)
+        assert (
+            merged.set_index("gem_unit_id").at["G100000107004", "conversion_to_id"]
+            == "G100001017952"
+        )
+
+    def test_a_table_stored_before_the_conversion_columns_still_carries_over(self):
+        locs, units = _core()
+        detail = _load("asset_detail.json")
+        prev_units, prev_locs, _ = apply_details(
+            units.copy(), locs.copy(), {detail["asset_id"]: detail}, "January 2026"
+        )
+        prev_units = prev_units.drop(columns=["conversion_to_id", "conversion_to_fuel"])
+        fresh_locs, fresh_units = _core()
+        merged, _ = carry_over_details(fresh_units, fresh_locs, prev_units, prev_locs)
+        u = merged.set_index("gem_unit_id").loc["G100000100001"]
+        assert u.coal_type == "bituminous" and pd.isna(u.conversion_to_id)
+
 
 # -- post-conditions ------------------------------------------------------------
 
