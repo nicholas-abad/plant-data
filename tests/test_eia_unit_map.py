@@ -311,10 +311,21 @@ def test_eia_unit_candidates_follow_the_plant_code_review():
     assert sorted(kept["gem_unit_id"]) == ["G_A", "G_B"]  # deferred code out; accepted code only at its location
 
 
-def test_petroleum_coke_counts_as_coal():
+def test_petroleum_coke_is_not_coal():
+    # Christine, tracker #32/#33 (2026-10-28): petcoke is "Other fossil", not coal.
     from src.eia_unit_map import COAL_TECHNOLOGIES
 
-    assert "Petroleum Coke" in COAL_TECHNOLOGIES
+    assert COAL_TECHNOLOGIES == {"Conventional Steam Coal", "Coal Integrated Gasification Combined Cycle"}
+
+
+def test_the_review_view_counts_the_same_eia_technologies_as_coal():
+    import re
+
+    from scripts.bootstrap_neon_db import REVIEW_VIEW_SQL
+    from src.eia_unit_map import COAL_TECHNOLOGIES
+
+    listed = re.search(r"FROM eia_generator_info\s+WHERE technology IN \(([^)]*)\)", "".join(REVIEW_VIEW_SQL))
+    assert set(re.findall(r"'([^']+)'", listed.group(1))) == COAL_TECHNOLOGIES
 
 
 def test_reviewed_claims_count_in_the_japan_and_europe_guards():
