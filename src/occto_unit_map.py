@@ -58,8 +58,15 @@ def build_occto_unit_map(
     ]
     by_loc = {loc: grp for loc, grp in coal_gem.groupby("gem_location_id")}
     review = {(r.plant, r.unit): r for r in reviewed.itertuples(index=False)}
-    coal = units[units["fuel_type"] == "coal"]
-    coal_per_plant = coal.groupby("plant")["unit"].nunique().to_dict()
+    coal_labelled = units[units["fuel_type"] == "coal"]
+    coal_per_plant = coal_labelled.groupby("plant")["unit"].nunique().to_dict()
+    # A unit with no coal-labelled month is matched only through the reviewed
+    # file: e.g. a converted unit whose loaded months are all biomass still
+    # needs its GEM coal unit for the view's conversion split (tracker #10).
+    # Matching it automatically could hand a gas unit a coal unit.
+    is_reviewed = pd.Series([(p, u) in review for p, u in zip(units["plant"], units["unit"])], index=units.index)
+    coal = units[(units["fuel_type"] == "coal") | is_reviewed].drop_duplicates(["plant", "unit"])
+    has_coal = set(zip(coal_labelled["plant"], coal_labelled["unit"]))
     rows = []
     for u in coal.itertuples(index=False):
         hit = review.get((u.plant, u.unit))
@@ -87,8 +94,8 @@ def build_occto_unit_map(
                 "gem_unit_id": unit_ids if len(unit_ids.split()) == 1 else None,
                 "gem_unit_ids": unit_ids,
                 "map_source": how,
-                "fuel": "coal",
-                "is_coal": True,
+                "fuel": "coal" if (u.plant, u.unit) in has_coal else u.fuel_type,
+                "is_coal": (u.plant, u.unit) in has_coal,
                 "other_gem_unit_ids": None,
             }
         )

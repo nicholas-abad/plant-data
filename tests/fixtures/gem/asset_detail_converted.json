@@ -1,0 +1,134 @@
+{
+ "asset_id": "L100000104151_G100000107004",
+ "asset_name": "Montour Steam Station Unit 1, timepoint 1",
+ "asset_type": "Coal Plant",
+ "operating_status": "retired",
+ "operating_sub_status": "retired",
+ "country": "United States",
+ "state_province": "Pennsylvania",
+ "latitude": 41.069558,
+ "longitude": -76.665458,
+ "capacity_value": 864.9,
+ "capacity_unit": "MW",
+ "wiki_url": "https://www.gem.wiki/Montour_Steam_Station",
+ "location_id": "L100000104151",
+ "unit_id": "G100000107004",
+ "unit_name": "Unit 1, timepoint 1",
+ "source_id": 2,
+ "url": "/assets/L100000104151_G100000107004",
+ "ownership_graph_url": null,
+ "eventual_owners_url": null,
+ "project_name": "Montour Steam Station",
+ "upstream_entity_count": 11,
+ "status_changes": [
+  {
+   "period": "H2 2014",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2015",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2015",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2016",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2016",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2017",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2017",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2018",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2018",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2019",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2019",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2020",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2020",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2021",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2021",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2022",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2022",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2023",
+   "value": "operating"
+  },
+  {
+   "period": "H2 2023",
+   "value": "operating"
+  },
+  {
+   "period": "H1 2024",
+   "value": "retired"
+  },
+  {
+   "period": "H2 2024",
+   "value": "retired"
+  },
+  {
+   "period": "H1 2025",
+   "value": "retired"
+  },
+  {
+   "period": "H2 2025",
+   "value": "retired"
+  }
+ ],
+ "coal_plant_fields": {
+  "start_year": "1971.0",
+  "retired_year": "2024.0",
+  "planned_retirement": null,
+  "status": "retired",
+  "plant_name": "Montour Steam Station",
+  "plant_name_2": null,
+  "plant_name_3": null,
+  "coal_type": "bituminous",
+  "combustion_technology": "supercritical",
+  "capacity_megawatts": "864.9",
+  "location_accuracy": "exact",
+  "gem_location_id": "L100000104151",
+  "gem_unit_phase_id": "G100000107004",
+  "conversion_to_id": "G100001017952",
+  "conversion_to_fuel": "fossil gas: natural gas"
+ }
+}

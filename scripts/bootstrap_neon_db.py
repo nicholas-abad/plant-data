@@ -422,6 +422,43 @@ def load_gem_external_ids(engine):
 # unit-grain view exists only where ETL migration 022 is applied).
 _UNIT_COLS = "m.source_system, m.gem_location_id, m.gem_unit_id, m.gem_unit_ids, m.plant_key, m.unit_key"
 _MONTH_COLS = "u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint AS timestamp_ms"
+# Converted units (src/conversion_boundaries.py, tracker #10; EIA and OCCTO
+# only). For a row with an applied boundary, a month after its last coal month
+# sits on GEM's twin unit with the other fuel and is not coal; a listed
+# non-coal month before it keeps the unit but is not coal either; a never-coal
+# unit (no last month) is never coal and keeps its unit. One output row per
+# source row-month. 'unresolved' and 'twin-elsewhere' rows are not applied
+# (verify_crosswalk.py's G-CONVERSION reports them).
+_MONTH_TEXT = "to_char(u.month AT TIME ZONE 'UTC', 'YYYY-MM')"
+# conversion_boundaries.ACTIVE (tests/test_conversion_split_sql.py keeps them equal).
+ACTIVE_BOUNDARIES = ("reviewed", "gem-year-end", "never-coal")
+_BOUNDARY = "m.boundary_source IN (" + ", ".join(f"'{s}'" for s in ACTIVE_BOUNDARIES) + ")"
+_AFTER = f"({_BOUNDARY} AND (m.coal_until_month IS NULL OR {_MONTH_TEXT} > m.coal_until_month))"
+_NONCOAL = f"({_BOUNDARY} AND position({_MONTH_TEXT} IN COALESCE(m.noncoal_months, '')) > 0)"
+_SPLIT_UNIT_COLS = f"""m.source_system, m.gem_location_id,
+       CASE WHEN {_AFTER} THEN COALESCE(m.converted_gem_unit_id, m.gem_unit_id) ELSE m.gem_unit_id END AS gem_unit_id,
+       CASE WHEN {_AFTER} THEN COALESCE(m.converted_gem_unit_id, m.gem_unit_ids) ELSE m.gem_unit_ids END AS gem_unit_ids,
+       m.plant_key, m.unit_key"""
+
+
+def _split_fuel(default: str, coal_label: str | None = None) -> str:
+    """The month's fuel. coal_label: the source row's own label, for sources that carry one (OCCTO)."""
+    own = f"WHEN {coal_label} <> 'coal' THEN {coal_label} " if coal_label else ""
+    return (
+        f"CASE WHEN NOT COALESCE({_BOUNDARY}, false) THEN {default} "
+        f"WHEN {_AFTER} OR {_NONCOAL} THEN m.fuel_after {own}ELSE m.fuel_before END"
+    )
+
+
+def _split_is_coal(default: str, coal_label: str | None = None) -> str:
+    """Coal in that month. A source row labelled other than coal stays not coal (OCCTO)."""
+    own = f" AND {coal_label} = 'coal'" if coal_label else ""
+    return (
+        f"CASE WHEN NOT COALESCE({_BOUNDARY}, false) THEN {default} "
+        f"ELSE NOT {_AFTER} AND NOT {_NONCOAL}{own} END"
+    )
+
+
 GEM_UNIT_BRANCHES = {
     # India: NPP units under their DGR plant names, all fuels (coal = THERMAL).
     "mv_npp_unit_monthly": f"""
@@ -430,8 +467,8 @@ SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
 FROM mv_npp_unit_monthly u
 JOIN unit_gem_map m ON m.source_system = 'NPP' AND m.plant_key = u.plant AND m.unit_key = u.unit""",
     "mv_eia_unit_monthly": f"""
-SELECT {_UNIT_COLS}, u.month, u.timestamp_ms, u.net_generation_mwh AS generation_mwh,
-       m.fuel, m.is_coal, m.map_source
+SELECT {_SPLIT_UNIT_COLS}, u.month, u.timestamp_ms, u.net_generation_mwh AS generation_mwh,
+       {_split_fuel("m.fuel")} AS fuel, {_split_is_coal("m.is_coal")} AS is_coal, m.map_source
 FROM mv_eia_unit_monthly u
 JOIN unit_gem_map m
   ON m.source_system = 'EIA' AND m.plant_key = u.plant_code AND m.unit_key = u.generator_id""",
@@ -467,13 +504,15 @@ SELECT m.source_system, m.gem_location_id,
        CASE WHEN u.fuel_group = 'coal' THEN m.map_source ELSE 'plant-other-fuel' END AS map_source
 FROM mv_chile_fuel_group_monthly u
 JOIN unit_gem_map m ON m.source_system = 'CHILE' AND m.plant_key = u.plant AND m.unit_key = ''""",
-    # Japan: OCCTO units under their plant names; coal rows only.
+    # Japan: OCCTO units under their plant names; coal rows only, plus every
+    # month of a converted or never-coal unit (its other fuel stays visible).
     "mv_occto_unit_monthly": f"""
-SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
-       u.fuel_type AS fuel, TRUE AS is_coal, m.map_source
+SELECT {_SPLIT_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
+       {_split_fuel("u.fuel_type", "u.fuel_type")} AS fuel,
+       {_split_is_coal("TRUE", "u.fuel_type")} AS is_coal, m.map_source
 FROM mv_occto_unit_monthly u
 JOIN unit_gem_map m ON m.source_system = 'OCCTO' AND m.plant_key = u.plant AND m.unit_key = u.unit
-WHERE u.fuel_type = 'coal'""",
+WHERE u.fuel_type = 'coal' OR {_BOUNDARY}""",
     # Europe: ENTSO-E unit names (each its own crosswalk row, unit_key ''); coal rows only.
     "mv_entsoe_plant_monthly": f"""
 SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
@@ -625,7 +664,16 @@ def load_unit_gem_map(engine):
         print(f"  SKIP  {path.name} not found — run build_crosswalk.py first")
         return
 
+    if str(SCRIPT_DIR.parent) not in sys.path:
+        sys.path.insert(0, str(SCRIPT_DIR.parent))
+    from src.conversion_boundaries import BOUNDARY_COLUMNS
+
     df = pd.read_parquet(path)
+    # A map built before the conversion boundaries (e.g. the committed
+    # baseline) has no boundary columns; the view needs them, NULL is "none".
+    for col in BOUNDARY_COLUMNS:
+        if col not in df:
+            df[col] = None
 
     _atomic_replace_table(
         engine,

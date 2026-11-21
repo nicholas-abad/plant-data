@@ -254,9 +254,15 @@ UNIT_COLUMNS = [
     "planned_retirement",
     "coal_type",
     "combustion_tech",
+    "conversion_to_id",
+    "conversion_to_fuel",
     "gem_release",
     "fetched_at",
 ]
+# From /assets/{id} only. conversion_to_id is the unit this coal unit became
+# after a fuel conversion (its twin in GOGPT/GBPT, e.g. Montour 1 -> gas unit
+# G100001017952); conversion_to_fuel is GEM's text for the new fuel. Both are
+# NULL for units without a conversion. Tracker #10.
 DETAIL_UNIT_COLUMNS = [
     "start_year",
     "retired_year",
@@ -264,6 +270,8 @@ DETAIL_UNIT_COLUMNS = [
     "planned_retirement",
     "coal_type",
     "combustion_tech",
+    "conversion_to_id",
+    "conversion_to_fuel",
 ]
 DETAIL_LOCATION_COLUMNS = ["name_other", "name_local", "location_accuracy"]
 SNAPSHOT_COLUMNS = [
@@ -412,6 +420,23 @@ def parse_period(period: str) -> tuple[int, int]:
     return int(m.group(2)), int(m.group(1))
 
 
+DETAIL_TEXT_COLUMNS = (
+    "coal_type",
+    "combustion_tech",
+    "conversion_to_id",
+    "conversion_to_fuel",
+)
+
+
+def _detail_text_as_object(units: pd.DataFrame) -> pd.DataFrame:
+    """The frame with its detail text columns as object dtype.
+
+    They start all-NULL (float) in the core frames, and pandas refuses to put a
+    GEM ID or a fuel name into a float column.
+    """
+    return units.astype({col: object for col in DETAIL_TEXT_COLUMNS})
+
+
 def apply_details(
     units: pd.DataFrame,
     locations: pd.DataFrame,
@@ -419,7 +444,7 @@ def apply_details(
     release: str,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Fold /assets/{id} payloads into the frames; return (units, locations, snapshots)."""
-    units = units.set_index("gem_unit_id", drop=False)
+    units = _detail_text_as_object(units.set_index("gem_unit_id", drop=False))
     locations = locations.set_index("gem_location_id", drop=False)
     snap_rows: list[dict] = []
     for asset_id, d in details.items():
@@ -438,6 +463,8 @@ def apply_details(
         units.at[unit_id, "planned_retirement"] = _year(f.get("planned_retirement"))
         units.at[unit_id, "coal_type"] = f.get("coal_type")
         units.at[unit_id, "combustion_tech"] = f.get("combustion_technology")
+        units.at[unit_id, "conversion_to_id"] = f.get("conversion_to_id") or None
+        units.at[unit_id, "conversion_to_fuel"] = f.get("conversion_to_fuel") or None
         loc_id = units.at[unit_id, "gem_location_id"]
         if loc_id in locations.index:
             for src, dst in (
@@ -479,8 +506,9 @@ def carry_over_details(
     until the next quarterly detail pull.
     """
     if not prev_units.empty:
-        prev = prev_units.set_index("gem_unit_id")[DETAIL_UNIT_COLUMNS]
-        units = units.set_index("gem_unit_id")
+        # A table stored before a detail column existed lacks it: carry NULL.
+        prev = prev_units.set_index("gem_unit_id").reindex(columns=DETAIL_UNIT_COLUMNS)
+        units = _detail_text_as_object(units.set_index("gem_unit_id"))
         common = units.index.intersection(prev.index)
         units.loc[common, DETAIL_UNIT_COLUMNS] = prev.loc[
             common, DETAIL_UNIT_COLUMNS
