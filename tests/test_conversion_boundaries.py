@@ -10,6 +10,7 @@ from src.conversion_boundaries import (
     BoundaryDecision,
     apply_boundaries,
     load_decisions,
+    stale_decisions,
 )
 from src.unit_gem_map import COLUMNS
 
@@ -125,10 +126,62 @@ def test_a_never_coal_unit_has_no_twin_and_no_last_month():
     assert ishinomaki.fuel_after == "biomass"
 
 
-def test_planned_conversions_twins_elsewhere_and_other_sources_get_no_boundary():
+def test_planned_conversions_and_other_sources_get_no_boundary():
     out = apply_boundaries(MAP, UNITS, DECISIONS)
-    for source, plant in (("EIA", "9"), ("EIA", "7"), ("ENTSOE", "Studstrup 3")):
+    for source, plant in (("EIA", "9"), ("ENTSOE", "Studstrup 3")):
         assert _row(out, source, plant)[BOUNDARY_COLUMNS].isna().all()
+
+
+def test_a_gem_twin_at_another_plant_is_marked_and_not_applied():
+    far = _row(apply_boundaries(MAP, UNITS, DECISIONS), "EIA", "7")
+    assert far.boundary_source == "twin-elsewhere" and far.converted_gem_unit_id is None
+
+
+def test_a_reviewed_month_without_gems_twin_or_other_fuel_is_unresolved():
+    units = UNITS[UNITS["gem_unit_id"] != "G_MONTOUR1"]
+    montour = _row(apply_boundaries(MAP, units, DECISIONS), "EIA", "3149")
+    assert (
+        montour.boundary_source == "unresolved"
+        and montour.converted_gem_unit_id is None
+    )
+
+
+def test_a_reviewed_month_with_its_own_other_fuel_needs_no_twin():
+    gas = BoundaryDecision(
+        source_system="EIA", plant_key="3149", unit_key="1", treatment="reviewed_month",
+        coal_until_month="2024-01", **{**DECISION, "other_fuel": "Natural Gas Steam Turbine"},
+    )  # fmt: skip
+    units = UNITS[UNITS["gem_unit_id"] != "G_MONTOUR1"]
+    montour = _row(
+        apply_boundaries(MAP, units, {**DECISIONS, gas.key: gas}), "EIA", "3149"
+    )
+    assert (montour.boundary_source, montour.fuel_after) == (
+        "reviewed",
+        "Natural Gas Steam Turbine",
+    )
+
+
+def test_non_coal_months_before_the_boundary_are_carried():
+    gaps = BoundaryDecision(
+        source_system="EIA", plant_key="3149", unit_key="1", treatment="reviewed_month",
+        coal_until_month="2024-02", noncoal_months="2023-08 2023-10", **DECISION,
+    )  # fmt: skip
+    montour = _row(
+        apply_boundaries(MAP, UNITS, {**DECISIONS, gaps.key: gaps}), "EIA", "3149"
+    )
+    assert montour.noncoal_months == "2023-08 2023-10"
+
+
+def test_petroleum_coke_keeps_its_own_label():
+    units = UNITS.copy()
+    units.loc[units["gem_unit_id"] == "G_MONTOUR1", "conversion_to_fuel"] = (
+        "fossil liquids: petroleum coke"
+    )
+    no_decision = {k: v for k, v in DECISIONS.items() if k != ("EIA", "3149", "1")}
+    assert (
+        _row(apply_boundaries(MAP, units, no_decision), "EIA", "3149").fuel_after
+        == "Petroleum Coke"
+    )
 
 
 def test_keep_as_is_stops_gems_year_from_applying():
@@ -143,24 +196,29 @@ def test_keep_as_is_stops_gems_year_from_applying():
     assert _row(out, "OCCTO", "鈴川")[BOUNDARY_COLUMNS].isna().all()
 
 
-def test_a_decision_for_a_unit_the_map_lacks_fails():
-    ghost = BoundaryDecision(
+def test_a_stale_decision_is_reported_only_for_sources_the_map_has():
+    ghost_eia = BoundaryDecision(
         source_system="EIA",
         plant_key="1",
         unit_key="X",
         treatment="never_coal",
         **{**DECISION, "other_fuel": "gas"},
     )
-    with pytest.raises(ValueError, match="not in the unit map"):
-        apply_boundaries(MAP, UNITS, {ghost.key: ghost})
+    eia_only = MAP[MAP["source_system"] == "EIA"]
+    decisions = {**DECISIONS, ghost_eia.key: ghost_eia}
+    assert stale_decisions(eia_only, decisions) == [
+        "EIA 1 X"
+    ]  # the OCCTO decision is not stale: no OCCTO rows
+    apply_boundaries(eia_only, UNITS, decisions)  # logs, does not raise
 
 
-def test_gem_units_loaded_before_the_conversion_columns_give_no_gem_boundaries():
+def test_gem_units_loaded_before_the_conversion_columns_leave_reviewed_months_unresolved():
+    # The reviewed month needs GEM's twin; without the detail pull it is reported, not guessed.
     out = apply_boundaries(
         MAP, UNITS.drop(columns=["conversion_to_id", "conversion_to_fuel"]), DECISIONS
     )
     assert _row(out, "OCCTO", "鈴川")[BOUNDARY_COLUMNS].isna().all()
-    assert _row(out, "EIA", "3149").boundary_source == "reviewed"
+    assert _row(out, "EIA", "3149").boundary_source == "unresolved"
 
 
 @pytest.mark.parametrize(
@@ -176,6 +234,18 @@ def test_gem_units_loaded_before_the_conversion_columns_give_no_gem_boundaries()
             "only for reviewed_month",
         ),
         (dict(treatment="never_coal"), "needs other_fuel"),
+        (
+            dict(
+                treatment="reviewed_month",
+                coal_until_month="2024-01",
+                noncoal_months="2024-03",
+            ),
+            "up to coal_until_month",
+        ),
+        (
+            dict(treatment="keep_as_is", noncoal_months="2023-08"),
+            "only for reviewed_month",
+        ),
     ],
 )
 def test_a_decision_must_fit_its_treatment(fields, message):
@@ -186,7 +256,7 @@ def test_a_decision_must_fit_its_treatment(fields, message):
 
 
 def test_a_unit_listed_twice_fails(tmp_path):
-    row = "EIA,1,1,keep_as_is,,,co-firing,N. Abad,2026-11-21,tracker#10"
+    row = "EIA,1,1,keep_as_is,,,,co-firing,N. Abad,2026-11-21,tracker#10"
     path = tmp_path / "boundaries.csv"
     path.write_text(DECISIONS_FILE.read_text().splitlines()[0] + f"\n{row}\n{row}\n")
     with pytest.raises(ValueError, match="listed twice"):
@@ -198,4 +268,8 @@ def test_the_committed_list_loads():
     assert (
         decisions[("EIA", "8066", "1")].coal_until_month == "2023-12"
     )  # Jim Bridger 1
+    assert decisions[("EIA", "3149", "2")].noncoal_months == (
+        "2023-08",
+        "2023-10",
+    )  # Montour 2
     assert decisions[("OCCTO", "石巻雲雀野発電所", "1号機")].treatment == "never_coal"
