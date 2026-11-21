@@ -299,7 +299,7 @@ REVIEW_VIEW_SQL = [
     CREATE OR REPLACE VIEW plant_crosswalk_review AS
     WITH coal AS (  -- plants the dashboard can actually show: they burn coal in their source feed
       SELECT 'EIA' AS source_system, plant_code AS key FROM eia_generator_info
-        WHERE technology IN ('Conventional Steam Coal','Coal Integrated Gasification Combined Cycle','Petroleum Coke') GROUP BY 1, 2
+        WHERE technology IN ('Conventional Steam Coal','Coal Integrated Gasification Combined Cycle') GROUP BY 1, 2
       UNION SELECT 'ENTSOE', plant_name FROM mv_entsoe_plant_monthly
         WHERE fuel_type IN ('Fossil Hard coal','Fossil Brown coal/Lignite') GROUP BY 1, 2
       UNION SELECT 'NPP', plant FROM mv_npp_plant_monthly WHERE fuel_type = 'THERMAL' GROUP BY 1, 2

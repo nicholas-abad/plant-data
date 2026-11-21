@@ -43,8 +43,10 @@ from .utils import get_crosswalk_dir
 OPERABLE_SHEET = "Operable"
 RETIRED_SHEET = "Retired and Canceled"
 RETIRED_STATUS = "RE"
-# The tracker's coal technologies (EIA_COAL_TECHNOLOGIES) and the coal review query's.
-COAL_TECHNOLOGIES = {"Conventional Steam Coal", "Coal Integrated Gasification Combined Cycle", "Petroleum Coke"}
+# Form 860 technologies counted as coal. Petroleum coke is not coal: C. Shearer,
+# tracker #32/#33 (2026-10-28), recorded in the ETL's config/fuel-groups.json as
+# "Other fossil", like Chile's PetCoke. The tracker's EIA_COAL_TECHNOLOGIES must match.
+COAL_TECHNOLOGIES = {"Conventional Steam Coal", "Coal Integrated Gasification Combined Cycle"}
 
 BASE_EDITION = 2024
 SUPPLEMENT_EDITIONS = (2019, 2020, 2021, 2022, 2023)
