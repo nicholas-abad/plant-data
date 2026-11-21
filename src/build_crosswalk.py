@@ -42,7 +42,7 @@ from .plant_name_matchers import (
     validate_match,
 )
 from . import gem_reference as gemref
-from . import eia_gem_ids, eia_unit_map, entsoe_unit_map, occto_unit_map, oe_unit_map, reviewed_unit_map
+from . import conversion_boundaries, eia_gem_ids, eia_unit_map, entsoe_unit_map, occto_unit_map, oe_unit_map, reviewed_unit_map
 from .unit_gem_map import COLUMNS as UNIT_MAP_COLUMNS
 from .unit_gem_map import check_reviewed
 from .reviewed_unit_map import METHOD as REVIEWED_UNIT
@@ -2968,6 +2968,10 @@ def build_unified_crosswalk(
             kept = pd.read_parquet(UNIT_MAP_FILE)
             parts.append(kept[~kept["source_system"].isin(rebuilt)])
         unit_map = pd.concat(parts, ignore_index=True)
+        # Converted units: coal until their last coal month, the twin after (tracker #10).
+        unit_map = conversion_boundaries.apply_boundaries(
+            unit_map, gem_units, conversion_boundaries.load_decisions()
+        )
         unit_map.to_parquet(UNIT_MAP_FILE, index=False)
         logger.info(f"Saved {len(unit_map):,} rows to {UNIT_MAP_FILE}")
 

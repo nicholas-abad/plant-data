@@ -77,6 +77,8 @@ data/crosswalks/*.csv
 !data/crosswalks/eia860_retired_2019_2023.csv
 # US generators known to have no Form 860 row: verify_crosswalk.py's no-fuel guard reads it.
 !data/crosswalks/eia_no_fuel_exceptions.csv
+# Reviewed boundaries of converted coal units (src/conversion_boundaries.py, tracker #10)
+!data/crosswalks/conversion_boundaries.csv
 data/crosswalks/*.xlsx
 
 # Crosswalk test/scratch artifacts (not the real unified_plant_crosswalk.parquet)

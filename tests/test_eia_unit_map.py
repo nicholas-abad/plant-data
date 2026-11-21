@@ -260,6 +260,23 @@ def test_occto_reviewed_unit_frees_the_number_match_for_the_other_plant():
     assert out.loc["JPower", "map_source"] == "unit-number"
 
 
+
+def test_a_converted_occto_unit_keeps_its_coal_unit_without_any_coal_month():
+    # Tracker #10: a unit reported only as gas after its conversion still needs
+    # its GEM coal unit, so the view can put its months on GEM's twin.
+    from src.occto_unit_map import build_occto_unit_map
+
+    units = pd.DataFrame([("Converted", "単独", "gas"), ("Gasplant", "１号機", "gas")], columns=["plant", "unit", "fuel_type"])
+    gem = pd.DataFrame(
+        [("G_C", "L_C", "GCPT", "Unit 1", "retired", "G_C_GAS"), ("G_O", "L_O", "GCPT", "Unit 1", "operating", None)],
+        columns=["gem_unit_id", "gem_location_id", "tracker", "unit_name", "status", "conversion_to_id"],
+    )  # fmt: skip
+    no_review = pd.DataFrame(columns=["plant", "unit", "gem_location_id", "gem_unit_ids"])
+    out = build_occto_unit_map(units, no_review, gem, {"Converted": "L_C", "Gasplant": "L_O"}).set_index("plant_key")
+    assert (out.loc["Converted", "gem_unit_id"], out.loc["Converted", "map_source"]) == ("G_C", "single-unit")
+    assert (out.loc["Converted", "fuel"], bool(out.loc["Converted", "is_coal"])) == ("gas", False)
+    assert out.loc["Gasplant", "map_source"] == "crosswalk-plant"  # not converted: stays a fallback
+
 def test_entsoe_names_read_like_gems():
     from src.entsoe_unit_map import entsoe_keys, gem_key
 

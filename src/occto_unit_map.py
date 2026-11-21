@@ -58,7 +58,21 @@ def build_occto_unit_map(
     ]
     by_loc = {loc: grp for loc, grp in coal_gem.groupby("gem_location_id")}
     review = {(r.plant, r.unit): r for r in reviewed.itertuples(index=False)}
-    coal = units[units["fuel_type"] == "coal"]
+    # A unit at a plant whose GEM coal unit was converted (tracker #10) is
+    # matched even if no loaded month is labelled coal: its later months must
+    # reach GEM's twin unit, and that starts from the coal unit.
+    converted_locs = (
+        set(coal_gem.loc[coal_gem["conversion_to_id"].notna(), "gem_location_id"])
+        if "conversion_to_id" in coal_gem
+        else set()
+    )
+    has_coal = units.groupby(["plant", "unit"])["fuel_type"].agg(lambda s: (s == "coal").any())
+    candidates = has_coal.reset_index(name="has_coal")
+    label = units.drop_duplicates(["plant", "unit"]).set_index(["plant", "unit"])["fuel_type"]
+    candidates["fuel"] = [
+        "coal" if c else label[(p, u)] for p, u, c in zip(candidates["plant"], candidates["unit"], candidates["has_coal"])
+    ]
+    coal = candidates[candidates["has_coal"] | candidates["plant"].map(plant_links).isin(converted_locs)]
     coal_per_plant = coal.groupby("plant")["unit"].nunique().to_dict()
     rows = []
     for u in coal.itertuples(index=False):
@@ -87,8 +101,8 @@ def build_occto_unit_map(
                 "gem_unit_id": unit_ids if len(unit_ids.split()) == 1 else None,
                 "gem_unit_ids": unit_ids,
                 "map_source": how,
-                "fuel": "coal",
-                "is_coal": True,
+                "fuel": u.fuel,
+                "is_coal": bool(u.has_coal),
                 "other_gem_unit_ids": None,
             }
         )
@@ -103,12 +117,12 @@ def build_occto_unit_map(
     every = pd.DataFrame(
         {
             "source_system": "OCCTO",
-            "plant_key": units["plant"],
-            "unit_key": units["unit"],
-            "fuel": units["fuel_type"],
-            "is_coal": units["fuel_type"] == "coal",
+            "plant_key": candidates["plant"],
+            "unit_key": candidates["unit"],
+            "fuel": candidates["fuel"],
+            "is_coal": candidates["has_coal"].astype(bool),
         }
-    ).drop_duplicates(["plant_key", "unit_key"])
+    )
     out = with_fallback(matched, every, plant_links)
     coal_rows = out[out["is_coal"]]
     logger.info(

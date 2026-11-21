@@ -24,6 +24,12 @@ One row per source unit:
   mv_chile_fuel_group_monthly, and its non-coal rows are not coal;
 * other_gem_unit_ids: a second GEM unit kept aside (a converted unit's
   other-tracker twin, a never-built unit sharing the ID).
+
+The built file also carries src/conversion_boundaries.py's columns for EIA and
+OCCTO rows (converted_gem_unit_id, coal_until_month, boundary_source,
+fuel_before, fuel_after): gem_unit_monthly counts a converted unit as coal up
+to coal_until_month and puts later months on its GEM twin (tracker #10). The
+table's is_coal stays "a coal unit"; the view's is_coal is per month.
 """
 
 from __future__ import annotations

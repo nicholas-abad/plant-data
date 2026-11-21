@@ -41,6 +41,7 @@ def test_no_us_coal_generation_in_the_register_join_fails(mod, monkeypatch, tmp_
     monkeypatch.setattr(mod, "UNIT_MAP_FILE", path)
     monkeypatch.setattr(mod, "_make_engine", MagicMock)
     monkeypatch.setattr(mod, "unit_overlaps", lambda engine, umap: "")
+    monkeypatch.setattr(mod, "conversion_gate", lambda engine, umap, units: None)
     monkeypatch.setattr(mod, "no_fuel_gate", lambda engine, eia: None)
     # mv_eia_unit_monthly joined to an unkeyed (or empty) eia_generator_info: no rows
     monkeypatch.setattr(mod.pd, "read_sql", lambda *a, **k: pd.DataFrame(columns=["plant_key", "unit_key", "g"]))
@@ -191,6 +192,7 @@ def test_the_unit_map_gate_runs_the_no_fuel_guard(mod, monkeypatch, tmp_path):
     monkeypatch.setattr(mod, "UNIT_MAP_FILE", path)
     monkeypatch.setattr(mod, "_make_engine", MagicMock)
     monkeypatch.setattr(mod, "unit_overlaps", lambda engine, umap: "")
+    monkeypatch.setattr(mod, "conversion_gate", lambda engine, umap, units: None)
     seen = []
     monkeypatch.setattr(mod, "no_fuel_gate", lambda engine, eia: seen.append(eia) or mod.fail("G-UNITMAP: no fuel"))
     monkeypatch.setattr(

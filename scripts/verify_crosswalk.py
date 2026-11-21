@@ -40,6 +40,8 @@ from src import eia_unit_map  # noqa: E402
 from src import gem_reference as gemref  # noqa: E402
 from src.gem_external_ids import eia_plant_locations, load_snapshot  # noqa: E402
 from src.unit_gem_map import MAP_FILE as UNIT_MAP_FILE  # noqa: E402
+from src.unit_gem_map import COLUMNS as UNIT_MAP_COLUMNS  # noqa: E402
+from src.conversion_boundaries import BOUNDARY_COLUMNS  # noqa: E402
 from src.build_crosswalk import (  # noqa: E402
     ENTSOE_AREA_COUNTRIES,
     GPPD_CSV,
@@ -193,36 +195,122 @@ def eia_id_gates(xw: pd.DataFrame) -> None:
         )
 
 
-def unit_overlaps(engine, umap: pd.DataFrame) -> str | None:
-    """The same-month overlap check (bootstrap_neon_db.unit_overlap_sql) on this build's map, before any swap.
+_TEXT = "text"
+# Column types of the candidate map's temp table; every map column must be here.
+MAP_COLUMN_TYPES = {
+    **{c: _TEXT for c in UNIT_MAP_COLUMNS},
+    "is_coal": "boolean",
+    **{c: _TEXT for c in BOUNDARY_COLUMNS},
+}
+
+
+def _with_candidate_map(engine, umap: pd.DataFrame, check):
+    """Run check(conn) with this build's map shadowing unit_gem_map, before any swap.
 
     The new map goes into a temporary table that shadows unit_gem_map for this
     transaction only (pg_temp comes first on the search path), so the
     loader's own view SQL reads it; the transaction is rolled back.
     """
-    import bootstrap_neon_db as boot
     from sqlalchemy import text as _sql_text
 
-    cols = ["source_system", "plant_key", "unit_key", "gem_location_id", "gem_unit_id", "gem_unit_ids", "map_source", "fuel", "is_coal"]  # fmt: skip
+    umap = umap.copy()
+    for col in BOUNDARY_COLUMNS:
+        if col not in umap:
+            umap[col] = None
+    cols = list(MAP_COLUMN_TYPES)
+    unknown = sorted(set(umap.columns) - set(cols))
+    if unknown:
+        raise ValueError(f"unit_gem_map columns without a type in MAP_COLUMN_TYPES: {unknown}")
     rows = umap[cols].to_json(orient="records")
-    union = boot.gem_unit_rows_sql(engine)
+    ddl = ", ".join(f"{c} {MAP_COLUMN_TYPES[c]}" for c in cols)
     with engine.connect() as conn:
-        conn.execute(
-            _sql_text(
-                "CREATE TEMP TABLE unit_gem_map (source_system text, plant_key text, unit_key text, "
-                "gem_location_id text, gem_unit_id text, gem_unit_ids text, map_source text, fuel text, "
-                "is_coal boolean) ON COMMIT DROP"
-            )
-        )
+        conn.execute(_sql_text(f"CREATE TEMP TABLE unit_gem_map ({ddl}) ON COMMIT DROP"))
         conn.execute(
             _sql_text(
                 "INSERT INTO pg_temp.unit_gem_map SELECT * FROM json_populate_recordset(NULL::pg_temp.unit_gem_map, :rows)"
             ),
             {"rows": rows},
         )
-        clash = conn.execute(_sql_text(boot.unit_overlap_sql(union))).scalar()
-        conn.rollback()
-    return clash
+        try:
+            return check(conn)
+        finally:
+            conn.rollback()
+
+
+def unit_overlaps(engine, umap: pd.DataFrame) -> str | None:
+    """The same-month overlap check (bootstrap_neon_db.unit_overlap_sql) on this build's map, before any swap."""
+    import bootstrap_neon_db as boot
+    from sqlalchemy import text as _sql_text
+
+    union = boot.gem_unit_rows_sql(engine)
+    return _with_candidate_map(engine, umap, lambda conn: conn.execute(_sql_text(boot.unit_overlap_sql(union))).scalar())
+
+
+# Units whose boundary must be in every build: if one is missing, the reviewed
+# list or GEM's conversion data did not reach the map (tracker #10).
+REQUIRED_BOUNDARIES = {
+    ("EIA", "3149", "1"): "reviewed",  # Montour 1
+    ("EIA", "8066", "1"): "reviewed",  # Jim Bridger 1
+    ("OCCTO", "鈴川エネルギーセンター発電所", "単独"): "gem-year-end",  # Suzukawa 1
+}
+
+
+def conversion_gate(engine, umap: pd.DataFrame, units: pd.DataFrame) -> None:
+    """G-CONVERSION: converted units split by month, each source row-month counted once.
+
+    A failure stops the load of the rebuilt crosswalk for every source. A
+    missing GEM-year boundary usually means gem_units was loaded without the
+    conversion columns: run scripts/fetch_gem.py --force-detail first.
+    """
+    import bootstrap_neon_db as boot
+    from sqlalchemy import text as _sql_text
+
+    if "boundary_source" not in umap:
+        fail("G-CONVERSION: the map has no conversion boundaries (built before src/conversion_boundaries.py?)")
+        return
+    before = fail.count
+    if "conversion_to_id" not in units or units["conversion_to_id"].isna().all():
+        fail("G-CONVERSION: gem_units has no conversion data; run scripts/fetch_gem.py --force-detail")
+    got = {
+        (r.source_system, r.plant_key, r.unit_key): r.boundary_source
+        for r in umap[umap["boundary_source"].notna()].itertuples(index=False)
+    }
+    for key, how in REQUIRED_BOUNDARIES.items():
+        if got.get(key) != how:
+            fail(f"G-CONVERSION: {' '.join(key)} should have a {how} boundary, has {got.get(key)}")
+    where = dict(zip(units["gem_unit_id"], units["gem_location_id"]))
+    twins = umap[umap["converted_gem_unit_id"].notna()]
+    apart = twins[twins["converted_gem_unit_id"].map(where) != twins["gem_location_id"]]
+    if len(apart):
+        fail(f"G-CONVERSION: {len(apart)} conversion twins not at their unit's GEM plant: {apart['plant_key'].head(5).tolist()}")
+
+    union = boot.gem_unit_rows_sql(engine)
+    checks = {
+        "duplicates": f"SELECT count(*) FROM (SELECT 1 FROM ({union}) v WHERE v.source_system IN ('EIA', 'OCCTO') "
+        "GROUP BY v.source_system, v.plant_key, v.unit_key, v.month HAVING count(*) > 1) d",
+        "eia_view": f"SELECT COALESCE(SUM(v.generation_mwh), 0) FROM ({union}) v WHERE v.source_system = 'EIA'",
+        "eia_source": "SELECT COALESCE(SUM(u.net_generation_mwh), 0) FROM mv_eia_unit_monthly u JOIN unit_gem_map m "
+        "ON m.source_system = 'EIA' AND m.plant_key = u.plant_code AND m.unit_key = u.generator_id",
+        "occto_view": f"SELECT COALESCE(SUM(v.generation_mwh), 0) FROM ({union}) v WHERE v.source_system = 'OCCTO'",
+        "occto_source": "SELECT COALESCE(SUM(u.generation_mwh), 0) FROM mv_occto_unit_monthly u JOIN unit_gem_map m "
+        "ON m.source_system = 'OCCTO' AND m.plant_key = u.plant AND m.unit_key = u.unit "
+        "WHERE u.fuel_type = 'coal' OR m.boundary_source IS NOT NULL",
+    }
+    # A database without one of the source views builds the view without its branch.
+    present = {"eia": "FROM mv_eia_unit_monthly" in union, "occto": "FROM mv_occto_unit_monthly" in union}
+    sql = {k: q for k, q in checks.items() if k == "duplicates" or present[k.split("_")[0]]}
+    res = _with_candidate_map(engine, umap, lambda conn: {k: conn.execute(_sql_text(q)).scalar() for k, q in sql.items()})
+    if res["duplicates"]:
+        fail(f"G-CONVERSION: {res['duplicates']} source unit-months appear twice in gem_unit_monthly")
+    for s in ("eia", "occto"):
+        if f"{s}_view" in res and abs(float(res[f"{s}_view"]) - float(res[f"{s}_source"])) > 1.0:
+            fail(
+                f"G-CONVERSION: {s.upper()} MWh in gem_unit_monthly {float(res[f'{s}_view']):,.0f} != "
+                f"source rows it selects {float(res[f'{s}_source']):,.0f}"
+            )
+    if fail.count == before:
+        counts = umap["boundary_source"].value_counts().to_dict()
+        ok(f"G-CONVERSION: boundaries {counts}; each EIA/OCCTO unit-month once, MWh equal to the source rows")
 
 
 def _listed(labels: list[str], limit: int = 40) -> str:
@@ -339,6 +427,7 @@ def unit_map_gate(xw: pd.DataFrame, units: pd.DataFrame) -> None:
     from sqlalchemy import text as _sql_text
 
     engine = _make_engine()
+    conversion_gate(engine, umap, units)
     clash = unit_overlaps(engine, umap)
     if clash:
         print(

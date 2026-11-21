@@ -422,6 +422,29 @@ def load_gem_external_ids(engine):
 # unit-grain view exists only where ETL migration 022 is applied).
 _UNIT_COLS = "m.source_system, m.gem_location_id, m.gem_unit_id, m.gem_unit_ids, m.plant_key, m.unit_key"
 _MONTH_COLS = "u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint AS timestamp_ms"
+# Converted units (src/conversion_boundaries.py, tracker #10; EIA and OCCTO
+# only): a month after the unit's last coal month sits on GEM's twin unit,
+# with the other fuel, and is not coal; a never-coal unit (no last month) is
+# never coal and keeps its unit. One output row per source row-month.
+_AFTER = (
+    "(m.boundary_source IS NOT NULL AND (m.coal_until_month IS NULL "
+    "OR to_char(u.month AT TIME ZONE 'UTC', 'YYYY-MM') > m.coal_until_month))"
+)
+_SPLIT_UNIT_COLS = f"""m.source_system, m.gem_location_id,
+       CASE WHEN {_AFTER} THEN COALESCE(m.converted_gem_unit_id, m.gem_unit_id) ELSE m.gem_unit_id END AS gem_unit_id,
+       CASE WHEN {_AFTER} THEN COALESCE(m.converted_gem_unit_id, m.gem_unit_ids) ELSE m.gem_unit_ids END AS gem_unit_ids,
+       m.plant_key, m.unit_key"""
+
+
+def _split_fuel(default: str) -> str:
+    return f"CASE WHEN m.boundary_source IS NULL THEN {default} WHEN {_AFTER} THEN m.fuel_after ELSE m.fuel_before END"
+
+
+def _split_is_coal(default: str) -> str:
+    return f"CASE WHEN m.boundary_source IS NULL THEN {default} ELSE NOT {_AFTER} END"
+
+
+
 GEM_UNIT_BRANCHES = {
     # India: NPP units under their DGR plant names, all fuels (coal = THERMAL).
     "mv_npp_unit_monthly": f"""
@@ -430,8 +453,8 @@ SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
 FROM mv_npp_unit_monthly u
 JOIN unit_gem_map m ON m.source_system = 'NPP' AND m.plant_key = u.plant AND m.unit_key = u.unit""",
     "mv_eia_unit_monthly": f"""
-SELECT {_UNIT_COLS}, u.month, u.timestamp_ms, u.net_generation_mwh AS generation_mwh,
-       m.fuel, m.is_coal, m.map_source
+SELECT {_SPLIT_UNIT_COLS}, u.month, u.timestamp_ms, u.net_generation_mwh AS generation_mwh,
+       {_split_fuel("m.fuel")} AS fuel, {_split_is_coal("m.is_coal")} AS is_coal, m.map_source
 FROM mv_eia_unit_monthly u
 JOIN unit_gem_map m
   ON m.source_system = 'EIA' AND m.plant_key = u.plant_code AND m.unit_key = u.generator_id""",
@@ -467,13 +490,14 @@ SELECT m.source_system, m.gem_location_id,
        CASE WHEN u.fuel_group = 'coal' THEN m.map_source ELSE 'plant-other-fuel' END AS map_source
 FROM mv_chile_fuel_group_monthly u
 JOIN unit_gem_map m ON m.source_system = 'CHILE' AND m.plant_key = u.plant AND m.unit_key = ''""",
-    # Japan: OCCTO units under their plant names; coal rows only.
+    # Japan: OCCTO units under their plant names; coal rows only, plus every
+    # month of a converted or never-coal unit (its other fuel stays visible).
     "mv_occto_unit_monthly": f"""
-SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
-       u.fuel_type AS fuel, TRUE AS is_coal, m.map_source
+SELECT {_SPLIT_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
+       {_split_fuel("u.fuel_type")} AS fuel, {_split_is_coal("TRUE")} AS is_coal, m.map_source
 FROM mv_occto_unit_monthly u
 JOIN unit_gem_map m ON m.source_system = 'OCCTO' AND m.plant_key = u.plant AND m.unit_key = u.unit
-WHERE u.fuel_type = 'coal'""",
+WHERE u.fuel_type = 'coal' OR m.boundary_source IS NOT NULL""",
     # Europe: ENTSO-E unit names (each its own crosswalk row, unit_key ''); coal rows only.
     "mv_entsoe_plant_monthly": f"""
 SELECT {_UNIT_COLS}, {_MONTH_COLS}, u.generation_mwh,
@@ -625,7 +649,16 @@ def load_unit_gem_map(engine):
         print(f"  SKIP  {path.name} not found — run build_crosswalk.py first")
         return
 
+    if str(SCRIPT_DIR.parent) not in sys.path:
+        sys.path.insert(0, str(SCRIPT_DIR.parent))
+    from src.conversion_boundaries import BOUNDARY_COLUMNS
+
     df = pd.read_parquet(path)
+    # A map built before the conversion boundaries (e.g. the committed
+    # baseline) has no boundary columns; the view needs them, NULL is "none".
+    for col in BOUNDARY_COLUMNS:
+        if col not in df:
+            df[col] = None
 
     _atomic_replace_table(
         engine,
