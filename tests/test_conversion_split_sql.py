@@ -185,3 +185,11 @@ def test_each_source_month_once_and_no_mwh_added_or_lost(pg_url):
     assert "某" not in v.index.get_level_values(
         "plant_key"
     )  # the gas unit without a boundary stays out
+
+
+def test_the_view_applies_exactly_the_active_boundaries():
+    from bootstrap_neon_db import ACTIVE_BOUNDARIES
+
+    from src.conversion_boundaries import ACTIVE
+
+    assert ACTIVE_BOUNDARIES == tuple(str(s) for s in ACTIVE)

@@ -273,3 +273,12 @@ def test_the_committed_list_loads():
         "2023-10",
     )  # Montour 2
     assert decisions[("OCCTO", "石巻雲雀野発電所", "1号機")].treatment == "never_coal"
+
+
+def test_gems_twin_without_a_new_fuel_is_unresolved_not_elsewhere():
+    units = UNITS.copy()
+    units.loc[units["gem_unit_id"] == "G_SUZUKAWA", "conversion_to_fuel"] = None
+    assert (
+        _row(apply_boundaries(MAP, units, DECISIONS), "OCCTO", "鈴川").boundary_source
+        == "unresolved"
+    )

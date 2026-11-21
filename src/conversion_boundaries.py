@@ -65,7 +65,7 @@ class BoundarySource(StrEnum):
     GEM_YEAR_END = "gem-year-end"  # December of GEM's conversion year
     NEVER_COAL = "never-coal"  # conversion_boundaries.csv, never_coal
     # Not applied by the view; G-CONVERSION reports them:
-    UNRESOLVED = "unresolved"  # a reviewed month without a twin or other_fuel
+    UNRESOLVED = "unresolved"  # no twin or other_fuel for a reviewed month; no fuel for GEM's twin
     TWIN_ELSEWHERE = "twin-elsewhere"  # GEM's twin sits at another GEM plant
 
 
@@ -207,7 +207,11 @@ def stale_decisions(
 
 def _other_fuel(source: str, conversion_fuel) -> str | None:
     """The view's fuel label for GEM's conversion_to_fuel; GEM's text when no label fits."""
-    text = str(conversion_fuel or "").split(",")[0].strip()
+    if conversion_fuel is None or (
+        isinstance(conversion_fuel, float) and pd.isna(conversion_fuel)
+    ):
+        return None
+    text = str(conversion_fuel).split(",")[0].strip()
     if not text:
         return None
     family, _, subtype = (part.strip() for part in text.partition(":"))
@@ -297,11 +301,12 @@ def apply_boundaries(
                 f"{int(conv['retired_year'])}-12",
                 _other_fuel(source, conv["conversion_to_fuel"]),
             )
-            how = (
-                BoundarySource.GEM_YEAR_END
-                if twin_here and after
-                else BoundarySource.TWIN_ELSEWHERE
-            )
+            if not twin_here:
+                how = BoundarySource.TWIN_ELSEWHERE
+            elif after is None:  # GEM names the twin but not the new fuel
+                how = BoundarySource.UNRESOLVED
+            else:
+                how = BoundarySource.GEM_YEAR_END
             twin = twin if twin_here else None
         else:
             continue

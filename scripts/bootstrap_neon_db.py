@@ -430,7 +430,9 @@ _MONTH_COLS = "u.month, (EXTRACT(EPOCH FROM u.month) * 1000)::bigint AS timestam
 # source row-month. 'unresolved' and 'twin-elsewhere' rows are not applied
 # (verify_crosswalk.py's G-CONVERSION reports them).
 _MONTH_TEXT = "to_char(u.month AT TIME ZONE 'UTC', 'YYYY-MM')"
-_BOUNDARY = "m.boundary_source IN ('reviewed', 'gem-year-end', 'never-coal')"
+# conversion_boundaries.ACTIVE (tests/test_conversion_split_sql.py keeps them equal).
+ACTIVE_BOUNDARIES = ("reviewed", "gem-year-end", "never-coal")
+_BOUNDARY = "m.boundary_source IN (" + ", ".join(f"'{s}'" for s in ACTIVE_BOUNDARIES) + ")"
 _AFTER = f"({_BOUNDARY} AND (m.coal_until_month IS NULL OR {_MONTH_TEXT} > m.coal_until_month))"
 _NONCOAL = f"({_BOUNDARY} AND position({_MONTH_TEXT} IN COALESCE(m.noncoal_months, '')) > 0)"
 _SPLIT_UNIT_COLS = f"""m.source_system, m.gem_location_id,

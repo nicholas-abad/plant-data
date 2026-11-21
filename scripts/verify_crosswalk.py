@@ -41,7 +41,7 @@ from src import gem_reference as gemref  # noqa: E402
 from src.gem_external_ids import eia_plant_locations, load_snapshot  # noqa: E402
 from src.unit_gem_map import MAP_FILE as UNIT_MAP_FILE  # noqa: E402
 from src.unit_gem_map import COLUMNS as UNIT_MAP_COLUMNS  # noqa: E402
-from src.conversion_boundaries import BOUNDARY_COLUMNS  # noqa: E402
+from src.conversion_boundaries import ACTIVE, BOUNDARY_COLUMNS  # noqa: E402
 from src.build_crosswalk import (  # noqa: E402
     ENTSOE_AREA_COUNTRIES,
     GPPD_CSV,
@@ -265,6 +265,11 @@ def conversion_gate(engine, umap: pd.DataFrame, units: pd.DataFrame) -> None:
     A failure stops the load of the rebuilt crosswalk for every source. A
     missing GEM-year boundary usually means gem_units was loaded without the
     conversion columns: run scripts/fetch_gem.py --force-detail first.
+
+    The map checks (required units, stale decisions, unresolved boundaries,
+    twins) are data checks. The SQL checks (no unit-month twice, no coal
+    against the map or OCCTO's label) are invariants of the view SQL: they
+    cannot fail on data with a correct builder, and catch a builder regression.
     """
     import bootstrap_neon_db as boot
     from sqlalchemy import text as _sql_text
@@ -310,7 +315,7 @@ def conversion_gate(engine, umap: pd.DataFrame, units: pd.DataFrame) -> None:
         # Coal where the map says not: after the last coal month, or a listed non-coal month.
         "coal_against_map": f"SELECT count(*) FROM ({union}) v JOIN unit_gem_map m USING (source_system, plant_key, unit_key) "
         "WHERE v.source_system IN ('EIA', 'OCCTO') AND v.is_coal "
-        "AND m.boundary_source IN ('reviewed', 'gem-year-end', 'never-coal') "
+        f"AND m.boundary_source IN ({', '.join(repr(str(s)) for s in ACTIVE)}) "
         f"AND (m.coal_until_month IS NULL OR {month} > m.coal_until_month "
         f"OR position({month} IN COALESCE(m.noncoal_months, '')) > 0)",
     }
