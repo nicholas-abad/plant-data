@@ -24,6 +24,7 @@ tracker; every coal aggregate downstream filters `tracker = 'GCPT'`.
 
 from __future__ import annotations
 
+import json
 import re
 import time
 from dataclasses import dataclass, field
@@ -254,9 +255,15 @@ UNIT_COLUMNS = [
     "planned_retirement",
     "coal_type",
     "combustion_tech",
+    "captive_industries",
+    "captive_use",
     "gem_release",
     "fetched_at",
 ]
+# From /assets/{id} only. captive_industries: the industries a captive unit
+# supplies, from GEM's "captive" list (e.g. ["aluminum"] -> "aluminum");
+# captive_use: what it supplies them, GEM's captive_industry_use (power, heat
+# or both). Both NULL for a grid unit. Tracker #54 ("Captive, not reported").
 DETAIL_UNIT_COLUMNS = [
     "start_year",
     "retired_year",
@@ -264,7 +271,15 @@ DETAIL_UNIT_COLUMNS = [
     "planned_retirement",
     "coal_type",
     "combustion_tech",
+    "captive_industries",
+    "captive_use",
 ]
+DETAIL_TEXT_COLUMNS = (
+    "coal_type",
+    "combustion_tech",
+    "captive_industries",
+    "captive_use",
+)
 DETAIL_LOCATION_COLUMNS = ["name_other", "name_local", "location_accuracy"]
 SNAPSHOT_COLUMNS = [
     "gem_unit_id",
@@ -412,6 +427,27 @@ def parse_period(period: str) -> tuple[int, int]:
     return int(m.group(2)), int(m.group(1))
 
 
+def _detail_text_as_object(units: pd.DataFrame) -> pd.DataFrame:
+    """The frame with its detail text columns as object dtype.
+
+    They start all-NULL (float) in the core frames, and pandas refuses to put
+    text into a float column.
+    """
+    return units.astype({col: object for col in DETAIL_TEXT_COLUMNS})
+
+
+def _captive_industries(value) -> str | None:
+    """GEM's captive list as text: '["aluminum", "chemicals"]' -> "aluminum, chemicals"."""
+    if not value:
+        return None
+    industries = json.loads(value) if isinstance(value, str) else value
+    if not isinstance(industries, list) or not all(
+        isinstance(i, str) for i in industries
+    ):
+        raise GemApiError(f"unexpected captive value {value!r}")
+    return ", ".join(industries) or None
+
+
 def apply_details(
     units: pd.DataFrame,
     locations: pd.DataFrame,
@@ -419,7 +455,7 @@ def apply_details(
     release: str,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Fold /assets/{id} payloads into the frames; return (units, locations, snapshots)."""
-    units = units.set_index("gem_unit_id", drop=False)
+    units = _detail_text_as_object(units.set_index("gem_unit_id", drop=False))
     locations = locations.set_index("gem_location_id", drop=False)
     snap_rows: list[dict] = []
     for asset_id, d in details.items():
@@ -438,6 +474,8 @@ def apply_details(
         units.at[unit_id, "planned_retirement"] = _year(f.get("planned_retirement"))
         units.at[unit_id, "coal_type"] = f.get("coal_type")
         units.at[unit_id, "combustion_tech"] = f.get("combustion_technology")
+        units.at[unit_id, "captive_industries"] = _captive_industries(f.get("captive"))
+        units.at[unit_id, "captive_use"] = f.get("captive_industry_use") or None
         loc_id = units.at[unit_id, "gem_location_id"]
         if loc_id in locations.index:
             for src, dst in (
@@ -479,8 +517,9 @@ def carry_over_details(
     until the next quarterly detail pull.
     """
     if not prev_units.empty:
-        prev = prev_units.set_index("gem_unit_id")[DETAIL_UNIT_COLUMNS]
-        units = units.set_index("gem_unit_id")
+        # A table stored before a detail column existed lacks it: carry NULL.
+        prev = prev_units.set_index("gem_unit_id").reindex(columns=DETAIL_UNIT_COLUMNS)
+        units = _detail_text_as_object(units.set_index("gem_unit_id"))
         common = units.index.intersection(prev.index)
         units.loc[common, DETAIL_UNIT_COLUMNS] = prev.loc[
             common, DETAIL_UNIT_COLUMNS

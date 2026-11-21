@@ -222,6 +222,69 @@ class TestDetail:
         )
         assert merged_locs.iloc[0].name_local == "A.B. Brown Generating Station"
 
+    def test_a_captive_unit_keeps_its_industries_and_use(self):
+        # Real payload: BALCO Korba Phase 3 Unit 1, supplying power to an aluminium smelter.
+        detail = _load("asset_detail_captive.json")
+        locs, units = build_core_frames(
+            {"GCPT": [detail], "GOGPT": [], "GBPT": []},
+            {"GCPT": "July 2026", "GOGPT": "August 2026", "GBPT": "V3"},
+            NOW,
+        )
+        units, _, _ = apply_details(
+            units, locs, {detail["asset_id"]: detail}, "July 2026"
+        )
+        u = units.set_index("gem_unit_id").loc["G100000100471"]
+        assert (u.captive_industries, u.captive_use) == ("aluminum", "power")
+
+    def test_a_grid_unit_has_no_captive_fields(self):
+        locs, units = _core()
+        detail = _load("asset_detail.json")
+        units, _, _ = apply_details(
+            units, locs, {detail["asset_id"]: detail}, "January 2026"
+        )
+        u = units.set_index("gem_unit_id").loc["G100000100001"]
+        assert pd.isna(u.captive_industries) and pd.isna(u.captive_use)
+
+    def test_the_weekly_core_only_run_keeps_the_captive_fields(self):
+        detail = _load("asset_detail_captive.json")
+
+        def frames():
+            return build_core_frames(
+                {"GCPT": [detail], "GOGPT": [], "GBPT": []},
+                {"GCPT": "July 2026", "GOGPT": "August 2026", "GBPT": "V3"},
+                NOW,
+            )
+
+        locs, units = frames()
+        prev_units, prev_locs, _ = apply_details(
+            units, locs, {detail["asset_id"]: detail}, "July 2026"
+        )
+        fresh_locs, fresh_units = frames()
+        merged, _ = carry_over_details(fresh_units, fresh_locs, prev_units, prev_locs)
+        assert (
+            merged.set_index("gem_unit_id").at["G100000100471", "captive_industries"]
+            == "aluminum"
+        )
+
+    def test_a_table_stored_before_the_captive_columns_still_carries_over(self):
+        locs, units = _core()
+        detail = _load("asset_detail.json")
+        prev_units, prev_locs, _ = apply_details(
+            units.copy(), locs.copy(), {detail["asset_id"]: detail}, "January 2026"
+        )
+        prev_units = prev_units.drop(columns=["captive_industries", "captive_use"])
+        fresh_locs, fresh_units = _core()
+        merged, _ = carry_over_details(fresh_units, fresh_locs, prev_units, prev_locs)
+        u = merged.set_index("gem_unit_id").loc["G100000100001"]
+        assert u.coal_type == "bituminous" and pd.isna(u.captive_industries)
+
+    def test_an_unexpected_captive_value_fails_loudly(self):
+        from src.gem_api import _captive_industries
+
+        assert _captive_industries('["aluminum", "chemicals"]') == "aluminum, chemicals"
+        with pytest.raises(GemApiError, match="unexpected captive value"):
+            _captive_industries('{"industry": "aluminum"}')
+
 
 # -- post-conditions ------------------------------------------------------------
 
