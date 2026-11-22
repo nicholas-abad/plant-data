@@ -7,6 +7,26 @@ from src import build_crosswalk as bc
 from src import gem_reference as gemref
 
 
+def _links(*rows):
+    """Climate TRACE's own GEM links, as (climatetrace_id, gem_id) pairs."""
+    return pd.DataFrame(
+        [
+            {
+                "climatetrace_id": ct_id,
+                "ct_native_source_id": None,
+                "gem_id": gem_id,
+                "gem_id_kind": "location" if gem_id.startswith("L") else "unit",
+            }
+            for ct_id, gem_id in rows
+        ],
+        columns=["climatetrace_id", "ct_native_source_id", "gem_id", "gem_id_kind"],
+    )
+
+
+def _match(df, links=None):
+    return bc.match_ct(df, _links() if links is None else links)
+
+
 def _ct_row(**kw):
     base = dict(
         plant_code="1000001",
@@ -71,7 +91,7 @@ def gem(monkeypatch):
 
 class TestTierA:
     def test_exact_unique_near_links(self, gem):
-        out = bc.match_ct(pd.DataFrame([_ct_row()]))
+        out = _match(pd.DataFrame([_ct_row()]))
         r = out.iloc[0]
         assert r.gem_location_id == "L1"
         assert r.matching_method == "ct-name-geo"
@@ -83,7 +103,7 @@ class TestTierA:
         assert r.capacity_mw == 800.0 and r.capacity_source == "CT"
 
     def test_exact_name_but_far_away_stays_open(self, gem):
-        out = bc.match_ct(pd.DataFrame([_ct_row(latitude=11.0)]))  # ~111 km off
+        out = _match(pd.DataFrame([_ct_row(latitude=11.0)]))  # ~111 km off
         r = out.iloc[0]
         assert pd.isna(r.gem_location_id)
         assert r.candidate_1_id == "L1"  # still the obvious suggestion
@@ -93,7 +113,7 @@ class TestTierA:
     def test_ambiguous_name_on_site_resolved_by_geography(self, gem):
         # name twins L2/L2B: tier A refuses, but the plant sits ON L2 —
         # tier B's geography legitimately disambiguates
-        out = bc.match_ct(
+        out = _match(
             pd.DataFrame(
                 [
                     _ct_row(
@@ -109,7 +129,7 @@ class TestTierA:
         assert r.matching_method == "ct-geo-fuzzy"
 
     def test_ambiguous_name_far_from_both_goes_to_review(self, gem):
-        out = bc.match_ct(
+        out = _match(
             pd.DataFrame(
                 [
                     _ct_row(
@@ -125,7 +145,7 @@ class TestTierA:
         assert {r.candidate_1_id, r.candidate_2_id} == {"L2", "L2B"}
 
     def test_alias_matches(self, gem):
-        out = bc.match_ct(
+        out = _match(
             pd.DataFrame(
                 [
                     _ct_row(
@@ -142,7 +162,7 @@ class TestTierA:
 class TestTierB:
     def test_geo_first_with_fuzzy_name(self, gem):
         # name differs but is fuzzy-close, and the site is <2 km away
-        out = bc.match_ct(
+        out = _match(
             pd.DataFrame(
                 [
                     _ct_row(
@@ -160,7 +180,7 @@ class TestTierB:
 
     def test_non_coal_neighbor_never_links(self, gem):
         # sits on top of the GAS site with a fuzzy-close name → must stay open
-        out = bc.match_ct(
+        out = _match(
             pd.DataFrame(
                 [
                     _ct_row(
@@ -174,7 +194,7 @@ class TestTierB:
         assert pd.isna(out.iloc[0].gem_location_id)
 
     def test_unrelated_name_nearby_stays_open(self, gem):
-        out = bc.match_ct(
+        out = _match(
             pd.DataFrame(
                 [
                     _ct_row(
@@ -201,20 +221,118 @@ class TestDeadSites:
         }])], ignore_index=True)
         monkeypatch.setattr(gemref, "_TABLES", {"locations": locs, "units": units})
         gemref._site_attrs.cache_clear()
-        out = bc.match_ct(pd.DataFrame([_ct_row(plant_name="Ghost power station", latitude=12.0, longitude=-12.0)]))
+        out = _match(pd.DataFrame([_ct_row(plant_name="Ghost power station", latitude=12.0, longitude=-12.0)]))
         r = out.iloc[0]
         assert pd.isna(r.gem_location_id), "cancelled-only site must not auto-link"
         assert r.candidate_1_id == "LDEAD"  # still visible to the reviewer
 
 
+def _add_site(loc_id, name, country, lat, lon, status="operating"):
+    """Add one GEM location with one coal unit to the fixture's tables."""
+    t = gemref.load_tables()
+    t["locations"].loc[loc_id] = [loc_id, name, None, None, country, lat, lon]
+    unit = {
+        "gem_unit_id": f"G{loc_id}", "gem_location_id": loc_id, "tracker": "GCPT",
+        "status": status, "capacity_mw": 600.0, "coal_type": "bituminous",
+        "combustion_tech": "subcritical", "is_coal": True,
+        "is_operating": status == "operating",
+    }
+    t["units"] = pd.concat([t["units"], pd.DataFrame([unit])], ignore_index=True)
+    gemref._site_attrs.cache_clear()
+
+
+class TestTierC:
+    """Climate TRACE's own GEM ids link a plant the name and distance tiers leave open (#11)."""
+
+    def test_far_exact_name_links_through_climate_traces_gem_id(self, gem):
+        out = _match(pd.DataFrame([_ct_row(latitude=11.0)]), _links(("1000001", "L1")))
+        r = out.iloc[0]
+        assert r.gem_location_id == "L1"
+        assert (r.matching_method, r.confidence) == ("ct-gem-id", "high")
+        # GEM's coordinates replace Climate TRACE's misplaced ones; capacity stays CT's
+        assert r.latitude == 10.0 and r.capacity_mw == 800.0
+
+    def test_unit_link_counts_as_its_location(self, gem):
+        out = _match(pd.DataFrame([_ct_row(latitude=11.0)]), _links(("1000001", "G1")))
+        assert out.iloc[0].gem_location_id == "L1"
+
+    def test_differently_named_plant_far_away_links(self, gem):
+        row = _ct_row(plant_name="Jababeka Estate power station", latitude=13.0)
+        out = _match(pd.DataFrame([row]), _links(("1000001", "L2")))
+        assert out.iloc[0].gem_location_id == "L2"
+
+    def test_site_without_operating_coal_never_links(self, gem):
+        # the Johnsonville case: retired coal site, gas plant generating there now
+        _add_site("LRET", "Retired power station", "United States", 40.0, -40.0, status="retired")
+        row = _ct_row(plant_name="Retired power station", latitude=41.0, longitude=-41.0)
+        out = _match(pd.DataFrame([row]), _links(("1000001", "LRET")))
+        assert pd.isna(out.iloc[0].gem_location_id)
+
+    def test_site_in_another_country_never_links(self, gem):
+        out = _match(pd.DataFrame([_ct_row(latitude=11.0)]), _links(("1000001", "L3")))
+        assert pd.isna(out.iloc[0].gem_location_id)
+
+    def test_plant_naming_several_sites_stays_open(self, gem):
+        _add_site("LC", "Hengyun-C power station", "United States", 40.0, -40.0)
+        _add_site("LD", "Hengyun-D power station", "United States", 40.0, -40.0)
+        row = _ct_row(plant_name="Hengyun-D power station", latitude=42.0)
+        out = _match(pd.DataFrame([row]), _links(("1000001", "LC"), ("1000001", "LD")))
+        assert pd.isna(out.iloc[0].gem_location_id)
+
+    def test_only_one_qualifying_site_among_several_links(self, gem):
+        # Climate TRACE also names a retired neighbour; only the operating site qualifies
+        _add_site("LRET", "Alpha old station", "United States", 10.0, -10.0, status="retired")
+        out = _match(pd.DataFrame([_ct_row(latitude=11.0)]), _links(("1000001", "L1"), ("1000001", "LRET")))
+        assert out.iloc[0].gem_location_id == "L1"
+
+    def test_name_and_distance_tiers_still_win(self, gem):
+        # Climate TRACE names another site, but the plant sits on L1 with L1's name
+        out = _match(pd.DataFrame([_ct_row()]), _links(("1000001", "L2")))
+        r = out.iloc[0]
+        assert (r.gem_location_id, r.matching_method) == ("L1", "ct-name-geo")
+
+    def test_fuzzy_tier_still_wins(self, gem):
+        # on top of L1 with a fuzzy-close name, while Climate TRACE names L2
+        row = _ct_row(plant_name="Alfa power station", latitude=10.005, longitude=-10.005)
+        out = _match(pd.DataFrame([row]), _links(("1000001", "L2")))
+        r = out.iloc[0]
+        assert (r.gem_location_id, r.matching_method) == ("L1", "ct-geo-fuzzy")
+
+    def test_site_without_coordinates_never_links(self, gem):
+        _add_site("LNOXY", "Nowhere power station", "United States", float("nan"), float("nan"))
+        out = _match(pd.DataFrame([_ct_row(plant_name="Nowhere", latitude=41.0)]), _links(("1000001", "LNOXY")))
+        r = out.iloc[0]
+        assert pd.isna(r.gem_location_id) and r.latitude == 41.0
+
+    def test_link_to_an_id_missing_from_the_mirror_is_dropped(self, gem):
+        # Climate TRACE names L1 and a site GEM no longer lists: L1 is the only known site
+        out = _match(pd.DataFrame([_ct_row(latitude=11.0)]), _links(("1000001", "L1"), ("1000001", "L999")))
+        assert out.iloc[0].gem_location_id == "L1"
+
+    def test_committed_links_file_loads(self):
+        links = bc.load_ct_gem_links()
+        assert list(links.columns) == ["climatetrace_id", "ct_native_source_id", "gem_id", "gem_id_kind"]
+        assert len(links) > 20_000
+
+    def test_malformed_links_file_fails_loudly(self, tmp_path):
+        path = tmp_path / "ct_gem_crosswalk.csv"
+        path.write_text("climatetrace_id,ct_native_source_id,gem_id,gem_id_kind\n1000001,X,bogus,unit\n")
+        with pytest.raises(ValueError, match="neither a unit"):
+            bc.load_ct_gem_links(path)
+
+    def test_missing_links_file_fails_loudly(self, tmp_path):
+        with pytest.raises(FileNotFoundError, match="ct_gem_crosswalk"):
+            bc.load_ct_gem_links(tmp_path / "ct_gem_crosswalk.csv")
+
+
 class TestPlumbing:
     def test_unknown_iso3_fails_loudly(self, gem):
         with pytest.raises(ValueError, match="missing from CT_ISO3_TO_GEM_COUNTRY"):
-            bc.match_ct(pd.DataFrame([_ct_row(iso3="ZZZ")]))
+            _match(pd.DataFrame([_ct_row(iso3="ZZZ")]))
 
     def test_country_fence(self, gem):
         # exact name exists only in Germany; a US plant must not reach it
-        out = bc.match_ct(
+        out = _match(
             pd.DataFrame(
                 [_ct_row(plant_name="Gamma Kraftwerk", latitude=50.0, longitude=8.0)]
             )
@@ -229,11 +347,11 @@ class TestPlumbing:
                 _ct_row(plant_code="2", plant_name="Twin plant", latitude=20.0),
             ]
         )
-        out = bc.match_ct(df)
+        out = _match(df)
         assert len(out) == 2 and set(out.plant_code) == {"1", "2"}
 
     def test_source_country_stamp_preserves_ct(self, gem):
-        out = bc.match_ct(pd.DataFrame([_ct_row()]))
+        out = _match(pd.DataFrame([_ct_row()]))
         stamped = bc._stamp_source_country(
             out.copy(), pd.DataFrame({"source_system": []})
         )
@@ -249,6 +367,6 @@ class TestPlumbing:
         assert len(m) >= 86
 
     def test_output_columns_complete(self, gem):
-        out = bc.match_ct(pd.DataFrame([_ct_row()]))
+        out = _match(pd.DataFrame([_ct_row()]))
         assert list(out.columns) == bc.OUTPUT_COLUMNS
         assert bool(out.iloc[0].not_in_gem) is False

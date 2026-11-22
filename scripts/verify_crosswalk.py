@@ -915,6 +915,14 @@ def main() -> int:
         else:
             ok(f"G-CT2: {n_a:,} ct-name-geo links (floor 2,300)")
 
+        # G-CT7: the Climate TRACE GEM-id tier must not silently collapse
+        # (an id-format change on either side of its join gives 0 links)
+        n_c = int((ct["matching_method"] == "ct-gem-id").sum())
+        if n_c < 100:
+            fail(f"G-CT7: only {n_c:,} ct-gem-id links (floor 100 — measured 142 on staging, 2026-11-22)")
+        else:
+            ok(f"G-CT7: {n_c:,} ct-gem-id links (floor 100)")
+
         # G-CT4: source_country must be 100% present, or gate6c and the
         # xw_guard country check both go silently vacuous for CT
         n_null = int(ct["source_country"].isna().sum())

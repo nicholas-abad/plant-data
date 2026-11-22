@@ -47,6 +47,7 @@ from .unit_gem_map import COLUMNS as UNIT_MAP_COLUMNS
 from .unit_gem_map import check_reviewed
 from .reviewed_unit_map import METHOD as REVIEWED_UNIT
 from .unit_gem_map import MAP_FILE as UNIT_MAP_FILE
+from .ct_gem_crosswalk import ct_gem_links_frame
 from .gem_external_ids import eia_plant_locations, load_snapshot
 from .utils import get_crosswalk_dir, validate_coordinates
 
@@ -2271,6 +2272,7 @@ def _link_coal_site(
 _CT_TIER_METHOD = {
     "name-geo": ("ct-name-geo", "high"),
     "geo-fuzzy": ("ct-geo-fuzzy", "medium"),
+    "gem-id": ("ct-gem-id", "high"),
 }
 _OE_TIER_METHOD = {
     "name-geo": ("oe-name-geo", "high"),
@@ -2343,7 +2345,77 @@ def link_oe_to_gem(oe_rows: pd.DataFrame, coal_facilities: set[str]) -> pd.DataF
     return out
 
 
-def match_ct(ct_df: pd.DataFrame) -> pd.DataFrame:
+CT_GEM_LINKS_CSV = get_crosswalk_dir() / "ct_gem_crosswalk.csv"
+
+
+def load_ct_gem_links(path: Path = CT_GEM_LINKS_CSV) -> pd.DataFrame:
+    """Climate TRACE's own CT → GEM links (`ct_gem_crosswalk.csv`, committed).
+
+    One row per (climatetrace_id, gem_id); `gem_id_kind` says whether the id
+    is a GEM unit (G…) or location (L…). Validated by `ct_gem_links_frame`,
+    the same check the Neon loader applies, so a malformed id fails the build
+    instead of leaving its plant quietly unlinked. See src/ct_gem_crosswalk.py.
+    """
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{path} not found — it is committed; restore it or re-run "
+            "scripts/extract_ct_gem_crosswalk.py"
+        )
+    return ct_gem_links_frame(pd.read_csv(path, dtype=str, keep_default_na=False, na_values=[""]))
+
+
+def _ct_gem_locations(links: pd.DataFrame) -> dict[str, set[str]]:
+    """Climate TRACE plant id → the GEM locations its published links name.
+
+    A unit link counts as its unit's location. Ids missing from the GEM
+    mirror drop out (usually units GEM has since removed); their count is
+    logged, since a plant that named a dropped site as well can then look as
+    if it names only one.
+    """
+    tables = gemref.load_tables()
+    unit_loc = dict(zip(tables["units"]["gem_unit_id"], tables["units"]["gem_location_id"]))
+    known_locs = set(tables["locations"].index)
+    out: dict[str, set[str]] = {}
+    dropped = 0
+    for ct_id, gem_id, kind in zip(links["climatetrace_id"], links["gem_id"], links["gem_id_kind"]):
+        loc = gem_id if kind == "location" else unit_loc.get(gem_id)
+        if isinstance(loc, str) and loc in known_locs:
+            out.setdefault(str(ct_id), set()).add(loc)
+        else:
+            dropped += 1
+    logger.info(
+        f"Climate TRACE GEM links: {len(links):,} links for {len(out):,} plants; "
+        f"{dropped:,} name GEM ids missing from the mirror"
+    )
+    return out
+
+
+def _link_by_ct_gem_id(country: str, loc_ids: set[str]) -> dict | None:
+    """The GEM location Climate TRACE itself names for this plant, or None.
+
+    Only a site in the plant's own country with an OPERATING coal unit and
+    coordinates counts (the linked row takes GEM's coordinates, so a site
+    without them would take the plant off the map): Climate TRACE also names retired US coal sites that now burn gas
+    (Johnsonville, Colbert), and linking those would show gas as coal. A
+    plant naming several such sites (Hengyun-C and -D, Cebu and Toledo) stays
+    open: a crosswalk row links one site, and neither the name nor the
+    coordinates reliably pick the right one (Climate TRACE's "Dera Ghazi Khan
+    Cement" sits on the same company's Hub Cement site).
+    """
+    sites = [gemref.location(L) for L in sorted(loc_ids)]
+    sites = [
+        s
+        for s in sites
+        if s
+        and s["country"] == country
+        and s["capacity_mw"] is not None
+        and pd.notna(s["lat"])
+        and pd.notna(s["lon"])
+    ]
+    return sites[0] if len(sites) == 1 else None
+
+
+def match_ct(ct_df: pd.DataFrame, ct_gem_links: pd.DataFrame) -> pd.DataFrame:
     """Fully-formed crosswalk rows for every CT coal plant.
 
     Tier CT-A ('ct-name-geo', high): normalized exact name resolves to exactly
@@ -2351,6 +2423,12 @@ def match_ct(ct_df: pd.DataFrame) -> pd.DataFrame:
     lies within CT_TIER_A_KM of CT's coordinates.
     Tier CT-B ('ct-geo-fuzzy', medium): nearest in-country COAL location within
     CT_TIER_B_KM whose name/alias fuzzes >= CT_TIER_B_FUZZ.
+    Tier CT-C ('ct-gem-id', high): for a plant A and B leave open, the GEM
+    location Climate TRACE's own published links name (`ct_gem_links`, see
+    `_link_by_ct_gem_id`), however far Climate TRACE's coordinates are from
+    GEM's. Climate TRACE places some plants 10–230 km from GEM's site (Jiaozuo
+    Danhe, Xinfeng), so A refuses an exact name, and the plant showed as
+    "GEM record only" on the tracker (tracker issue #11).
     Everything else stays unlinked with top-3 candidates and keeps CT's own
     coordinates and capacity, so no plant leaves the map.
     """
@@ -2360,8 +2438,9 @@ def match_ct(ct_df: pd.DataFrame) -> pd.DataFrame:
             f"CT country codes missing from CT_ISO3_TO_GEM_COUNTRY: {unmapped} — "
             "map them (GEM spelling!) before rebuilding"
         )
+    gem_locs_by_ct = _ct_gem_locations(ct_gem_links)
     rows = []
-    n_a = n_b = n_open = 0
+    n_a = n_b = n_c = n_open = 0
     for country, sub in ct_df.groupby(ct_df["iso3"].map(CT_ISO3_TO_GEM_COUNTRY)):
         name_idx, loc_list = _ct_country_index(country)
         for r in sub.itertuples():
@@ -2381,6 +2460,10 @@ def match_ct(ct_df: pd.DataFrame) -> pd.DataFrame:
             linked = _link_coal_site(
                 r.plant_name, r.latitude, r.longitude, name_idx, loc_list
             )
+            if linked is None:
+                loc = _link_by_ct_gem_id(country, gem_locs_by_ct.get(str(r.plant_code), set()))
+                if loc is not None:
+                    linked = (loc, "gem-id")
             if linked is not None:
                 loc, tier = linked
                 linked = (loc, *_CT_TIER_METHOD[tier])
@@ -2400,8 +2483,10 @@ def match_ct(ct_df: pd.DataFrame) -> pd.DataFrame:
                 )
                 if method == "ct-name-geo":
                     n_a += 1
-                else:
+                elif method == "ct-geo-fuzzy":
                     n_b += 1
+                else:
+                    n_c += 1
             else:
                 n_open += 1
                 seen: dict[str, tuple[str, float]] = {}
@@ -2424,7 +2509,7 @@ def match_ct(ct_df: pd.DataFrame) -> pd.DataFrame:
             rows.append(base)
     out = pd.DataFrame(rows, columns=OUTPUT_COLUMNS)
     logger.info(
-        f"CT matching: {n_a:,} ct-name-geo + {n_b:,} ct-geo-fuzzy linked, "
+        f"CT matching: {n_a:,} ct-name-geo + {n_b:,} ct-geo-fuzzy + {n_c:,} ct-gem-id linked, "
         f"{n_open:,} open for review (of {len(out):,})"
     )
     return out
@@ -2855,7 +2940,7 @@ def build_unified_crosswalk(
     # formed (coords, capacity_source='CT', source_country, candidates) and
     # only pass through the tier-0 decision re-apply below.
     if sources is None or "CT" in sources:
-        ct_rows = match_ct(pull_ct_plants(engine))
+        ct_rows = match_ct(pull_ct_plants(engine), load_ct_gem_links())
         new_rows = pd.concat([new_rows, ct_rows], ignore_index=True)
 
     new_rows["not_in_gem"] = new_rows["not_in_gem"].fillna(False).astype(bool)
