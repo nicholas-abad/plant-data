@@ -132,6 +132,8 @@ It compares against the git-committed previous parquet (`--baseline PATH` to ove
 
 A plant with no operating unit behind its links gets no rows (616 of 7,335; among the 2,158 CT plants with 12-month generation, 124 = 5.7%) and keeps today's coal-location capacity. With that fallback, 68 plants over 100 % becomes 26 (small captive/industrial plants where GEM records less capacity than CT models) and none newly exceed it.
 
+The crosswalk build also uses these links to place Climate TRACE plants (`match_ct`, tier `ct-gem-id`). When the name and distance checks leave a plant unlinked, it links to the one GEM location Climate TRACE names, if that location is in the same country and has an operating coal unit. This catches plants whose Climate TRACE coordinates are far from GEM's (Jiaozuo Danhe 15 km, Xinfeng 234 km), which otherwise showed as "GEM record only" on the tracker (tracker issue #11). A plant that names several qualifying locations stays open for review. The build reads the committed CSV, not the Neon table.
+
 Caveats: stations overlap — after the site expansion 222 operating units at 74 locations (~54 GW) belong to two CT plants' stations, so per-plant station capacity must not be summed into country totals. Links to IDs missing from the current GEM mirror drop out of the join; the loader prints both counts on every load. `ct_native_source_id` is informational. `dashboard_ro` reads the table through power-generation-etl migration 016. It is not rebuilt weekly: re-run `scripts/extract_ct_gem_crosswalk.py` and `bootstrap_neon_db.py --ct-gem-only` when Climate TRACE publishes a new workbook.
 
 ### GEM identity on `plant_crosswalk` (2026-08-30)
