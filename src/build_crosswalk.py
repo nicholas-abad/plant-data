@@ -47,6 +47,7 @@ from .unit_gem_map import COLUMNS as UNIT_MAP_COLUMNS
 from .unit_gem_map import check_reviewed
 from .reviewed_unit_map import METHOD as REVIEWED_UNIT
 from .unit_gem_map import MAP_FILE as UNIT_MAP_FILE
+from .ct_gem_crosswalk import ct_gem_links_frame
 from .gem_external_ids import eia_plant_locations, load_snapshot
 from .utils import get_crosswalk_dir, validate_coordinates
 
@@ -2351,38 +2352,50 @@ def load_ct_gem_links(path: Path = CT_GEM_LINKS_CSV) -> pd.DataFrame:
     """Climate TRACE's own CT → GEM links (`ct_gem_crosswalk.csv`, committed).
 
     One row per (climatetrace_id, gem_id); `gem_id_kind` says whether the id
-    is a GEM unit (G…) or location (L…). See src/ct_gem_crosswalk.py.
+    is a GEM unit (G…) or location (L…). Validated by `ct_gem_links_frame`,
+    the same check the Neon loader applies, so a malformed id fails the build
+    instead of leaving its plant quietly unlinked. See src/ct_gem_crosswalk.py.
     """
     if not path.exists():
         raise FileNotFoundError(
             f"{path} not found — it is committed; restore it or re-run "
             "scripts/extract_ct_gem_crosswalk.py"
         )
-    return pd.read_csv(path, dtype=str)
+    return ct_gem_links_frame(pd.read_csv(path, dtype=str, keep_default_na=False, na_values=[""]))
 
 
 def _ct_gem_locations(links: pd.DataFrame) -> dict[str, set[str]]:
     """Climate TRACE plant id → the GEM locations its published links name.
 
     A unit link counts as its unit's location. Ids missing from the GEM
-    mirror drop out.
+    mirror drop out (usually units GEM has since removed); their count is
+    logged, since a plant that named a dropped site as well can then look as
+    if it names only one.
     """
-    unit_loc = dict(
-        zip(gemref.load_tables()["units"]["gem_unit_id"], gemref.load_tables()["units"]["gem_location_id"])
-    )
+    tables = gemref.load_tables()
+    unit_loc = dict(zip(tables["units"]["gem_unit_id"], tables["units"]["gem_location_id"]))
+    known_locs = set(tables["locations"].index)
     out: dict[str, set[str]] = {}
+    dropped = 0
     for ct_id, gem_id, kind in zip(links["climatetrace_id"], links["gem_id"], links["gem_id_kind"]):
         loc = gem_id if kind == "location" else unit_loc.get(gem_id)
-        if isinstance(loc, str):
+        if isinstance(loc, str) and loc in known_locs:
             out.setdefault(str(ct_id), set()).add(loc)
+        else:
+            dropped += 1
+    logger.info(
+        f"Climate TRACE GEM links: {len(links):,} links for {len(out):,} plants; "
+        f"{dropped:,} name GEM ids missing from the mirror"
+    )
     return out
 
 
-def _link_by_ct_gem_id(country: str, loc_ids: set[str]):
+def _link_by_ct_gem_id(country: str, loc_ids: set[str]) -> dict | None:
     """The GEM location Climate TRACE itself names for this plant, or None.
 
-    Only a site in the plant's own country with an OPERATING coal unit
-    counts: Climate TRACE also names retired US coal sites that now burn gas
+    Only a site in the plant's own country with an OPERATING coal unit and
+    coordinates counts (the linked row takes GEM's coordinates, so a site
+    without them would take the plant off the map): Climate TRACE also names retired US coal sites that now burn gas
     (Johnsonville, Colbert), and linking those would show gas as coal. A
     plant naming several such sites (Hengyun-C and -D, Cebu and Toledo) stays
     open: a crosswalk row links one site, and neither the name nor the
@@ -2393,7 +2406,11 @@ def _link_by_ct_gem_id(country: str, loc_ids: set[str]):
     sites = [
         s
         for s in sites
-        if s and s["country"] == country and s["capacity_mw"] is not None
+        if s
+        and s["country"] == country
+        and s["capacity_mw"] is not None
+        and pd.notna(s["lat"])
+        and pd.notna(s["lon"])
     ]
     return sites[0] if len(sites) == 1 else None
 

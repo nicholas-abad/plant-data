@@ -291,6 +291,35 @@ class TestTierC:
         r = out.iloc[0]
         assert (r.gem_location_id, r.matching_method) == ("L1", "ct-name-geo")
 
+    def test_fuzzy_tier_still_wins(self, gem):
+        # on top of L1 with a fuzzy-close name, while Climate TRACE names L2
+        row = _ct_row(plant_name="Alfa power station", latitude=10.005, longitude=-10.005)
+        out = _match(pd.DataFrame([row]), _links(("1000001", "L2")))
+        r = out.iloc[0]
+        assert (r.gem_location_id, r.matching_method) == ("L1", "ct-geo-fuzzy")
+
+    def test_site_without_coordinates_never_links(self, gem):
+        _add_site("LNOXY", "Nowhere power station", "United States", float("nan"), float("nan"))
+        out = _match(pd.DataFrame([_ct_row(plant_name="Nowhere", latitude=41.0)]), _links(("1000001", "LNOXY")))
+        r = out.iloc[0]
+        assert pd.isna(r.gem_location_id) and r.latitude == 41.0
+
+    def test_link_to_an_id_missing_from_the_mirror_is_dropped(self, gem):
+        # Climate TRACE names L1 and a site GEM no longer lists: L1 is the only known site
+        out = _match(pd.DataFrame([_ct_row(latitude=11.0)]), _links(("1000001", "L1"), ("1000001", "L999")))
+        assert out.iloc[0].gem_location_id == "L1"
+
+    def test_committed_links_file_loads(self):
+        links = bc.load_ct_gem_links()
+        assert list(links.columns) == ["climatetrace_id", "ct_native_source_id", "gem_id", "gem_id_kind"]
+        assert len(links) > 20_000
+
+    def test_malformed_links_file_fails_loudly(self, tmp_path):
+        path = tmp_path / "ct_gem_crosswalk.csv"
+        path.write_text("climatetrace_id,ct_native_source_id,gem_id,gem_id_kind\n1000001,X,bogus,unit\n")
+        with pytest.raises(ValueError, match="neither a unit"):
+            bc.load_ct_gem_links(path)
+
     def test_missing_links_file_fails_loudly(self, tmp_path):
         with pytest.raises(FileNotFoundError, match="ct_gem_crosswalk"):
             bc.load_ct_gem_links(tmp_path / "ct_gem_crosswalk.csv")
